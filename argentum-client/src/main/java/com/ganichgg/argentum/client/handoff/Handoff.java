@@ -280,14 +280,13 @@ public final class Handoff {
 
 		while (System.currentTimeMillis() < deadline) {
 			if (Files.exists(dir.resolve("shown"))) {
-				// новое окно уже на экране — скрываем своё и закрываемся
-				client.execute(() -> {
-					GLFW.glfwHideWindow(handle);
-					client.method_1592();
-				});
-
-				sleep(6000);
-				Runtime.getRuntime().halt(0); // на случай, если штатное закрытие зависнет
+				// новое окно уже на экране: прячем своё и сразу умираем — без штатного закрытия, которое в полноэкранном
+				// режиме тянется секундами, пока старое окно торчит поверх нового
+				note(dir, "shown seen, hiding old window");
+				client.execute(() -> GLFW.glfwHideWindow(handle));
+				sleep(300);
+				note(dir, "halting old process");
+				Runtime.getRuntime().halt(0);
 				return;
 			}
 
@@ -307,6 +306,15 @@ public final class Handoff {
 		synchronized (LOCK) {
 			state = State.FAILED;
 			failure = "новая копия не отозвалась, остаёмся в текущей";
+		}
+	}
+
+	private static void note(Path dir, String line) {
+		try {
+			Files.write(dir.resolve("parent.log"), (System.currentTimeMillis() + " " + line + System.lineSeparator()).getBytes(java.nio.charset.StandardCharsets.UTF_8),
+					java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+		} catch (IOException ignored) {
+			// неважно
 		}
 	}
 
@@ -445,9 +453,9 @@ public final class Handoff {
 		class_1041 window = client.method_22683();
 		long handle = window.method_4490();
 
-		if (Boolean.parseBoolean(go.getProperty("fullscreen"))) {
-			window.method_4500(); // применится в ближайшем кадре
-		} else {
+		boolean fullscreen = Boolean.parseBoolean(go.getProperty("fullscreen"));
+
+		if (!fullscreen) {
 			GLFW.glfwSetWindowPos(handle, Integer.parseInt(go.getProperty("x", "100")), Integer.parseInt(go.getProperty("y", "100")));
 			GLFW.glfwSetWindowSize(handle, Integer.parseInt(go.getProperty("w", "854")), Integer.parseInt(go.getProperty("h", "480")));
 
@@ -456,9 +464,19 @@ public final class Handoff {
 			}
 		}
 
+		note(dir, "child showing window");
 		GLFW.glfwShowWindow(handle);
 		GLFW.glfwFocusWindow(handle);
-		adopted = true; // с этого момента это основная игра: звук включается
+		adopted = true; // с этого момента это основная игра: звук включается, полный экран разрешён
+
+		if (fullscreen) {
+			if (!window.method_4498()) {
+				window.method_4500(); // применится в ближайшем кадре
+			}
+
+			// в настройках должно остаться то же, что и было у основной игры (МС сбросил её, пока полный экран был запрещён)
+			client.field_1690.method_42447().method_41748(true);
+		}
 
 		try {
 			Files.createFile(dir.resolve("shown"));

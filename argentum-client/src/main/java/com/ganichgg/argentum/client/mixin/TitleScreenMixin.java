@@ -44,7 +44,9 @@ public abstract class TitleScreenMixin extends class_437 {
 		this.method_37063(class_4185.method_46430(class_2561.method_43470("Моды Argentum"),
 				button -> this.field_22787.method_1507(new CatalogScreen(this))).method_46434(this.field_22789 / 2 - 100, baseY + 60, 200, 20).method_46431());
 
+		com.ganichgg.argentum.client.handoff.Handoff.childReady(this.field_22787);
 		com.ganichgg.argentum.client.DevHooks.runHotloadTest();
+		com.ganichgg.argentum.client.DevHooks.runHandoffTest(this.field_22787);
 
 		// Для разработки: файл .argentum-open-catalog в папке игры открывает каталог сразу при старте (и удаляется) —
 		// удобно снимать скриншоты без ввода. Переменная окружения не годится: Prism уже запущен и игре её не передаст.
@@ -58,6 +60,16 @@ public abstract class TitleScreenMixin extends class_437 {
 			}
 
 			this.field_22787.method_1507(new CatalogScreen(this).enableDevTimeline());
+		}
+	}
+
+	// Скрытая фоновая копия игры ждёт здесь команды «показаться» (бесшовное применение модов)
+	@Inject(method = "method_25394", at = @At("HEAD"))
+	private void argentum$handoffPoll(net.minecraft.class_332 ctx, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+		java.util.Properties go = com.ganichgg.argentum.client.handoff.Handoff.childPoll(this.field_22787);
+
+		if (go != null && Boolean.parseBoolean(go.getProperty("openCatalog"))) {
+			this.field_22787.method_1507(new CatalogScreen(this).afterApply(go.getProperty("message", "")));
 		}
 	}
 }

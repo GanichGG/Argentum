@@ -5,7 +5,9 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "SplashOverlayMixin",
-    "TitleScreenMixin"
+    "TitleScreenMixin",
+    "WindowMixin",
+    "SoundManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -16,6 +16,7 @@ import java.util.concurrent.Executors;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 
+import com.ganichgg.argentum.client.handoff.Handoff;
 import com.ganichgg.argentum.client.ui.ClientCache;
 import com.ganichgg.argentum.client.ui.Fmt;
 import com.ganichgg.argentum.client.ui.IconCache;
@@ -162,6 +163,7 @@ public final class CatalogScreen extends class_437 {
 	private String detailLinesKey = "";
 	// только для разработки: сценарий, который сам листает экран по таймеру (для скриншотов без ввода)
 	private boolean devTimeline;
+	private String initialStatus;
 	private long devStart;
 	private int devStep;
 	private int btnX;
@@ -170,6 +172,8 @@ public final class CatalogScreen extends class_437 {
 	private int btnH;
 	private int gearX;
 	private int gearW;
+	private int applyX;
+	private int applyW;
 
 	/** Что известно про настройки установленного мода. modId == null — мод ещё не загружен (игру не перезапускали). */
 	private static final class ConfigInfo {
@@ -193,6 +197,15 @@ public final class CatalogScreen extends class_437 {
 		this.parent = parent;
 		this.gameVersion = FabricLoader.getInstance().getModContainer("minecraft")
 				.map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("1.21.1");
+	}
+
+	/** Каталог после бесшовного применения модов: сразу вкладка «Установленные» и сообщение о результате. */
+	public CatalogScreen afterApply(String message) {
+		this.tab = Tab.INSTALLED;
+		this.tabPos = 1F;
+		this.initialStatus = message == null || message.isEmpty() ? "Моды применены" : message;
+
+		return this;
 	}
 
 	/** Dev: включает сценарий самопроверки (панель, вкладки, подгрузка) — запускается файлом .argentum-open-catalog. */
@@ -255,7 +268,16 @@ public final class CatalogScreen extends class_437 {
 		if (!this.started) {
 			this.started = true;
 			refreshInstalledIndex();
-			search("");
+
+			if (this.tab == Tab.INSTALLED) {
+				loadInstalled();
+
+				if (this.initialStatus != null) {
+					setStatus(this.initialStatus, C_OK);
+				}
+			} else {
+				search("");
+			}
 		}
 	}
 
@@ -534,6 +556,10 @@ public final class CatalogScreen extends class_437 {
 			boolean restart = report.count(HotLoadReport.Status.NEEDS_RESTART) > 0;
 			setStatus("Установлено: " + names + " — " + report.summary(), failed ? C_RED : restart ? C_WARN : C_OK);
 
+			if (failed || restart) {
+				Handoff.requestPrepare(); // то, что не подключилось на лету, готовим в фоновой копии игры
+			}
+
 			if (report.needsResourceReload()) {
 				this.field_22787.method_1521(); // reloadResources: игра увидит текстуры и переводы новых модов
 			}
@@ -586,6 +612,10 @@ public final class CatalogScreen extends class_437 {
 
 		if (this.detail != null && this.detail.id.equals(p.id)) {
 			closeDetail();
+		}
+
+		if (deferred) {
+			Handoff.requestPrepare();
 		}
 
 		setStatus(deferred ? "«" + p.title + "» перестанет работать после перезапуска: сейчас файл занят игрой, он удалится при следующем запуске"
@@ -799,6 +829,20 @@ public final class CatalogScreen extends class_437 {
 			}
 		}
 
+		if (this.applyW > 0 && inside(mx, my, this.applyX, h - STATUS_H + 3, this.applyW, 14)) {
+			Handoff.State hs = Handoff.state();
+
+			if (hs == Handoff.State.READY) {
+				press("apply");
+				Handoff.swap(this.field_22787, true, "Моды применены: " + pendingNames());
+			} else if (hs == Handoff.State.FAILED) {
+				press("apply");
+				Handoff.requestPrepare();
+			}
+
+			return true;
+		}
+
 		if (inside(mx, my, w - PAD - 52, h - STATUS_H + 3, 52, 14)) {
 			press("back");
 			this.method_25419();
@@ -1008,7 +1052,9 @@ public final class CatalogScreen extends class_437 {
 	}
 
 	private boolean busyNow() {
-		return this.loading || this.loadingMore || !this.busyIds.isEmpty();
+		Handoff.State hs = Handoff.state();
+
+		return this.loading || this.loadingMore || !this.busyIds.isEmpty() || hs == Handoff.State.PREPARING || hs == Handoff.State.SWAPPING;
 	}
 
 	// Рисуем в renderBackground: он вызывается до виджетов (поле поиска ляжет сверху), а ванильный блюр заменён нашим фоном.
@@ -1530,12 +1576,64 @@ public final class CatalogScreen extends class_437 {
 		return this.detailLines;
 	}
 
+	private String pendingNames() {
+		int n = this.installedFiles.size();
+
+		return n == 0 ? "изменений нет" : "установлено через каталог: " + n;
+	}
+
 	private void drawStatusBar(class_332 ctx, int mx, int my, int w, int h) {
 		int top = h - STATUS_H;
 		ctx.method_25294(0, top, w, h, C_HEADER);
 		ctx.method_25294(0, top, w, top + 1, C_BORDER);
 
 		int backW = 52;
+		int rightEdge = w - PAD - backW - 4;
+
+		// блок «Подготовка клиента» / «Применить» слева от «Назад»
+		Handoff.State hs = Handoff.state();
+		this.applyW = 0;
+
+		if (hs != Handoff.State.IDLE) {
+			String label;
+			boolean clickable = false;
+			boolean spin = false;
+			int base = C_DISABLED;
+			int hover = C_DISABLED;
+			int textColor = C_GRAY;
+
+			switch (hs) {
+			case PREPARING:
+				label = "Подготовка клиента " + Handoff.elapsedMs() / 1000 + " с";
+				spin = true;
+				break;
+			case READY:
+				label = "Применить моды";
+				clickable = true;
+				base = C_ACCENT;
+				hover = C_ACCENT_HOVER;
+				textColor = C_ACCENT_TEXT;
+				break;
+			case SWAPPING:
+				label = "Переключаю";
+				spin = true;
+				break;
+			default:
+				label = "Не вышло — повторить";
+				clickable = true;
+				base = C_SECONDARY;
+				hover = C_SECONDARY_HOVER;
+				textColor = C_WARN;
+			}
+
+			int bw = Math.min(170, textWidth(label) + (spin ? 11 + 4 : 0) + 16);
+			this.applyW = bw;
+			this.applyX = rightEdge - bw;
+			boolean hovered = clickable && inside(mx, my, this.applyX, top + 3, bw, 14);
+			button(ctx, "apply", this.applyX, top + 3, bw, 14, label, null, spin, base, hover, hovered, textColor);
+			rightEdge = this.applyX - 6;
+		}
+
 		int textX = PAD;
 
 		if (busyNow()) {
@@ -1543,7 +1641,13 @@ public final class CatalogScreen extends class_437 {
 			textX = PAD + 17;
 		}
 
-		text(ctx, fit(this.status, w - textX - PAD - backW - 8), textX, top + 6, this.statusColor);
+		String status = this.status;
+
+		if (hs == Handoff.State.FAILED && status.isEmpty()) {
+			status = "Клиент не подготовлен: " + Handoff.failure();
+		}
+
+		text(ctx, fit(status, rightEdge - textX - 4), textX, top + 6, this.statusColor);
 
 		boolean backHover = inside(mx, my, w - PAD - backW, top + 3, backW, 14);
 		button(ctx, "back", w - PAD - backW, top + 3, backW, 14, "Назад", null, false, C_FIELD, C_PANEL_HOVER, backHover, C_TEXT);

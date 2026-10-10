@@ -8,6 +8,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.ganichgg.argentum.client.handoff.Handoff;
+
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.impl.hotload.HotLoadReport;
 import net.fabricmc.loader.impl.hotload.HotLoader;
@@ -63,6 +65,66 @@ public final class DevHooks {
 			Path dir = gameDir.resolve(".argentum");
 			Files.createDirectories(dir);
 			Files.write(dir.resolve("hotload-report.txt"), out.toString().getBytes(StandardCharsets.UTF_8));
+		} catch (IOException ignored) {
+			// неважно
+		}
+	}
+
+	/**
+	 * Проверка бесшовного применения без ввода: флаг {@code .argentum-handoff-test} запускает подготовку копии, а
+	 * когда она готова — переключение. Ход пишется в {@code .argentum/handoff-test.log}.
+	 */
+	public static void runHandoffTest(net.minecraft.class_310 client) {
+		Path gameDir = FabricLoader.getInstance().getGameDir();
+		Path flag = gameDir.resolve(".argentum-handoff-test");
+
+		if (Handoff.isHiddenChild() || !Files.exists(flag)) {
+			return;
+		}
+
+		try {
+			Files.delete(flag);
+		} catch (IOException ignored) {
+			return;
+		}
+
+		Path log = gameDir.resolve(".argentum").resolve("handoff-test.log");
+		long start = System.currentTimeMillis();
+
+		Thread t = new Thread(() -> {
+			try {
+				Thread.sleep(20_000); // время подложить мод в папку mods уже после старта основной копии
+				Handoff.requestPrepare();
+				while (System.currentTimeMillis() - start < 320_000) {
+					Handoff.State st = Handoff.state();
+					append(log, (System.currentTimeMillis() - start) + "ms state=" + st);
+
+					if (st == Handoff.State.READY) {
+						Thread.sleep(3000); // время сделать снимок «до»
+						client.execute(() -> append(log, "swap -> " + Handoff.swap(client, true, "Тест применения")));
+						return;
+					}
+
+					if (st == Handoff.State.FAILED) {
+						append(log, "failed: " + Handoff.failure());
+						return;
+					}
+
+					Thread.sleep(2000);
+				}
+			} catch (InterruptedException ignored) {
+				// конец
+			}
+		}, "argentum-dev-handoff");
+		t.setDaemon(true);
+		t.start();
+	}
+
+	private static void append(Path file, String line) {
+		try {
+			Files.createDirectories(file.getParent());
+			Files.write(file, (line + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
+					java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
 		} catch (IOException ignored) {
 			// неважно
 		}

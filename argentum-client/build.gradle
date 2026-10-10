@@ -22,7 +22,7 @@ def mixinJar = findProperty('mixin_jar') ?:
 // классы самого лоадера — экран каталога вызывает движок Modrinth (impl.modrinth); собираются корневым проектом
 def loaderClasses = findProperty('loader_classes') ?: "${rootDir}/../build/classes/java/main"
 
-def lwjglJars = ['lwjgl', 'lwjgl-stb'].collect { "${prismRoot}/libraries/org/lwjgl/${it}/3.3.3/${it}-3.3.3.jar" }
+def lwjglJars = ['lwjgl', 'lwjgl-stb', 'lwjgl-glfw'].collect { "${prismRoot}/libraries/org/lwjgl/${it}/3.3.3/${it}-3.3.3.jar" }
 
 dependencies {
 	compileOnly files(intermediaryJar, mixinJar)

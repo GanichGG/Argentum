@@ -1,6 +1,7 @@
 package com.ganichgg.argentum.client.ui;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -20,6 +21,8 @@ import java.util.regex.Pattern;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
+
+import com.ganichgg.argentum.client.ui.webp.WebP;
 
 import net.fabricmc.loader.impl.modrinth.ModrinthCache;
 import net.fabricmc.loader.impl.modrinth.ModrinthProject;
@@ -203,6 +206,23 @@ public final class IconCache {
 	}
 
 	private static Decoded decode(Icon icon, byte[] bytes) {
+		if (WebP.isWebP(bytes)) {
+			try {
+				WebP.Image image = WebP.decode(bytes);
+				ByteBuffer rgba = ByteBuffer.allocate(image.argb.length * 4);
+
+				for (int p : image.argb) {
+					rgba.put((byte) (p >> 16)).put((byte) (p >> 8)).put((byte) p).put((byte) (p >>> 24));
+				}
+
+				rgba.flip();
+
+				return downscale(icon, rgba, image.width, image.height);
+			} catch (IOException | RuntimeException e) {
+				return null; // побитый или анимированный WebP — пойдёт запасной вариант
+			}
+		}
+
 		ByteBuffer data = MemoryUtil.memAlloc(bytes.length);
 		data.put(bytes).flip();
 
@@ -213,57 +233,60 @@ public final class IconCache {
 			ByteBuffer pixels = STBImage.stbi_load_from_memory(data, w, h, comp, 4);
 
 			if (pixels == null) {
-				return null; // не PNG/JPEG/GIF (например, webp)
+				return null; // не PNG/JPEG/GIF/BMP
 			}
 
 			try {
-				int width = w.get(0);
-				int height = h.get(0);
-				int step = Math.max(1, (Math.max(width, height) + MAX_SIDE - 1) / MAX_SIDE); // во сколько раз уменьшаем
-				int outW = Math.max(1, width / step);
-				int outH = Math.max(1, height / step);
-				int[] out = new int[outW * outH];
-
-				for (int y = 0; y < outH; y++) {
-					for (int x = 0; x < outW; x++) {
-						long r = 0;
-						long g = 0;
-						long b = 0;
-						long a = 0;
-						int count = 0;
-
-						for (int dy = 0; dy < step; dy++) {
-							for (int dx = 0; dx < step; dx++) {
-								int sx = x * step + dx;
-								int sy = y * step + dy;
-
-								if (sx < width && sy < height) {
-									int i = (sy * width + sx) * 4;
-									int alpha = pixels.get(i + 3) & 0xFF;
-									// усредняем с весом по альфе, чтобы прозрачные края не темнили цвет
-									r += (pixels.get(i) & 0xFF) * alpha;
-									g += (pixels.get(i + 1) & 0xFF) * alpha;
-									b += (pixels.get(i + 2) & 0xFF) * alpha;
-									a += alpha;
-									count++;
-								}
-							}
-						}
-
-						int alphaAvg = count == 0 ? 0 : (int) (a / count);
-						int rr = a == 0 ? 0 : (int) (r / a);
-						int gg = a == 0 ? 0 : (int) (g / a);
-						int bb = a == 0 ? 0 : (int) (b / a);
-						out[y * outW + x] = (alphaAvg << 24) | (bb << 16) | (gg << 8) | rr; // ABGR для NativeImage
-					}
-				}
-
-				return new Decoded(icon, outW, outH, out);
+				return downscale(icon, pixels, w.get(0), h.get(0));
 			} finally {
 				STBImage.stbi_image_free(pixels);
 			}
 		} finally {
 			MemoryUtil.memFree(data);
 		}
+	}
+
+	/** Уменьшает RGBA-картинку до не более MAX_SIDE по большей стороне (усреднением по альфе). */
+	private static Decoded downscale(Icon icon, ByteBuffer pixels, int width, int height) {
+		int step = Math.max(1, (Math.max(width, height) + MAX_SIDE - 1) / MAX_SIDE); // во сколько раз уменьшаем
+		int outW = Math.max(1, width / step);
+		int outH = Math.max(1, height / step);
+		int[] out = new int[outW * outH];
+
+		for (int y = 0; y < outH; y++) {
+			for (int x = 0; x < outW; x++) {
+				long r = 0;
+				long g = 0;
+				long b = 0;
+				long a = 0;
+				int count = 0;
+
+				for (int dy = 0; dy < step; dy++) {
+					for (int dx = 0; dx < step; dx++) {
+						int sx = x * step + dx;
+						int sy = y * step + dy;
+
+						if (sx < width && sy < height) {
+							int i = (sy * width + sx) * 4;
+							int alpha = pixels.get(i + 3) & 0xFF;
+							// усредняем с весом по альфе, чтобы прозрачные края не темнили цвет
+							r += (pixels.get(i) & 0xFF) * alpha;
+							g += (pixels.get(i + 1) & 0xFF) * alpha;
+							b += (pixels.get(i + 2) & 0xFF) * alpha;
+							a += alpha;
+							count++;
+						}
+					}
+				}
+
+				int alphaAvg = count == 0 ? 0 : (int) (a / count);
+				int rr = a == 0 ? 0 : (int) (r / a);
+				int gg = a == 0 ? 0 : (int) (g / a);
+				int bb = a == 0 ? 0 : (int) (b / a);
+				out[y * outW + x] = (alphaAvg << 24) | (bb << 16) | (gg << 8) | rr; // ABGR для NativeImage
+			}
+		}
+
+		return new Decoded(icon, outW, outH, out);
 	}
 }

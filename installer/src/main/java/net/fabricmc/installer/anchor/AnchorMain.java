@@ -28,6 +28,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.CodeSource;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -174,8 +176,11 @@ public final class AnchorMain {
 		String loaderVersion = require(props, "loader.version");
 		String mainClass = require(props, "mainClass");
 
+		Path librariesDir = gameDir.resolve("libraries");
 		String ownCoordinate = loaderGroup + ":" + loaderArtifact + ":" + loaderVersion;
-		installOwnJar(gameDir.resolve("libraries"), loaderGroup, loaderArtifact, loaderVersion);
+		String relativePath = mavenPath(loaderGroup, loaderArtifact, loaderVersion);
+		installOwnJar(librariesDir, loaderGroup, loaderArtifact, loaderVersion);
+		String ownLibraryJson = libraryJsonVanillaLocal(librariesDir.resolve(relativePath), ownCoordinate, relativePath);
 
 		List<String> thirdPartyLibraries = readThirdPartyLibraries(props);
 
@@ -184,7 +189,7 @@ public final class AnchorMain {
 		Files.createDirectories(versionDir);
 
 		Path profileJson = versionDir.resolve(profileId + ".json");
-		String json = buildProfileJson(profileId, mcVersion, mainClass, ownCoordinate, thirdPartyLibraries);
+		String json = buildProfileJson(profileId, mcVersion, mainClass, ownLibraryJson, thirdPartyLibraries);
 		Files.write(profileJson, json.getBytes(StandardCharsets.UTF_8));
 
 		return new InstallResult(profileJson, location.leftovers, false);
@@ -195,8 +200,12 @@ public final class AnchorMain {
 	 * спрашиваем — она у инстанса уже одна конкретная), дописываем туда компоненты
 	 * intermediary (если его ещё нет — Prism сам подтянет для него метаданные при запуске) и
 	 * сам загрузчик, плюс пишем сам патч-файл по образцу официального Fabric-патча для
-	 * MultiMC. Собственный jar кладём в общую для всех инстансов libraries/ папку Prism
-	 * (на два уровня выше — из "корень Prism/instances/имя/" в "корень Prism/libraries/").
+	 * MultiMC. Собственный jar кладём в libraries/ папку САМОГО инстанса (не общую
+	 * Prism-папку) — только так работает официально задокументированный хинт
+	 * "MMC-hint": "local", которым мы помечаем библиотеку как локальную, без скачивания
+	 * (см. github.com/MultiMC/Launcher/wiki/Jar-Modding). Без этого хинта Prism при каждом
+	 * запуске всё равно пытается резолвить/скачивать библиотеку по указанному url, даже
+	 * если локальный файл уже на месте и совпадает по хэшу.
 	 */
 	private static InstallResult installPrism(Path instanceDir, Path mmcPackPath, List<Path> leftovers) throws IOException {
 		String mmcPack = new String(Files.readAllBytes(mmcPackPath), StandardCharsets.UTF_8);
@@ -220,20 +229,17 @@ public final class AnchorMain {
 		String mainClass = require(props, "mainClass");
 		String uid = loaderGroup; // com.ganichgg.argentumloader — в стиле Java-пакета, как принято у Prism
 
-		Path prismRoot = instanceDir.getParent() != null && instanceDir.getParent().getParent() != null
-				? instanceDir.getParent().getParent()
-				: instanceDir;
-		Path librariesDir = prismRoot.resolve("libraries");
-
+		Path librariesDir = instanceDir.resolve("libraries");
 		String ownCoordinate = loaderGroup + ":" + loaderArtifact + ":" + loaderVersion;
-		installOwnJar(librariesDir, loaderGroup, loaderArtifact, loaderVersion);
+		installOwnJarFlat(librariesDir, loaderArtifact, loaderVersion);
+		String ownLibraryJson = libraryJsonMmcLocal(ownCoordinate);
 
 		List<String> thirdPartyLibraries = readThirdPartyLibraries(props);
 
 		Path patchesDir = instanceDir.resolve("patches");
 		Files.createDirectories(patchesDir);
 		Path patchFile = patchesDir.resolve(uid + ".json");
-		String patchJson = buildPrismPatchJson(uid, loaderVersion, mainClass, ownCoordinate, thirdPartyLibraries);
+		String patchJson = buildPrismPatchJson(uid, loaderVersion, mainClass, ownLibraryJson, thirdPartyLibraries);
 		Files.write(patchFile, patchJson.getBytes(StandardCharsets.UTF_8));
 
 		StringBuilder extraComponents = new StringBuilder();
@@ -651,9 +657,9 @@ public final class AnchorMain {
 		return mmcPackJson.substring(0, arrEnd) + extraComponentsJson + mmcPackJson.substring(arrEnd);
 	}
 
-	private static String buildPrismPatchJson(String uid, String version, String mainClass, String ownCoordinate, List<String> thirdPartyLibraries) {
+	private static String buildPrismPatchJson(String uid, String version, String mainClass, String ownLibraryJson, List<String> thirdPartyLibraries) {
 		StringBuilder libs = new StringBuilder();
-		libs.append(libraryJsonNoUrl(ownCoordinate)); // собственный jar уже на диске, url не нужен
+		libs.append(ownLibraryJson);
 
 		for (String lib : thirdPartyLibraries) {
 			libs.append(',').append(lib);
@@ -664,6 +670,12 @@ public final class AnchorMain {
 				+ "  \"name\": \"ArgentumLoader\",\n"
 				+ "  \"uid\": \"" + escape(uid) + "\",\n"
 				+ "  \"version\": \"" + escape(version) + "\",\n"
+				// Слово в левом нижнем углу главного меню ("Minecraft 1.21.1/Fabric") — это НЕ
+				// бренд из ClientBrandRetriever, а буквально аргумент запуска --versionType,
+				// который лаунчер передаёт из этого поля (у ванильного Fabric оно равно "Fabric",
+				// по умолчанию у Mojang — "release"). Подтверждено разбором байткода реального
+				// клиента 1.21.1 (net.minecraft.client.main.Main — опция jopt-simple "versionType").
+				+ "  \"type\": \"Argentum\",\n"
 				+ "  \"mainClass\": \"" + escape(mainClass) + "\",\n"
 				+ "  \"libraries\": [" + libs + "],\n"
 				+ "  \"requires\": [{\"uid\": \"net.fabricmc.intermediary\"}]\n"
@@ -671,7 +683,18 @@ public final class AnchorMain {
 	}
 
 	private static void installOwnJar(Path librariesDir, String group, String artifact, String version) throws IOException {
-		Path targetJar = librariesDir.resolve(mavenPath(group, artifact, version));
+		extractLoaderJar(librariesDir.resolve(mavenPath(group, artifact, version)));
+	}
+
+	// Prism при "MMC-hint": "local" ищет файл НЕ по maven-пути (group/artifact/version/...),
+	// а плоско прямо в libraries/ инстанса, как показала реальная ошибка при тесте:
+	// "libraries/argentum-loader-0.19.5+local.jar" — без вложенных папок group/artifact/version.
+	// Схема из wiki MultiMC (с вложенными папками) для этого случая не подтвердилась.
+	private static void installOwnJarFlat(Path librariesDir, String artifact, String version) throws IOException {
+		extractLoaderJar(librariesDir.resolve(artifact + "-" + version + ".jar"));
+	}
+
+	private static void extractLoaderJar(Path targetJar) throws IOException {
 		Files.createDirectories(targetJar.getParent());
 
 		try (InputStream is = AnchorMain.class.getResourceAsStream(LOADER_JAR_RESOURCE)) {
@@ -690,6 +713,48 @@ public final class AnchorMain {
 		}
 	}
 
+	/**
+	 * Для ВАНИЛЬНОГО лаунчера: без блока "downloads" с известным размером/sha1 он всё равно
+	 * пытается скачать библиотеку с libraries.minecraft.net. Кладём сюда sha1+size только
+	 * что записанного файла — тогда лаунчер видит, что локальный файл уже совпадает с
+	 * ожидаемым, и не лезет в сеть. (Для Prism это НЕ работает — см. libraryJsonMmcLocal.)
+	 */
+	private static String libraryJsonVanillaLocal(Path jarFile, String coordinate, String relativePath) throws IOException {
+		String sha1 = sha1Hex(jarFile);
+		long size = Files.size(jarFile);
+
+		return "{\"name\":\"" + escape(coordinate) + "\",\"downloads\":{\"artifact\":{"
+				+ "\"path\":\"" + escape(relativePath) + "\","
+				+ "\"url\":\"" + escape(DUMMY_LIBRARY_HOST + relativePath) + "\","
+				+ "\"sha1\":\"" + escape(sha1) + "\","
+				+ "\"size\":" + size
+				+ "}}}";
+	}
+
+	// Для PRISM/MULTIMC: официально задокументированный хинт, помечающий библиотеку как
+	// локальную — она читается из libraries/ папки инстанса и НИКОГДА не резолвится по сети,
+	// в отличие от ванильного формата (github.com/MultiMC/Launcher/wiki/Jar-Modding).
+	private static String libraryJsonMmcLocal(String coordinate) {
+		return "{\"name\":\"" + escape(coordinate) + "\",\"MMC-hint\":\"local\"}";
+	}
+
+	private static String sha1Hex(Path file) throws IOException {
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-1");
+			digest.update(Files.readAllBytes(file));
+			byte[] hash = digest.digest();
+			StringBuilder sb = new StringBuilder(hash.length * 2);
+
+			for (byte b : hash) {
+				sb.append(String.format("%02x", b));
+			}
+
+			return sb.toString();
+		} catch (NoSuchAlgorithmException e) {
+			throw new IOException("SHA-1 недоступен в этой JVM", e);
+		}
+	}
+
 	private static String mavenPath(String group, String artifact, String version) {
 		return group.replace('.', '/') + "/" + artifact + "/" + version + "/" + artifact + "-" + version + ".jar";
 	}
@@ -698,13 +763,16 @@ public final class AnchorMain {
 		return "{\"name\":\"" + escape(coordinate) + "\",\"url\":\"" + escape(url) + "\"}";
 	}
 
-	private static String libraryJsonNoUrl(String coordinate) {
-		return "{\"name\":\"" + escape(coordinate) + "\"}";
-	}
+	// И полное отсутствие "url" ("url's parent does not contain 'url'" — Prism требует само
+	// поле структурно при разборе JSON), и пустая строка ("Protocol "" is unknown" — Prism
+	// всё же пытается разобрать её как URI) ломают Prism. Решение — синтаксически валидный,
+	// но фиктивный URL: скачивание по нему реально никогда не происходит, потому что
+	// совпадающих локально path+sha1+size лаунчеру достаточно, чтобы посчитать файл на месте.
+	private static final String DUMMY_LIBRARY_HOST = "https://files.argentumloader.local/";
 
-	private static String buildProfileJson(String profileId, String mcVersion, String mainClass, String ownCoordinate, List<String> thirdPartyLibraries) {
+	private static String buildProfileJson(String profileId, String mcVersion, String mainClass, String ownLibraryJson, List<String> thirdPartyLibraries) {
 		StringBuilder libs = new StringBuilder();
-		libs.append(libraryJsonNoUrl(ownCoordinate)); // собственный jar уже на диске, url не нужен
+		libs.append(ownLibraryJson);
 
 		for (String lib : thirdPartyLibraries) {
 			libs.append(',').append(lib);
@@ -715,7 +783,11 @@ public final class AnchorMain {
 		return "{\n"
 				+ "  \"id\": \"" + escape(profileId) + "\",\n"
 				+ "  \"inheritsFrom\": \"" + escape(mcVersion) + "\",\n"
-				+ "  \"type\": \"release\",\n"
+				// "type" тут двойного назначения: лаунчер использует его для группировки в
+				// списке версий (обычно "release"), а игра передаёт это же значение себе в виде
+				// --versionType и показывает его в левом нижнем углу главного меню вместо "release"
+				// (см. подробный комментарий в buildPrismPatchJson). Меняем ради второго эффекта.
+				+ "  \"type\": \"Argentum\",\n"
 				+ "  \"time\": \"" + now + "\",\n"
 				+ "  \"releaseTime\": \"" + now + "\",\n"
 				+ "  \"mainClass\": \"" + escape(mainClass) + "\",\n"

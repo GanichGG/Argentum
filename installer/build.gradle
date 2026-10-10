@@ -167,7 +167,7 @@ tasks.named('nativeCompile') {
 		nativeLibNames.each { name -> new File(outDir, name).delete() }
 		outDir.listFiles()?.findAll { it.name.endsWith('.args') }?.each { it.delete() }
 	}
-	finalizedBy 'setIcon'
+	finalizedBy 'setIcon', 'setSubsystem'
 }
 
 // GraalVM Community не умеет проставить иконку .exe на этапе сборки (-H:WindowsIconPath
@@ -184,6 +184,22 @@ tasks.register('setIcon', Exec) {
 	outputs.upToDateWhen { false } // meняет уже собранный exe, а не создаёт новый — пусть перезапускается всегда
 
 	commandLine('python', script.absolutePath, exeFile.get().asFile.absolutePath, iconFile.absolutePath)
+}
+
+// native-image по умолчанию собирает .exe с консольным (CUI) subsystem — при запуске якоря
+// двойным щелчком рядом с ним мелькает чёрное окно консоли. Меняем subsystem на GUI прямо в
+// PE-заголовке уже собранного файла — тот же приём, которым javaw.exe отличается от java.exe.
+// AWT/Swing от этого не страдают: диалоги якоря не используют консольный ввод-вывод.
+tasks.register('setSubsystem', Exec) {
+	mustRunAfter 'setIcon' // оба правят один и тот же уже собранный exe — не должны гоняться параллельно
+	def exeFile = layout.buildDirectory.file('native/nativeCompile/ArgentumAnchor.exe')
+	def script = project.file('scripts/set_subsystem.py')
+
+	inputs.file(script)
+	outputs.file(exeFile)
+	outputs.upToDateWhen { false }
+
+	commandLine('python', script.absolutePath, exeFile.get().asFile.absolutePath)
 }
 
 // Портативный .exe со встроенной Java — чтобы якорь работал даже у игроков без

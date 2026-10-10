@@ -55,7 +55,39 @@ public final class PixelIcons {
 			"#.....#",
 	};
 
+	public static final String[] GEAR = {
+			"...###...",
+			".#.###.#.",
+			".#######.",
+			"###...###",
+			"###...###",
+			"###...###",
+			".#######.",
+			".#.###.#.",
+			"...###...",
+	};
+
+	/** Позиции 8 точек пиксельного спиннера (кольцо 3×3 квадрата с шагом 4). */
+	private static final int[][] SPINNER = {{0, 0}, {1, 0}, {2, 0}, {2, 1}, {2, 2}, {1, 2}, {0, 2}, {0, 1}};
+
 	private PixelIcons() { }
+
+	/**
+	 * Пиксельный спиннер 11×11: «хвост» из восьми точек бежит по кольцу, к концу хвоста точки тускнеют.
+	 * Двигается шагами (так выглядит пиксельно), около 11 шагов в секунду.
+	 */
+	public static void spinner(class_332 ctx, int x, int y, int color) {
+		int head = (int) ((System.currentTimeMillis() / 90) % 8);
+
+		for (int i = 0; i < 8; i++) {
+			int age = (head - i + 8) % 8; // 0 — голова, 7 — самый старый
+			int alpha = Math.max(0x30, 0xFF - age * 0x2A);
+			int c = (alpha << 24) | (color & 0x00FFFFFF);
+			int px = x + SPINNER[i][0] * 4;
+			int py = y + SPINNER[i][1] * 4;
+			ctx.method_25294(px, py, px + 3, py + 3, c);
+		}
+	}
 
 	public static int width(String[] icon) {
 		return icon[0].length();

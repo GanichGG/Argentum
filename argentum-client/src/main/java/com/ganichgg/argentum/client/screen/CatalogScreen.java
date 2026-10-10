@@ -79,11 +79,12 @@ public final class CatalogScreen extends class_437 {
 	private static final int C_WHITE = 0xFFFFFFFF;
 	private static final int C_TEXT = 0xFFD0D0D6;
 	private static final int C_GRAY = 0xFF8E8E98;
-	private static final int C_ACCENT = 0xFF0061FE;
-	private static final int C_ACCENT_HOVER = 0xFF3A84FF;
-	private static final int C_ACCENT_PRESS = 0xFF6FA6FF;
-	private static final int C_ACCENT_TEXT = C_WHITE;
-	private static final int C_OK = 0xFF8AB8FF;
+	// акцент — серебро (синяя версия 0061FE сохранена в теге archive/blue-accent)
+	private static final int C_ACCENT = 0xFFC9CCD2;
+	private static final int C_ACCENT_HOVER = 0xFFE8EAEE;
+	private static final int C_ACCENT_TEXT = 0xFF17181A;
+	private static final int C_OK = 0xFFE3E6EB;
+	private static final int C_FILL = 0xFF6E7279; // заливка прогресса внутри кнопки: на ней читается и белый текст
 	private static final int C_WARN = 0xFFFFC857;
 	private static final int C_SECONDARY = 0xFF39393B;
 	private static final int C_SECONDARY_HOVER = 0xFF47484A;
@@ -1221,8 +1222,8 @@ public final class CatalogScreen extends class_437 {
 
 			if (fw > 0) {
 				int bottom = y + h - (pressed ? 3 : 5);
-				ctx.method_25294(x + 2, y + 2, x + 2 + fw, bottom, C_ACCENT);
-				ctx.method_25294(x + 2, y + 2, x + 2 + fw, y + 3, lighter(C_ACCENT, 0.3F));
+				ctx.method_25294(x + 2, y + 2, x + 2 + fw, bottom, C_FILL);
+				ctx.method_25294(x + 2, y + 2, x + 2 + fw, y + 3, lighter(C_FILL, 0.25F));
 			}
 		}
 

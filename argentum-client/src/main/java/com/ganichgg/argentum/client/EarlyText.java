@@ -147,7 +147,8 @@ public final class EarlyText {
 
 						for (int gy = 0; gy < gh; gy++) {
 							for (int gx = 0; gx < gw; gx++) {
-								int alpha = bitmap.get(gy * gw + gx) & 0xFF;
+								// пиксельный шрифт: сглаживание STB размывает края при увеличении, поэтому режем альфу до 0/255
+								int alpha = (bitmap.get(gy * gw + gx) & 0xFF) >= 96 ? 255 : 0;
 								int px = pen + x0.get(0) + gx;
 								int py = ascent + y0.get(0) + gy;
 
@@ -165,7 +166,9 @@ public final class EarlyText {
 			}
 
 			class_2960 id = class_2960.method_60655("argentum-client", "early/line" + (counter++)); // Identifier.of
-			client.method_1531().method_4616(id, new class_1043(image)); // getTextureManager().registerTexture
+			class_1043 texture = new class_1043(image);
+			texture.method_4527(false, false); // setFilter(blur, mipmap): ближайший сосед — пиксели остаются квадратными
+			client.method_1531().method_4616(id, texture); // getTextureManager().registerTexture
 
 			return new Line(id, width, height);
 		}

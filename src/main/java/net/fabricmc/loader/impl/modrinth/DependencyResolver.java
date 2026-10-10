@@ -95,6 +95,52 @@ public final class DependencyResolver {
 		return new ArrayList<>(resolved.values());
 	}
 
+	/**
+	 * То же, но корень графа задан конкретной версией (обновление мода или выбор версии): её ставим в любом случае,
+	 * даже если проект уже есть в реестре, а зависимости — только недостающие.
+	 */
+	public static List<ModrinthVersion> resolveFor(ModrinthVersion root, String loader, String gameVersion, InstalledModsIndex installed) throws ModrinthApiException {
+		Map<String, ModrinthVersion> resolved = new LinkedHashMap<>();
+		Deque<Request> queue = new ArrayDeque<>();
+		java.util.Set<String> queuedKeys = new java.util.HashSet<>();
+
+		resolved.put(root.projectId, root);
+		enqueueDependencies(root, installed, resolved, queue, queuedKeys);
+
+		while (!queue.isEmpty()) {
+			ModrinthVersion version = fetch(queue.poll(), loader, gameVersion);
+
+			if (version == null || resolved.containsKey(version.projectId) || installed.contains(version.projectId)) {
+				continue;
+			}
+
+			resolved.put(version.projectId, version);
+			enqueueDependencies(version, installed, resolved, queue, queuedKeys);
+		}
+
+		// зависимости ставятся раньше самого мода
+		List<ModrinthVersion> ordered = new ArrayList<>(resolved.values());
+		ordered.remove(root);
+		ordered.add(root);
+
+		return ordered;
+	}
+
+	private static void enqueueDependencies(ModrinthVersion version, InstalledModsIndex installed, Map<String, ModrinthVersion> resolved,
+			Deque<Request> queue, java.util.Set<String> queuedKeys) {
+		for (ModrinthDependency dep : version.dependencies) {
+			if (dep.type != ModrinthDependency.Type.REQUIRED) continue;
+			if (dep.projectId == null && dep.versionId == null) continue;
+			if (dep.projectId != null && (installed.contains(dep.projectId) || resolved.containsKey(dep.projectId))) continue;
+
+			Request request = new Request(dep.projectId, dep.versionId);
+
+			if (queuedKeys.add(request.dedupeKey())) {
+				queue.add(request);
+			}
+		}
+	}
+
 	private static ModrinthVersion fetch(Request request, String loader, String gameVersion) throws ModrinthApiException {
 		if (request.versionId != null) {
 			return ModrinthClient.getVersion(request.versionId);

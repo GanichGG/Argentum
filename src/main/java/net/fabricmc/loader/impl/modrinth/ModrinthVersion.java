@@ -28,10 +28,20 @@ public final class ModrinthVersion {
 	public final List<String> loaders;
 	public final List<ModrinthDependency> dependencies;
 	public final List<ModrinthFile> files;
+	/** release / beta / alpha (как отдаёт Modrinth); null, если не указано. */
+	public final String versionType;
+	/** Дата публикации, ISO-8601; null, если не указана. */
+	public final String datePublished;
 
 	public ModrinthVersion(String id, String projectId, String versionNumber, String name,
 			List<String> gameVersions, List<String> loaders,
 			List<ModrinthDependency> dependencies, List<ModrinthFile> files) {
+		this(id, projectId, versionNumber, name, gameVersions, loaders, dependencies, files, null, null);
+	}
+
+	public ModrinthVersion(String id, String projectId, String versionNumber, String name,
+			List<String> gameVersions, List<String> loaders,
+			List<ModrinthDependency> dependencies, List<ModrinthFile> files, String versionType, String datePublished) {
 		this.id = id;
 		this.projectId = projectId;
 		this.versionNumber = versionNumber;
@@ -40,6 +50,8 @@ public final class ModrinthVersion {
 		this.loaders = loaders;
 		this.dependencies = dependencies;
 		this.files = files;
+		this.versionType = versionType;
+		this.datePublished = datePublished;
 	}
 
 	/** The file to actually download — the one modrinth marked primary, or the first one if none is. */

@@ -23,6 +23,8 @@ import com.ganichgg.argentum.client.ui.ModConfigs;
 import com.ganichgg.argentum.client.ui.PixelIcons;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.impl.hotload.HotLoadReport;
+import net.fabricmc.loader.impl.hotload.HotLoader;
 import net.fabricmc.loader.impl.modrinth.DependencyResolver;
 import net.fabricmc.loader.impl.modrinth.InstalledModsIndex;
 import net.fabricmc.loader.impl.modrinth.ModInstaller;
@@ -78,6 +80,7 @@ public final class CatalogScreen extends class_437 {
 	private static final int C_ACCENT_PRESS = 0xFF6FA6FF;
 	private static final int C_ACCENT_TEXT = C_WHITE;
 	private static final int C_OK = 0xFF8AB8FF;
+	private static final int C_WARN = 0xFFFFC857;
 	private static final int C_SECONDARY = 0xFF2E2E36;
 	private static final int C_SECONDARY_HOVER = 0xFF3C3C46;
 	private static final int C_DISABLED = 0xFF222228;
@@ -487,6 +490,8 @@ public final class CatalogScreen extends class_437 {
 		setStatus("Устанавливаю «" + p.title + "» и его зависимости...", C_GRAY);
 
 		WORKER.submit(() -> {
+			boolean handedOver = false;
+
 			try {
 				InstalledModsIndex index = InstalledModsIndex.load(modsDir());
 				List<ModrinthVersion> plan = DependencyResolver.resolve(p.id, LOADER, this.gameVersion, index);
@@ -500,14 +505,43 @@ public final class CatalogScreen extends class_437 {
 				this.cache.putProjects(Collections.singletonList(p)); // карточка нужна вкладке «Установленные» без сети
 				this.cache.save();
 				refreshInstalledIndex();
-				setStatus("Установлено: " + String.join(", ", result.installedModNames) + ". Заработает после перезапуска игры.", C_OK);
+
+				String names = String.join(", ", result.installedModNames);
+				setStatus("Установлено: " + names + ". Подключаю к запущенной игре...", C_GRAY);
+
+				// hot-loader трогает классы игры и запускает инициализаторы модов — это делаем в потоке рендера
+				handedOver = true;
+				this.field_22787.execute(() -> hotLoad(result.installedFiles, names, p.id));
 			} catch (Exception e) {
 				Log.warn(LogCategory.MODRINTH, "Установка «" + p.title + "» не удалась", e);
 				setStatus("Ошибка установки: " + e.getMessage() + (e.getCause() != null ? " (" + e.getCause() + ")" : ""), C_RED);
 			} finally {
-				this.busyIds.remove(p.id);
+				if (!handedOver) {
+					this.busyIds.remove(p.id);
+				}
 			}
 		});
+	}
+
+	/** Подключает свежеустановленные моды без перезапуска там, где это безопасно; остальным честно пишет причину. */
+	private void hotLoad(List<Path> files, String names, String busyId) {
+		try {
+			HotLoadReport report = HotLoader.load(files);
+			refreshInstalledIndex();
+
+			boolean failed = report.count(HotLoadReport.Status.FAILED) > 0;
+			boolean restart = report.count(HotLoadReport.Status.NEEDS_RESTART) > 0;
+			setStatus("Установлено: " + names + " — " + report.summary(), failed ? C_RED : restart ? C_WARN : C_OK);
+
+			if (report.needsResourceReload()) {
+				this.field_22787.method_1521(); // reloadResources: игра увидит текстуры и переводы новых модов
+			}
+		} catch (Throwable t) {
+			Log.warn(LogCategory.MODRINTH, "Hot-loader не справился", t);
+			setStatus("Установлено: " + names + ". Перезапусти игру, чтобы мод заработал.", C_WARN);
+		} finally {
+			this.busyIds.remove(busyId);
+		}
 	}
 
 	private void remove(ModrinthProject p) {
@@ -1211,8 +1245,8 @@ public final class CatalogScreen extends class_437 {
 		// описание — как на Modrinth, одной строкой с многоточием
 		text(ctx, fit(p.description, textW), textX, y + 17, C_TEXT);
 
-		// теги
-		int chipX = textX;
+		// теги (на вкладке установленных первым идёт статус: работает сейчас или после перезапуска)
+		int chipX = textX + drawBadge(ctx, p, textX, y + 31, textW);
 
 		for (String tag : Fmt.tags(p)) {
 			int chipW = textWidth(tag) + 8;
@@ -1238,6 +1272,27 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		drawActionButton(ctx, "act:" + p.id, p, rightX + off, y + 30, col - off, 14, mx, my);
+	}
+
+	/** Статус установленного мода: «Активен» (мод уже загружен в игру) или «После перезапуска». Возвращает занятую ширину. */
+	private int drawBadge(class_332 ctx, ModrinthProject p, int x, int y, int maxWidth) {
+		if (this.tab != Tab.INSTALLED) {
+			return 0;
+		}
+
+		ConfigInfo c = this.configInfo.get(p.id);
+		boolean active = c != null && c.modId != null;
+		String label = active ? "Активен" : "После перезапуска";
+		int chipW = textWidth(label) + 8;
+
+		if (chipW > maxWidth) {
+			return 0;
+		}
+
+		ctx.method_25294(x, y, x + chipW, y + 11, C_CHIP);
+		text(ctx, label, x + 4, y + 2, active ? C_OK : C_WARN);
+
+		return chipW + 4;
 	}
 
 	/** Скачивания, лайки и «обновлён N назад» двумя строками в колонке заданной ширины. */
@@ -1353,7 +1408,7 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		// теги с переносом на следующие строки
-		int chipX = innerX;
+		int chipX = innerX + drawBadge(ctx, p, innerX, y, innerW);
 
 		for (String tag : Fmt.tags(p)) {
 			int chipW = textWidth(tag) + 8;

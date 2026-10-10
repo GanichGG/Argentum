@@ -102,7 +102,7 @@ public final class CatalogScreen extends class_437 {
 	private static final int C_SECONDARY = 0xFF39393B;
 	private static final int C_SECONDARY_HOVER = 0xFF47484A;
 	private static final int C_DISABLED = 0xFF2E2F30;
-	// заблокированная кнопка (база C_DISABLED без полосы прогресса): плоская серая, как в Ore UI
+	// заблокированная «Назад» на время применения: плоская серая, как в Ore UI
 	private static final int C_LOCKED = 0xFF47484A;
 	private static final int C_LOCKED_TEXT = 0xFF737476;
 	private static final int C_RED = 0xFFFF8A8A;
@@ -1703,7 +1703,7 @@ public final class CatalogScreen extends class_437 {
 		int borderColor = lighter(body, accent ? 0.26F : 0.08F + 0.1F * k);
 		int bottomColor = darker(body, accent ? 0.55F : 0.28F);
 
-		if (base == C_DISABLED && fill == -1F) {
+		if (base == C_LOCKED) {
 			body = C_LOCKED;
 			borderColor = C_LOCKED;
 			bottomColor = C_LOCKED;
@@ -2677,7 +2677,8 @@ public final class CatalogScreen extends class_437 {
 		text(ctx, fit(status, rightEdge - textX - 4), textX, top + 8, this.statusColor);
 
 		boolean backHover = inside(mx, my, w - PAD - backW, by, backW, BTN_H);
-		button(ctx, "back", w - PAD - backW, by, backW, BTN_H, "Назад", null, false, C_SECONDARY, C_SECONDARY_HOVER, backHover, C_TEXT);
+		boolean backLocked = ChangeQueue.applying();
+		button(ctx, "back", w - PAD - backW, by, backW, BTN_H, "Назад", null, false, backLocked ? C_LOCKED : C_SECONDARY, backLocked ? C_LOCKED : C_SECONDARY_HOVER, backHover && !backLocked, C_TEXT);
 	}
 
 	// ---------------------------------------------------------------- отключение, обновления, версии, импорт, диагностика

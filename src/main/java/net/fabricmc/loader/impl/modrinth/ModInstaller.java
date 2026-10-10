@@ -61,6 +61,14 @@ public final class ModInstaller {
 	}
 
 	public static InstallResult install(Path modsDir, List<ModrinthVersion> toInstall, Progress progress) throws ModrinthApiException {
+		return install(modsDir, toInstall, progress, java.util.Collections.emptySet());
+	}
+
+	/**
+	 * @param avoidNames имена файлов, под которыми ставить нельзя (старая версия того же мода, которую держит игра):
+	 *                   новый файл получит другое имя, а старый уйдёт при следующем запуске
+	 */
+	public static InstallResult install(Path modsDir, List<ModrinthVersion> toInstall, Progress progress, java.util.Set<String> avoidNames) throws ModrinthApiException {
 		InstalledModsIndex index = InstalledModsIndex.load(modsDir);
 		List<String> installedNames = new ArrayList<>();
 		List<Path> installedFiles = new ArrayList<>();
@@ -80,14 +88,21 @@ public final class ModInstaller {
 				throw new ModrinthApiException("У версии \"" + version.name + "\" мода " + version.projectId + " на Modrinth нет скачиваемого файла");
 			}
 
-			Path target = modsDir.resolve(file.filename);
+			String targetName = file.filename;
+
+			if (avoidNames.contains(targetName)) {
+				int dot = targetName.lastIndexOf('.');
+				targetName = (dot > 0 ? targetName.substring(0, dot) : targetName) + "+argentum" + (System.currentTimeMillis() % 100000) + (dot > 0 ? targetName.substring(dot) : "");
+			}
+
+			Path target = modsDir.resolve(targetName);
 
 			Log.info(LogCategory.MODRINTH, "Скачиваю %s (%s)...", file.filename, version.name);
 			final int current = fileIndex++;
 			final int count = toInstall.size();
 			downloadWithRetries(file, target, progress == null ? null : (done, total) -> progress.update(current, count, file.filename, done, total));
 
-			index.put(version.projectId, version.id, file.filename);
+			index.put(version.projectId, version.id, targetName);
 			installedNames.add(version.name != null ? version.name : file.filename);
 			installedFiles.add(target);
 		}

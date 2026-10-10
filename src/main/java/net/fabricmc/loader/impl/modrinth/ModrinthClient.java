@@ -58,9 +58,24 @@ public final class ModrinthClient {
 	}
 
 	public static SearchPage searchPage(String query, String loader, String gameVersion, int offset, int limit) throws ModrinthApiException {
-		String facets = "[[\"project_type:mod\"],[\"categories:" + loader + "\"],[\"versions:" + gameVersion + "\"]]";
+		return searchPage(query, loader, gameVersion, offset, limit, null, java.util.Collections.emptyList());
+	}
+
+	/**
+	 * @param sort       relevance / downloads / follows / newest / updated; null — по умолчанию (пустой запрос — по загрузкам)
+	 * @param categories категории Modrinth: мод должен быть во всех выбранных
+	 */
+	public static SearchPage searchPage(String query, String loader, String gameVersion, int offset, int limit, String sort,
+			List<String> categories) throws ModrinthApiException {
+		StringBuilder facetBuilder = new StringBuilder("[[\"project_type:mod\"],[\"categories:" + loader + "\"],[\"versions:" + gameVersion + "\"]");
+
+		for (String category : categories) {
+			facetBuilder.append(",[\"categories:").append(category).append("\"]");
+		}
+
+		String facets = facetBuilder.append(']').toString();
 		// пустой запрос — витрина самых популярных; иначе обычная релевантность
-		String index = query.trim().isEmpty() ? "downloads" : "relevance";
+		String index = sort != null ? sort : query.trim().isEmpty() ? "downloads" : "relevance";
 		String url = API_BASE + "/search?query=" + urlEncode(query) + "&index=" + index + "&facets=" + urlEncode(facets)
 				+ "&offset=" + offset + "&limit=" + limit;
 
@@ -199,11 +214,60 @@ public final class ModrinthClient {
 		}
 	}
 
+	/** Версии по SHA-1 файлов ({@code POST /v2/version_files}): хеш -> версия. Не найденные на Modrinth хеши в результат не попадают. */
+	public static java.util.Map<String, ModrinthVersion> versionsByHashes(List<String> sha1) throws ModrinthApiException {
+		if (sha1.isEmpty()) return new java.util.LinkedHashMap<>();
+
+		return readHashMap(openJson(API_BASE + "/version_files", "{\"hashes\":" + quoteList(sha1) + ",\"algorithm\":\"sha1\"}"));
+	}
+
+	/** Самая свежая совместимая версия для каждого файла ({@code POST /v2/version_files/update}): хеш -> новейшая версия. */
+	public static java.util.Map<String, ModrinthVersion> latestForHashes(List<String> sha1, String loader, String gameVersion) throws ModrinthApiException {
+		if (sha1.isEmpty()) return new java.util.LinkedHashMap<>();
+
+		return readHashMap(openJson(API_BASE + "/version_files/update", "{\"hashes\":" + quoteList(sha1) + ",\"algorithm\":\"sha1\",\"loaders\":[\""
+				+ loader + "\"],\"game_versions\":[\"" + gameVersion + "\"]}"));
+	}
+
+	private static String quoteList(List<String> items) {
+		StringBuilder sb = new StringBuilder("[");
+
+		for (int i = 0; i < items.size(); i++) {
+			if (i > 0) sb.append(',');
+			sb.append('"').append(items.get(i)).append('"');
+		}
+
+		return sb.append(']').toString();
+	}
+
+	private static java.util.Map<String, ModrinthVersion> readHashMap(JsonReader reader) throws ModrinthApiException {
+		java.util.Map<String, ModrinthVersion> ret = new java.util.LinkedHashMap<>();
+
+		try (JsonReader r = reader) {
+			r.beginObject();
+
+			while (r.hasNext()) {
+				String hash = r.nextName();
+				ret.put(hash, parseVersion(r));
+			}
+
+			r.endObject();
+		} catch (IOException e) {
+			throw new ModrinthApiException("Не удалось разобрать ответ Modrinth о версиях по хешам", e);
+		}
+
+		return ret;
+	}
+
+	private static JsonReader openJsonReader(String url) throws ModrinthApiException {
+		return openJson(url, null);
+	}
+
 	/**
 	 * Открывает JSON-ответ API. Сеть до Modrinth бывает нестабильной (таймауты подключения, 429/5xx), поэтому
 	 * временные сбои повторяются три раза с нарастающей паузой; осмысленные ответы (404 и т.п.) — сразу ошибкой.
 	 */
-	private static JsonReader openJsonReader(String url) throws ModrinthApiException {
+	private static JsonReader openJson(String url, String postBody) throws ModrinthApiException {
 		final int attempts = 3;
 		IOException last = null;
 
@@ -212,6 +276,16 @@ public final class ModrinthClient {
 				HttpURLConnection connection = ModrinthNet.open(url, 20_000, 30_000);
 				connection.setRequestProperty("User-Agent", USER_AGENT);
 				connection.setRequestProperty("Accept", "application/json");
+
+				if (postBody != null) {
+					connection.setRequestMethod("POST");
+					connection.setRequestProperty("Content-Type", "application/json");
+					connection.setDoOutput(true);
+
+					try (java.io.OutputStream os = connection.getOutputStream()) {
+						os.write(postBody.getBytes(StandardCharsets.UTF_8));
+					}
+				}
 
 				int status = connection.getResponseCode();
 
@@ -314,6 +388,8 @@ public final class ModrinthClient {
 		List<String> loaders = new ArrayList<>();
 		List<ModrinthDependency> dependencies = new ArrayList<>();
 		List<ModrinthFile> files = new ArrayList<>();
+		String versionType = null;
+		String datePublished = null;
 
 		reader.beginObject();
 
@@ -321,6 +397,8 @@ public final class ModrinthClient {
 			String key = reader.nextName();
 
 			switch (key) {
+			case "version_type": versionType = readStringOrNull(reader); break;
+			case "date_published": datePublished = readStringOrNull(reader); break;
 			case "id": id = readStringOrNull(reader); break;
 			case "project_id": projectId = readStringOrNull(reader); break;
 			case "version_number": versionNumber = readStringOrNull(reader); break;
@@ -335,7 +413,7 @@ public final class ModrinthClient {
 
 		reader.endObject();
 
-		return new ModrinthVersion(id, projectId, versionNumber, name, gameVersions, loaders, dependencies, files);
+		return new ModrinthVersion(id, projectId, versionNumber, name, gameVersions, loaders, dependencies, files, versionType, datePublished);
 	}
 
 	private static void readDependencies(JsonReader reader, List<ModrinthDependency> out) throws IOException {

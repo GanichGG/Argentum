@@ -27,9 +27,9 @@ import net.minecraft.class_310;
  * class_2960 = Identifier, class_310 = MinecraftClient.
  */
 public final class EarlyText {
-	/** Шрифт нарисован на сетке 8x8 — рисуем ровно в 8 пикселей, тогда пиксели резкие при любом масштабе GUI. */
-	public static final int FONT_PX = 8;
-	private static final String FONT_RESOURCE = "/assets/argentum-client/font/PressStart2P-Regular.ttf";
+	/** Размер шрифта в пикселях текстуры; тексель = 1 единица GUI, поэтому пиксели резкие при любом масштабе GUI. */
+	public static final int FONT_PX = 16;
+	private static final String FONT_RESOURCE = "/assets/argentum-client/font/PIXY.ttf";
 
 	/** Готовая строка: текстура и её размер в пикселях (= в единицах GUI при масштабе 1). */
 	public static final class Line {

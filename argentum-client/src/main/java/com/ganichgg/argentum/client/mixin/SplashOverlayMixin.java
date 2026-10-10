@@ -67,9 +67,15 @@ public abstract class SplashOverlayMixin {
 
 		RenderSystem.enableBlend();
 		RenderSystem.defaultBlendFunc();
+
+		drawLine(context, line, (width - line.width) / 2, logoTop - line.height - 8, alpha);
+
+		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+	}
+
+	private static void drawLine(class_332 context, EarlyText.Line line, int x, int y, float alpha) {
 		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
 		// DrawContext.drawTexture(Identifier, x, y, u, v, w, h, textureW, textureH)
-		context.method_25290(line.texture, (width - line.width) / 2, logoTop - line.height - 8, 0.0F, 0.0F, line.width, line.height, line.width, line.height);
-		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+		context.method_25290(line.texture, x, y, 0.0F, 0.0F, line.width, line.height, line.width, line.height);
 	}
 }

@@ -102,6 +102,9 @@ public final class CatalogScreen extends class_437 {
 	private static final int C_SECONDARY = 0xFF39393B;
 	private static final int C_SECONDARY_HOVER = 0xFF47484A;
 	private static final int C_DISABLED = 0xFF2E2F30;
+	// заблокированная кнопка (база C_DISABLED без полосы прогресса): плоская серая, как в Ore UI
+	private static final int C_LOCKED = 0xFF47484A;
+	private static final int C_LOCKED_TEXT = 0xFF737476;
 	private static final int C_RED = 0xFFFF8A8A;
 	private static final int GEAR_W = 18;
 	private static final int BTN_H = 18; // высота кнопок в карточке и строке состояния
@@ -1699,6 +1702,15 @@ public final class CatalogScreen extends class_437 {
 		boolean accent = base == C_ACCENT;
 		int borderColor = lighter(body, accent ? 0.26F : 0.08F + 0.1F * k);
 		int bottomColor = darker(body, accent ? 0.55F : 0.28F);
+
+		if (base == C_DISABLED && fill == -1F) {
+			body = C_LOCKED;
+			borderColor = C_LOCKED;
+			bottomColor = C_LOCKED;
+			textColor = C_LOCKED_TEXT;
+			pressed = false;
+		}
+
 		frame(ctx, x, y, w, h, body, borderColor, bottomColor, pressed);
 
 		if (fill == -2F) { // прогресс неизвестен: по полосе бежит отрезок

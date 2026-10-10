@@ -458,7 +458,8 @@ public final class Handoff {
 
 	/** Из экрана главного меню: копия дошла до конца загрузки — сообщаем и прячемся до команды. */
 	public static void childReady(class_310 client) {
-		if (!isHiddenChild() || childReadyWritten) {
+		// пока играет заставка загрузки (красный фон Mojang, она ещё гаснет поверх главного меню), показываться нельзя: игрок увидит вспышку
+		if (!isHiddenChild() || childReadyWritten || client.method_18506() != null) {
 			return;
 		}
 
@@ -498,7 +499,13 @@ public final class Handoff {
 	 * @return параметры показа, если копия только что показана; иначе null
 	 */
 	public static Properties childPoll(class_310 client) {
-		if (!isHiddenChild() || !childReadyWritten) {
+		if (!isHiddenChild()) {
+			return null;
+		}
+
+		childReady(client); // заставка могла погаснуть уже после построения главного меню
+
+		if (!childReadyWritten) {
 			return null;
 		}
 

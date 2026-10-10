@@ -72,7 +72,7 @@ public final class CatalogScreen extends class_437 {
 	// Палитра: тёмные тона, белые и серебряные акценты
 	private static final int C_HEADER = 0xFF232425;
 	private static final int C_GLASS = 0xE6232425; // шапка и строка состояния: чуть прозрачные, сквозь них видна панорама
-	private static final int C_DIM = 0x661C1D1D; // затемнение панорамы
+	private static final int C_DIM = 0x141C1D1D; // затемнение панорамы
 	private static final int C_FIELD = 0xFF151616;
 	private static final int C_PANEL = 0xFF2A2B2C;
 	private static final int C_PANEL_HOVER = 0xFF323334;
@@ -112,6 +112,10 @@ public final class CatalogScreen extends class_437 {
 	private static final int CARD_H = 56;
 	private static final int GAP = 4;
 	private static final int ICON = 40;
+	// Отступы иконки от внутренней кромки карточки одинаковы по обеим осям: рамка (контур + обводка) занимает 2 единицы,
+	// снизу ещё полоса в 2 — область внутри 52×51, иконка 40 стоит с отступом 6 слева и сверху и 5 снизу.
+	private static final int ICON_X = 8;
+	private static final int ICON_Y = 8;
 	private static final int RIGHT_COL = 112;
 	private static final int SCROLLBAR_W = 5;
 	private static final int PANEL_W = 190;
@@ -1604,12 +1608,12 @@ public final class CatalogScreen extends class_437 {
 			}
 
 			int x = PAD;
-			int textX = x + 4 + ICON + 8;
+			int textX = x + ICON_X + ICON + 8;
 			int rightX = x + cardW - col - 4;
 			int textEnd = rightX - 6;
 
 			frame(ctx, x, y, cardW, CARD_H, C_PANEL, lighter(C_PANEL, 0.07F), darker(C_PANEL, 0.3F), false);
-			ctx.method_25294(x + 5, y + 8, x + 5 + ICON, y + 8 + ICON, bar);
+			ctx.method_25294(x + ICON_X, y + ICON_Y, x + ICON_X + ICON, y + ICON_Y + ICON, bar);
 			ctx.method_25294(textX, y + 8, Math.min(textEnd, textX + 90 + (i % 3) * 28), y + 16, bar);
 			ctx.method_25294(textX, y + 21, Math.min(textEnd, textX + 150 + (i % 4) * 22), y + 29, bar);
 			ctx.method_25294(textX, y + 35, Math.min(textEnd, textX + 38), y + 46, bar);
@@ -1636,17 +1640,17 @@ public final class CatalogScreen extends class_437 {
 		float targetX = 0F;
 
 		if (hovered) {
-			targetY = clamp((mx - (x + 5 + ICON / 2F)) / 90F) * TILT_MAX;
-			targetX = clamp((my - (y + 8 + ICON / 2F)) / 40F) * TILT_MAX;
+			targetY = clamp((mx - (x + ICON_X + ICON / 2F)) / 90F) * TILT_MAX;
+			targetX = clamp((my - (y + ICON_Y + ICON / 2F)) / 40F) * TILT_MAX;
 		}
 
 		t[0] = approach(t[0], targetY, dt, 14);
 		t[1] = approach(t[1], targetX, dt, 14);
 		t[2] = approach(t[2], hovered ? 1F : 0F, dt, 12);
-		drawIcon(ctx, p, x + 5, y + 8, ICON, t[0], t[1], t[2]);
+		drawIcon(ctx, p, x + ICON_X, y + ICON_Y, ICON, t[0], t[1], t[2]);
 
 		int col = rightCol(w);
-		int textX = x + 5 + ICON + 8;
+		int textX = x + ICON_X + ICON + 8;
 		int rightX = x + w - col - 5;
 		int textW = rightX - textX - 6;
 

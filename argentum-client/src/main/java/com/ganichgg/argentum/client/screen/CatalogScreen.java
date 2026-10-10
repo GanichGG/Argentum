@@ -3,9 +3,12 @@ package com.ganichgg.argentum.client.screen;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,14 +32,22 @@ import net.fabricmc.loader.impl.hotload.HotLoadReport;
 import net.fabricmc.loader.impl.hotload.HotLoader;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.modrinth.DependencyResolver;
+import net.fabricmc.loader.impl.modrinth.CrashDiagnoser;
 import net.fabricmc.loader.impl.modrinth.InstalledModsIndex;
+import net.fabricmc.loader.impl.modrinth.LocalMods;
 import net.fabricmc.loader.impl.modrinth.ModInstaller;
+import net.fabricmc.loader.impl.modrinth.ModUpdates;
 import net.fabricmc.loader.impl.modrinth.ModrinthCache;
 import net.fabricmc.loader.impl.modrinth.ModrinthClient;
 import net.fabricmc.loader.impl.modrinth.ModrinthProject;
 import net.fabricmc.loader.impl.modrinth.ModrinthVersion;
+import net.fabricmc.loader.impl.modrinth.MrpackImporter;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
+import org.lwjgl.PointerBuffer;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.util.tinyfd.TinyFileDialogs;
+
 import net.minecraft.class_1109;
 import net.minecraft.class_2561;
 import net.minecraft.class_332;
@@ -127,6 +138,13 @@ public final class CatalogScreen extends class_437 {
 		return t;
 	});
 
+	/** Короткие запросы по клику пользователя (список версий, проверка обновлений) — не в очереди за долгой установкой. */
+	private static final ExecutorService QUICK = Executors.newCachedThreadPool(r -> {
+		Thread t = new Thread(r, "argentum-catalog-quick");
+		t.setDaemon(true);
+		return t;
+	});
+
 	private final class_437 parent;
 	private final String gameVersion;
 	private final ModrinthCache cache = ClientCache.get();
@@ -194,6 +212,7 @@ public final class CatalogScreen extends class_437 {
 	private String initialStatus;
 	private boolean devFake;
 	private boolean devLeaveDone;
+	private int devStep2;
 	private boolean devConfigOpened;
 	private int[] devMouse;
 	private long devNextShot;
@@ -207,6 +226,83 @@ public final class CatalogScreen extends class_437 {
 	private int gearW;
 	private int applyX;
 	private int applyW;
+
+	// отключение, обновления, фильтры, выбор версии, диагностика
+	private volatile Set<String> disabledIds = Collections.emptySet();
+	private volatile Map<String, String> installedVersions = Collections.emptyMap();
+	private volatile Map<String, LocalMods.Mod> localMods = Collections.emptyMap();
+	private volatile Map<String, ModrinthVersion> updates = Collections.emptyMap();
+	private volatile boolean checkingUpdates;
+	private String sortKey; // null — по умолчанию
+	private final Set<String> categoryFilter = new LinkedHashSet<>();
+	private int installedFilter; // 0 — все, 1 — с обновлениями, 2 — отключённые
+	private final List<Hit> hits = new ArrayList<>();
+	private Popup popup;
+	private volatile List<ModrinthVersion> versionList;
+	private volatile String versionListFor = "";
+	private volatile CrashDiagnoser.Diagnosis diag;
+	private boolean modalOpen;
+	private float modalAnim;
+	private List<ModrinthProject> filteredRows = Collections.emptyList();
+	private List<ModrinthProject> filteredSrc;
+	private int filteredMode = -1;
+	private Map<String, ModrinthVersion> filteredUpd;
+	private Set<String> filteredDis;
+
+	/** Область, по которой можно кликнуть. Список пересоздаётся каждый кадр в порядке отрисовки: последняя — самая верхняя. */
+	private static final class Hit {
+		final String id;
+		final ModrinthProject p;
+		final int x;
+		final int y;
+		final int w;
+		final int h;
+		final boolean listZone;
+
+		Hit(String id, ModrinthProject p, int x, int y, int w, int h, boolean listZone) {
+			this.id = id;
+			this.p = p;
+			this.x = x;
+			this.y = y;
+			this.w = w;
+			this.h = h;
+			this.listZone = listZone;
+		}
+	}
+
+	private static final class PopupItem {
+		final String id;
+		final String label;
+		final boolean checked;
+		final int color;
+
+		PopupItem(String id, String label, boolean checked, int color) {
+			this.id = id;
+			this.label = label;
+			this.checked = checked;
+			this.color = color;
+		}
+	}
+
+	/** Всплывающий список под кнопкой: сортировка, фильтры, версии мода. */
+	private static final class Popup {
+		final String kind;
+		final ModrinthProject p;
+		final int ax; // правый край кнопки, под которой открыт список
+		final int ay; // низ кнопки
+		float scroll;
+		int x;
+		int y;
+		int w;
+		int h;
+
+		Popup(String kind, ModrinthProject p, int ax, int ay) {
+			this.kind = kind;
+			this.p = p;
+			this.ax = ax;
+			this.ay = ay;
+		}
+	}
 
 	/** Что известно про настройки установленного мода. modId == null — мод ещё не загружен (игру не перезапускали). */
 	private static final class ConfigInfo {
@@ -279,6 +375,25 @@ public final class CatalogScreen extends class_437 {
 			}
 		}
 
+		if (this.modalOpen && t > 4000) {
+			closeModal(); // dev: окно диагностики уже снято, дальше проверяем остальное
+		}
+
+		// Dev: всплывающие списки для снимков — фильтры каталога и список версий мода из панели
+		if (this.devStep2 == 0 && t > 5000) {
+			this.popup = new Popup("filter", null, this.field_22789 - PAD, TABS_Y - 1 + BTN_H + 2);
+			this.devStep2 = 1;
+		} else if (this.devStep2 == 1 && t > 7500) {
+			this.popup = null;
+			this.devStep2 = 2;
+		} else if (this.devStep2 == 2 && t > 12000 && this.tab == Tab.INSTALLED && this.detail != null) {
+			openVersions(this.detail, new Hit("ver", this.detail, panelX(this.field_22789) + 8, LIST_TOP + 90, PANEL_W - 16, 20, false));
+			this.devStep2 = 3;
+		} else if (this.devStep2 == 3 && t > 14400) {
+			this.popup = null;
+			this.devStep2 = 4;
+		}
+
 		// имитация удаления первой установленной карточки (без удаления файлов), замедленная для снимков
 		if (!this.devLeaveDone && this.tab == Tab.INSTALLED && t > 14300 && this.installedRows.size() > 1) {
 			this.leaving.put(this.installedRows.get(0).id, 0F);
@@ -348,6 +463,16 @@ public final class CatalogScreen extends class_437 {
 			this.started = true;
 			refreshInstalledIndex();
 
+			// если игра в прошлый раз упала — выясняем вероятного виновника (в фоне) и предлагаем его отключить
+			WORKER.submit(() -> {
+				CrashDiagnoser.Diagnosis d = CrashDiagnoser.diagnose(FabricLoader.getInstance().getGameDir(), modsDir());
+
+				if (d != null) {
+					this.diag = d;
+					this.modalOpen = true;
+				}
+			});
+
 			if (this.tab == Tab.INSTALLED) {
 				loadInstalled();
 
@@ -387,16 +512,46 @@ public final class CatalogScreen extends class_437 {
 	}
 
 	private List<ModrinthProject> rows() {
-		return this.tab == Tab.CATALOG ? this.catalogRows : this.installedRows;
+		if (this.tab == Tab.CATALOG) {
+			return this.catalogRows;
+		}
+
+		List<ModrinthProject> all = this.installedRows;
+
+		if (this.installedFilter == 0) {
+			return all;
+		}
+
+		if (this.filteredSrc != all || this.filteredMode != this.installedFilter || this.filteredUpd != this.updates || this.filteredDis != this.disabledIds) {
+			List<ModrinthProject> out = new ArrayList<>();
+
+			for (ModrinthProject p : all) {
+				if (this.installedFilter == 1 ? this.updates.containsKey(p.id) : this.disabledIds.contains(p.id)) {
+					out.add(p);
+				}
+			}
+
+			this.filteredRows = out;
+			this.filteredSrc = all;
+			this.filteredMode = this.installedFilter;
+			this.filteredUpd = this.updates;
+			this.filteredDis = this.disabledIds;
+		}
+
+		return this.filteredRows;
 	}
 
 	private void refreshInstalledIndex() {
 		InstalledModsIndex index = InstalledModsIndex.load(modsDir());
 		Map<String, String> files = new LinkedHashMap<>();
+		Map<String, String> versions = new HashMap<>();
 
 		for (Map.Entry<String, InstalledModsIndex.Entry> e : index.entries().entrySet()) {
 			files.put(e.getKey(), e.getValue().fileName);
+			versions.put(e.getKey(), e.getValue().versionId);
 		}
+
+		this.installedVersions = versions;
 
 		this.installedFiles = files;
 
@@ -410,6 +565,31 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		this.configInfo = info;
+
+		Set<String> disabled = new HashSet<>();
+
+		for (Map.Entry<String, String> e : files.entrySet()) {
+			if (LocalMods.state(modsDir(), e.getValue()) == LocalMods.State.DISABLED) {
+				disabled.add(e.getKey());
+			}
+		}
+
+		this.disabledIds = disabled;
+	}
+
+	/** Содержимое папки mods с метаданными (хеши считаются один раз на файл) — для локальных карточек. Вызывать из фона. */
+	private void refreshLocalMods() {
+		Map<String, LocalMods.Mod> m = new HashMap<>();
+
+		for (LocalMods.Mod mod : LocalMods.scan(modsDir())) {
+			m.put(mod.fileName, mod);
+		}
+
+		this.localMods = m;
+	}
+
+	private boolean isDisabled(ModrinthProject p) {
+		return this.disabledIds.contains(p.id);
 	}
 
 	/**
@@ -420,7 +600,8 @@ public final class CatalogScreen extends class_437 {
 		int token = ++this.requestToken;
 		this.activeQuery = q;
 		this.loadingMore = false;
-		boolean popular = q.isEmpty();
+		boolean defaults = this.sortKey == null && this.categoryFilter.isEmpty();
+		boolean popular = q.isEmpty() && defaults;
 		List<ModrinthProject> saved = popular ? this.cache.list("popular", -1) : null;
 		boolean hadSaved = saved != null && !saved.isEmpty();
 
@@ -439,11 +620,11 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		this.loading = true;
-		setStatus(popular ? "Популярные моды для " + this.gameVersion : "Ищу «" + q + "»", C_GRAY);
+		setStatus(popular ? "Популярные моды для " + this.gameVersion : q.isEmpty() ? "Применяю фильтры" : "Ищу «" + q + "»", C_GRAY);
 
 		WORKER.submit(() -> {
 			try {
-				ModrinthClient.SearchPage page = ModrinthClient.searchPage(q, LOADER, this.gameVersion, 0, PAGE_SIZE);
+				ModrinthClient.SearchPage page = ModrinthClient.searchPage(q, LOADER, this.gameVersion, 0, PAGE_SIZE, this.sortKey, new ArrayList<>(this.categoryFilter));
 
 				if (token == this.requestToken) {
 					this.catalogRows = page.hits;
@@ -489,7 +670,7 @@ public final class CatalogScreen extends class_437 {
 
 		WORKER.submit(() -> {
 			try {
-				ModrinthClient.SearchPage page = ModrinthClient.searchPage(q, LOADER, this.gameVersion, offset, PAGE_SIZE);
+				ModrinthClient.SearchPage page = ModrinthClient.searchPage(q, LOADER, this.gameVersion, offset, PAGE_SIZE, this.sortKey, new ArrayList<>(this.categoryFilter));
 				this.cache.putProjects(page.hits);
 
 				if (token == this.requestToken && this.catalogRows.size() == offset) {
@@ -508,60 +689,61 @@ public final class CatalogScreen extends class_437 {
 		});
 	}
 
-	/** Установленные: мгновенно из кэша (или хотя бы по имени файла), затем обновляем данные из сети, если она есть. */
+	/** Установленные: мгновенно из кэша, затем в фоне опознаём ручные моды, подтягиваем данные из сети и ищем обновления. */
 	private void loadInstalled() {
 		int token = ++this.requestToken;
 		refreshInstalledIndex();
 		this.loadingMore = false;
-
-		List<String> ids = new ArrayList<>(this.installedFiles.keySet());
-		List<ModrinthProject> fromCache = new ArrayList<>();
-
-		for (String id : ids) {
-			ModrinthProject p = this.cache.project(id);
-			fromCache.add(p != null ? p : fallbackProject(id));
-		}
-
-		this.installedRows = fromCache;
+		this.installedRows = buildInstalledRows(new ArrayList<>(this.installedFiles.keySet()));
 		this.listEpoch++;
 		this.scrollTarget = 0;
 		this.scroll = 0;
-
-		if (ids.isEmpty()) {
-			this.loading = false;
-			setStatus("Здесь пока пусто", C_GRAY);
-			return;
-		}
-
 		this.loading = true;
-		setStatus("Установлено: " + ids.size(), C_GRAY);
+		setStatus(this.installedRows.isEmpty() ? "Здесь пока пусто" : "Установлено: " + this.installedRows.size(), C_GRAY);
 
 		WORKER.submit(() -> {
 			try {
-				List<ModrinthProject> fresh = ModrinthClient.getProjects(ids);
-				this.cache.putProjects(fresh);
-				this.cache.save();
+				refreshLocalMods();
+
+				// моды, которые лежат в mods, но поставлены не через каталог, опознаются по SHA-1 и получают свои карточки
+				try {
+					LocalMods.identify(modsDir(), InstalledModsIndex.load(modsDir()));
+				} catch (Exception e) {
+					Log.warn(LogCategory.MODRINTH, "Не удалось опознать моды по хешам", e);
+				}
+
+				refreshInstalledIndex();
+				List<String> ids = new ArrayList<>(this.installedFiles.keySet());
 
 				if (token == this.requestToken) {
-					List<ModrinthProject> ordered = new ArrayList<>();
+					this.installedRows = buildInstalledRows(ids);
+					setStatus(ids.isEmpty() ? "Здесь пока пусто" : "Установлено: " + ids.size(), C_GRAY);
+				}
 
-					for (String id : ids) {
-						if (!this.installedFiles.containsKey(id)) {
-							continue; // мод успели удалить, пока шла загрузка, — не возвращаем его в список
-						}
+				List<String> remote = new ArrayList<>();
 
-						ModrinthProject p = this.cache.project(id);
-						ordered.add(p != null ? p : fallbackProject(id));
+				for (String id : ids) {
+					if (!id.startsWith(LocalMods.LOCAL_PREFIX)) {
+						remote.add(id);
 					}
-
-					this.installedRows = ordered;
 				}
-			} catch (Exception e) {
-				Log.warn(LogCategory.MODRINTH, "Не удалось обновить список установленных", e);
 
-				if (token == this.requestToken) {
-					setStatus("Нет сети — данные из кэша", C_GRAY);
+				try {
+					this.cache.putProjects(ModrinthClient.getProjects(remote));
+					this.cache.save();
+
+					if (token == this.requestToken) {
+						this.installedRows = buildInstalledRows(new ArrayList<>(this.installedFiles.keySet()));
+					}
+				} catch (Exception e) {
+					Log.warn(LogCategory.MODRINTH, "Не удалось обновить список установленных", e);
+
+					if (token == this.requestToken) {
+						setStatus("Нет сети — данные из кэша", C_GRAY);
+					}
 				}
+
+				checkUpdatesNow();
 			} finally {
 				if (token == this.requestToken) {
 					this.loading = false;
@@ -570,12 +752,51 @@ public final class CatalogScreen extends class_437 {
 		});
 	}
 
-	/** Карточка для мода, о котором в кэше ничего нет: хотя бы имя файла. */
+	private List<ModrinthProject> buildInstalledRows(List<String> ids) {
+		List<ModrinthProject> rows = new ArrayList<>();
+
+		for (String id : ids) {
+			if (!this.installedFiles.containsKey(id)) {
+				continue; // мод успели удалить — не возвращаем его в список
+			}
+
+			ModrinthProject p = this.cache.project(id);
+			rows.add(p != null ? p : fallbackProject(id));
+		}
+
+		return rows;
+	}
+
+	/** Ищет обновления для установленных модов (сеть; вызывать из фона). */
+	private void checkUpdatesNow() {
+		if (this.checkingUpdates) {
+			return;
+		}
+
+		this.checkingUpdates = true;
+
+		try {
+			Map<String, ModrinthVersion> up = ModUpdates.check(modsDir(), InstalledModsIndex.load(modsDir()), LOADER, this.gameVersion);
+			this.updates = up;
+
+			if (!up.isEmpty()) {
+				setStatus("Доступно обновлений: " + up.size(), C_OK);
+			}
+		} catch (Exception e) {
+			Log.warn(LogCategory.MODRINTH, "Не удалось проверить обновления", e);
+		} finally {
+			this.checkingUpdates = false;
+		}
+	}
+
+	/** Карточка для мода, о котором в кэше ничего нет (ручной или без сети): имя и описание из самого jar. */
 	private ModrinthProject fallbackProject(String id) {
 		String file = this.installedFiles.getOrDefault(id, id);
-		String title = file.endsWith(".jar") ? file.substring(0, file.length() - 4) : file;
+		LocalMods.Mod local = this.localMods.get(file);
+		String title = local != null && local.name != null ? local.name : file.endsWith(".jar") ? file.substring(0, file.length() - 4) : file;
+		String description = local != null && local.description != null ? local.description : "";
 
-		return new ModrinthProject(id, null, title, "", null, 0, 0, null, null, Collections.emptyList(), null, null, 0);
+		return new ModrinthProject(id, null, title, description, null, 0, 0, null, null, Collections.emptyList(), null, null, 0);
 	}
 
 	private void switchTab(Tab target) {
@@ -689,17 +910,19 @@ public final class CatalogScreen extends class_437 {
 
 		boolean deferred = false;
 
-		try {
-			Files.deleteIfExists(modsDir().resolve(fileName));
-		} catch (IOException e) {
-			// Windows не даёт удалить jar, который игра сейчас держит открытым — удалим его при следующем запуске
+		for (String name : new String[] {fileName, fileName + LocalMods.DISABLED_SUFFIX}) {
 			try {
-				PendingRemovals.schedule(modsDir(), fileName);
-				deferred = true;
-			} catch (IOException e2) {
-				setStatus("Не удалось удалить файл мода", C_RED);
-				this.busyIds.remove(p.id);
-				return;
+				Files.deleteIfExists(modsDir().resolve(name));
+			} catch (IOException e) {
+				// Windows не даёт удалить jar, который игра сейчас держит открытым — удалим его при следующем запуске
+				try {
+					PendingRemovals.schedule(modsDir(), name);
+					deferred = true;
+				} catch (IOException e2) {
+					setStatus("Не удалось удалить файл мода", C_RED);
+					this.busyIds.remove(p.id);
+					return;
+				}
 			}
 		}
 
@@ -858,12 +1081,43 @@ public final class CatalogScreen extends class_437 {
 
 	/** Ширина правой колонки карточки (статистика + кнопки); в узком списке — уже. */
 	private int rightCol(int cardW) {
-		return cardW >= 300 ? RIGHT_COL : 84;
+		if (cardW < 300) {
+			return 84;
+		}
+
+		return this.tab == Tab.INSTALLED && cardW >= 340 ? 150 : RIGHT_COL;
 	}
 
-	/** Слева от кнопки «Удалить» на вкладке установленных стоит кнопка настроек. */
-	private int actionOffset() {
-		return this.tab == Tab.INSTALLED ? GEAR_W + 4 : 0;
+	/**
+	 * Прямоугольники кнопок карточки (x, y, w, h): 0 — отключить/включить, 1 — настройки, 2 — обновить, 3 — основное
+	 * действие (установить / удалить). Отсутствующая кнопка — null.
+	 */
+	private int[][] cardButtons(ModrinthProject p, int x, int y, int w) {
+		int col = rightCol(w);
+		int colX = x + w - col - 5;
+		int by = y + BTN_Y;
+		int[][] r = new int[4][];
+		int cursor = colX;
+
+		if (this.tab == Tab.INSTALLED) {
+			r[0] = new int[] {cursor, by, GEAR_W, BTN_H};
+			cursor += GEAR_W + 4;
+			r[1] = new int[] {cursor, by, GEAR_W, BTN_H};
+			cursor += GEAR_W + 4;
+
+			if (this.updates.containsKey(p.id)) {
+				r[2] = new int[] {cursor, by, GEAR_W, BTN_H};
+				cursor += GEAR_W + 4;
+			}
+		}
+
+		r[3] = new int[] {cursor, by, colX + col - cursor, BTN_H};
+
+		return r;
+	}
+
+	private void addHit(String id, ModrinthProject p, int x, int y, int w, int h, boolean listZone) {
+		this.hits.add(new Hit(id, p, x, y, w, h, listZone));
 	}
 
 	private int listBottom() {
@@ -958,21 +1212,30 @@ public final class CatalogScreen extends class_437 {
 		int w = this.field_22789;
 		int h = this.field_22790;
 
-		// панель описания: крестик, кнопка действия; остальное внутри панели просто не пропускаем к списку
-		if (overPanel(mx, my)) {
-			int px = panelX(w);
+		// окно диагностики перехватывает всё
+		if (this.diag != null && this.modalOpen) {
+			return modalClick(mx, my);
+		}
 
-			if (inside(mx, my, px + PANEL_W - 8 - 16, LIST_TOP + 4 + 5, 16, 16)) {
-				press("close");
-				closeDetail();
-			} else if (this.detail != null && inside(mx, my, this.btnX, this.btnY, this.btnW, this.btnH)) {
-				press("panel-act");
-				act(this.detail);
-			} else if (this.detail != null && this.tab == Tab.INSTALLED && inside(mx, my, this.gearX, this.btnY, this.gearW, this.btnH)) {
-				press("panel-gear");
-				openConfig(this.detail);
+		// открытый всплывающий список: клик по пункту или закрытие
+		if (this.popup != null) {
+			return popupClick(mx, my);
+		}
+
+		// кнопки карточек, панели и шапки (последняя нарисованная — самая верхняя)
+		for (int i = this.hits.size() - 1; i >= 0; i--) {
+			Hit hit = this.hits.get(i);
+
+			if (inside(mx, my, hit.x, hit.y, hit.w, hit.h) && (!hit.listZone || (my >= LIST_TOP && my < listBottom()))) {
+				press(hit.id + (hit.p != null ? ":" + hit.p.id : ""));
+				handleHit(hit);
+
+				return true;
 			}
+		}
 
+		// остальное внутри панели просто не пропускаем к списку
+		if (overPanel(mx, my)) {
 			return true;
 		}
 
@@ -1037,19 +1300,7 @@ public final class CatalogScreen extends class_437 {
 					return false;
 				}
 
-				int col = rightCol(cw);
-				int colX = PAD + cw - col - 5;
-				int off = actionOffset();
-
-				if (off > 0 && inside(mx, my, colX, cardY + BTN_Y, GEAR_W, BTN_H)) {
-					press("gear:" + p.id);
-					openConfig(p);
-				} else if (inside(mx, my, colX + off, cardY + BTN_Y, col - off, BTN_H)) {
-					press("act:" + p.id);
-					act(p);
-				} else {
-					openDetail(p);
-				}
+				openDetail(p);
 
 				return true;
 			}
@@ -1060,6 +1311,12 @@ public final class CatalogScreen extends class_437 {
 
 	@Override
 	public boolean method_25401(double mx, double my, double horizontal, double vertical) {
+		if (this.popup != null) {
+			this.popup.scroll = Math.max(0, this.popup.scroll - (float) vertical * 16);
+
+			return true;
+		}
+
 		if (overPanel(mx, my)) {
 			this.detailScrollTarget = Math.max(0, this.detailScrollTarget - (float) vertical * 30);
 
@@ -1073,6 +1330,16 @@ public final class CatalogScreen extends class_437 {
 
 	@Override
 	public boolean method_25404(int keyCode, int scanCode, int modifiers) {
+		if (keyCode == 256 && this.diag != null && this.modalOpen) {
+			closeModal();
+			return true;
+		}
+
+		if (keyCode == 256 && this.popup != null) {
+			this.popup = null;
+			return true;
+		}
+
 		if (keyCode == 256 && this.panelOpen) { // Esc сначала закрывает панель, экран — со следующего нажатия
 			closeDetail();
 			return true;
@@ -1385,6 +1652,7 @@ public final class CatalogScreen extends class_437 {
 		this.lastFrameNanos = now;
 
 		this.icons.tick(this.field_22787);
+		this.hits.clear();
 
 		if (this.devTimeline) {
 			devTick();
@@ -1457,6 +1725,8 @@ public final class CatalogScreen extends class_437 {
 		drawList(ctx, mx, my, dt, w);
 		drawPanel(ctx, mx, my, w);
 		drawStatusBar(ctx, mx, my, w, h);
+		drawPopup(ctx, mx, my);
+		drawModal(ctx, mx, my, w, h);
 	}
 
 	private void drawHeader(class_332 ctx, int mx, int my, int w) {
@@ -1507,6 +1777,62 @@ public final class CatalogScreen extends class_437 {
 		int ux = (int) (tabX(Tab.CATALOG) + (tabX(Tab.INSTALLED) - tabX(Tab.CATALOG)) * this.tabPos);
 		int uw = (int) (tabWidth(Tab.CATALOG) + (tabWidth(Tab.INSTALLED) - tabWidth(Tab.CATALOG)) * this.tabPos);
 		ctx.method_25294(ux, TABS_Y + TABS_H - 2, ux + uw, TABS_Y + TABS_H, C_ACCENT);
+
+		drawHeaderControls(ctx, mx, my, w);
+	}
+
+	private static final String[][] SORTS = {{"", "По умолчанию"}, {"relevance", "Релевантность"}, {"downloads", "Загрузки"}, {"follows", "Лайки"}, {"newest", "Новые"}, {"updated", "Недавно обновлённые"}};
+	private static final String[] INSTALLED_FILTERS = {"Все", "С обновлениями", "Отключённые"};
+
+	private String sortLabel() {
+		for (String[] s : SORTS) {
+			if (s[0].equals(this.sortKey == null ? "" : this.sortKey)) {
+				return s[1];
+			}
+		}
+
+		return SORTS[0][1];
+	}
+
+	/** Кнопки справа от вкладок (то, что не помещается, пропускается): для каталога — сортировка и фильтры, для установленных — фильтр, обновления, импорт. */
+	private void drawHeaderControls(class_332 ctx, int mx, int my, int w) {
+		List<String[]> buttons = new ArrayList<>(); // id, подпись, со стрелкой?
+
+		if (this.tab == Tab.CATALOG) {
+			buttons.add(new String[] {"filter", "Фильтры" + (this.categoryFilter.isEmpty() ? "" : " (" + this.categoryFilter.size() + ")"), "1"});
+			buttons.add(new String[] {"sort", "Сортировка: " + sortLabel(), "1"});
+		} else {
+			buttons.add(new String[] {"import", "Импорт сборки", "0"});
+			buttons.add(new String[] {"updall", this.updates.isEmpty() ? (this.checkingUpdates ? "Проверяю..." : "Проверить обновления") : "Обновить всё (" + this.updates.size() + ")", "0"});
+			buttons.add(new String[] {"instfilter", INSTALLED_FILTERS[this.installedFilter], "1"});
+		}
+
+		int right = w - PAD;
+		int limit = tabX(Tab.INSTALLED) + tabWidth(Tab.INSTALLED) + 12;
+
+		for (String[] b : buttons) {
+			boolean arrow = b[2].equals("1");
+			int bw = textWidth(b[1]) + 16 + (arrow ? 10 : 0);
+
+			if (right - bw < limit) {
+				continue;
+			}
+
+			int bx = right - bw;
+			int by = TABS_Y - 1;
+			boolean hv = inside(mx, my, bx, by, bw, BTN_H) && this.popup == null;
+			boolean accent = b[0].equals("updall") && !this.updates.isEmpty();
+			int textColor = accent ? C_ACCENT_TEXT : C_TEXT;
+			button(ctx, "h:" + b[0], bx, by, bw, BTN_H, "", null, false, accent ? C_ACCENT : C_SECONDARY, accent ? C_ACCENT_HOVER : C_SECONDARY_HOVER, hv, textColor);
+			text(ctx, b[1], bx + 8, by + 5, textColor);
+
+			if (arrow) {
+				PixelIcons.draw(ctx, PixelIcons.ARROW_DOWN, bx + bw - 15, by + 7, textColor);
+			}
+
+			addHit(b[0], null, bx, by, bw, BTN_H, false);
+			right = bx - 4;
+		}
 	}
 
 	private void drawList(class_332 ctx, int mx, int my, float dt, int w) {
@@ -1580,13 +1906,15 @@ public final class CatalogScreen extends class_437 {
 
 			int dy = a >= 1F ? 0 : (int) ((1F - a) * 6);
 
-			if (a < 1F) {
-				fadeBegin(ctx, a);
+			float shownAlpha = a * (isDisabled(p) ? 0.5F : 1F);
+
+			if (shownAlpha < 1F) {
+				fadeBegin(ctx, shownAlpha);
 			}
 
 			drawCard(ctx, p, PAD, y + dy, cardW, mx, my, dt);
 
-			if (a < 1F) {
+			if (shownAlpha < 1F) {
 				fadeEnd(ctx);
 			}
 		}
@@ -1713,28 +2041,64 @@ public final class CatalogScreen extends class_437 {
 			drawStats(ctx, p, rightX, y + 8, col);
 		}
 
-		int off = actionOffset();
+		int[][] r = cardButtons(p, x, y, w);
+		boolean inList = my >= LIST_TOP && my < listBottom();
 
-		if (off > 0) {
-			drawGearButton(ctx, "gear:" + p.id, rightX, y + BTN_Y, GEAR_W, BTN_H, p, null, mx, my);
+		if (r[0] != null) {
+			boolean off = isDisabled(p);
+			boolean hv = inList && inside(mx, my, r[0][0], r[0][1], r[0][2], r[0][3]);
+			button(ctx, "tg:" + p.id, r[0][0], r[0][1], r[0][2], r[0][3], null, PixelIcons.POWER, false, off ? C_DISABLED : C_SECONDARY,
+					off ? C_SECONDARY : C_SECONDARY_HOVER, hv, off ? C_WARN : C_WHITE);
+			addHit("tg", p, r[0][0], r[0][1], r[0][2], r[0][3], true);
 		}
 
-		drawActionButton(ctx, "act:" + p.id, p, rightX + off, y + BTN_Y, col - off, BTN_H, mx, my);
+		if (r[1] != null) {
+			drawGearButton(ctx, "gear:" + p.id, r[1][0], r[1][1], r[1][2], r[1][3], p, null, inList ? mx : -1000, my);
+			addHit("gear", p, r[1][0], r[1][1], r[1][2], r[1][3], true);
+		}
+
+		if (r[2] != null) {
+			boolean hv = inList && inside(mx, my, r[2][0], r[2][1], r[2][2], r[2][3]);
+			button(ctx, "up:" + p.id, r[2][0], r[2][1], r[2][2], r[2][3], null, PixelIcons.UP, false, C_ACCENT, C_ACCENT_HOVER, hv, C_ACCENT_TEXT);
+			addHit("up", p, r[2][0], r[2][1], r[2][2], r[2][3], true);
+		}
+
+		drawActionButton(ctx, "act:" + p.id, p, r[3][0], r[3][1], r[3][2], r[3][3], inList ? mx : -1000, my);
+		addHit("act", p, r[3][0], r[3][1], r[3][2], r[3][3], true);
 	}
 
 	private static float clamp(float v) {
 		return Math.max(-1F, Math.min(1F, v));
 	}
 
-	/** Статус установленного мода: «Активен» (мод уже загружен в игру) или «После перезапуска». Возвращает занятую ширину. */
+	/** Состояние установленного мода: «Активен» / «После перезапуска» / «Отключён», «Обновление», «Локальный». Возвращает занятую ширину. */
 	private int drawBadge(class_332 ctx, ModrinthProject p, int x, int y, int maxWidth) {
 		if (this.tab != Tab.INSTALLED) {
 			return 0;
 		}
 
-		ConfigInfo c = this.configInfo.get(p.id);
-		boolean active = c != null && c.modId != null;
-		String label = active ? "Активен" : "После перезапуска";
+		int used = 0;
+
+		if (isDisabled(p)) {
+			used += badge(ctx, "Отключён", C_GRAY, x + used, y, maxWidth - used);
+		} else {
+			ConfigInfo c = this.configInfo.get(p.id);
+			boolean active = c != null && c.modId != null;
+			used += badge(ctx, active ? "Активен" : "После перезапуска", active ? C_OK : C_WARN, x + used, y, maxWidth - used);
+		}
+
+		if (this.updates.containsKey(p.id)) {
+			used += badge(ctx, "Обновление", C_ACCENT, x + used, y, maxWidth - used);
+		}
+
+		if (p.id.startsWith(LocalMods.LOCAL_PREFIX)) {
+			used += badge(ctx, "Локальный", C_GRAY, x + used, y, maxWidth - used);
+		}
+
+		return used;
+	}
+
+	private int badge(class_332 ctx, String label, int color, int x, int y, int maxWidth) {
 		int chipW = textWidth(label) + 12;
 
 		if (chipW > maxWidth) {
@@ -1742,7 +2106,7 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		chip(ctx, x, y, chipW, CHIP_H);
-		text(ctx, label, x + 6, y + 4, active ? C_OK : C_WARN);
+		text(ctx, label, x + 6, y + 4, color);
 
 		return chipW + 4;
 	}
@@ -1874,6 +2238,7 @@ public final class CatalogScreen extends class_437 {
 
 		int cx = px + PANEL_W - 8 - 16;
 		button(ctx, "close", cx, py + 5, 16, 16, null, PixelIcons.CLOSE, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, cx, py + 5, 16, 16), C_WHITE);
+		addHit("close", p, cx, py + 5, 16, 16, false);
 
 		int y = py + 42;
 
@@ -1900,25 +2265,44 @@ public final class CatalogScreen extends class_437 {
 
 		y += PANEL_CHIP_H + 6;
 
-		// кнопки (прямоугольники запоминаем для обработки клика): на вкладке установленных — «Настройки» и «Удалить» в ряд
-		this.btnY = y;
-		this.btnH = 20;
+		// кнопки панели: каждая регистрируется как область клика
+		int bh = 20;
+		boolean local = p.id.startsWith(LocalMods.LOCAL_PREFIX);
 
-		if (this.tab == Tab.INSTALLED) {
-			this.gearX = innerX;
-			this.gearW = (innerW - 4) / 2;
-			this.btnX = innerX + this.gearW + 4;
-			this.btnW = innerW - this.gearW - 4;
-			drawGearButton(ctx, "panel-gear", this.gearX, y, this.gearW, this.btnH, p, "Настройки", mx, my);
-		} else {
-			this.gearX = innerX;
-			this.gearW = 0;
-			this.btnX = innerX;
-			this.btnW = innerW;
+		if (!local) {
+			boolean hv = inside(mx, my, innerX, y, innerW, bh) && this.popup == null;
+			button(ctx, "ver", innerX, y, innerW, bh, "", null, false, C_SECONDARY, C_SECONDARY_HOVER, hv, C_TEXT);
+			text(ctx, "Выбрать версию", innerX + 8, y + 6, C_TEXT);
+			PixelIcons.draw(ctx, PixelIcons.ARROW_DOWN, innerX + innerW - 15, y + 8, C_TEXT);
+			addHit("ver", p, innerX, y, innerW, bh, false);
+			y += bh + 4;
 		}
 
-		drawActionButton(ctx, "panel-act", p, this.btnX, this.btnY, this.btnW, this.btnH, mx, my);
-		y += this.btnH + 8;
+		if (this.tab == Tab.INSTALLED) {
+			int half = (innerW - 4) / 2;
+			boolean off = isDisabled(p);
+			drawGearButton(ctx, "panel-gear", innerX, y, half, bh, p, "Настройки", mx, my);
+			addHit("gear", p, innerX, y, half, bh, false);
+			button(ctx, "panel-tg", innerX + half + 4, y, innerW - half - 4, bh, off ? "Включить" : "Отключить", PixelIcons.POWER, false,
+					C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, innerX + half + 4, y, innerW - half - 4, bh), off ? C_WARN : C_TEXT);
+			addHit("tg", p, innerX + half + 4, y, innerW - half - 4, bh, false);
+			y += bh + 4;
+
+			if (this.updates.containsKey(p.id)) {
+				button(ctx, "panel-up", innerX, y, half, bh, "Обновить", PixelIcons.UP, false, C_ACCENT, C_ACCENT_HOVER, inside(mx, my, innerX, y, half, bh), C_ACCENT_TEXT);
+				addHit("up", p, innerX, y, half, bh, false);
+				drawActionButton(ctx, "panel-act", p, innerX + half + 4, y, innerW - half - 4, bh, mx, my);
+				addHit("act", p, innerX + half + 4, y, innerW - half - 4, bh, false);
+			} else {
+				drawActionButton(ctx, "panel-act", p, innerX, y, innerW, bh, mx, my);
+				addHit("act", p, innerX, y, innerW, bh, false);
+			}
+		} else {
+			drawActionButton(ctx, "panel-act", p, innerX, y, innerW, bh, mx, my);
+			addHit("act", p, innerX, y, innerW, bh, false);
+		}
+
+		y += bh + 8;
 
 		// текст: краткое описание, затем полное (если загружено); прокручивается колесом над панелью
 		int textTop = y;
@@ -2089,5 +2473,583 @@ public final class CatalogScreen extends class_437 {
 
 		boolean backHover = inside(mx, my, w - PAD - backW, by, backW, BTN_H);
 		button(ctx, "back", w - PAD - backW, by, backW, BTN_H, "Назад", null, false, C_SECONDARY, C_SECONDARY_HOVER, backHover, C_TEXT);
+	}
+
+	// ---------------------------------------------------------------- отключение, обновления, версии, импорт, диагностика
+
+	private void handleHit(Hit hit) {
+		ModrinthProject p = hit.p;
+
+		switch (hit.id) {
+		case "tg":
+			toggleEnabled(p);
+			break;
+		case "gear":
+			openConfig(p);
+			break;
+		case "up": {
+			ModrinthVersion v = this.updates.get(p.id);
+
+			if (v != null) {
+				applyVersion(p, v, true);
+			}
+
+			break;
+		}
+		case "act":
+			act(p);
+			break;
+		case "close":
+			closeDetail();
+			break;
+		case "ver":
+			openVersions(p, hit);
+			break;
+		case "filter":
+		case "sort":
+		case "instfilter":
+			this.popup = new Popup(hit.id, null, hit.x + hit.w, hit.y + hit.h + 2);
+			break;
+		case "updall":
+			if (this.updates.isEmpty()) {
+				if (!this.checkingUpdates) {
+					setStatus("Проверяю обновления", C_GRAY);
+					QUICK.submit(() -> {
+						checkUpdatesNow();
+						setStatus(this.updates.isEmpty() ? "Все моды актуальны" : "Доступно обновлений: " + this.updates.size(), this.updates.isEmpty() ? C_OK : C_ACCENT);
+					});
+				}
+			} else {
+				updateAll();
+			}
+
+			break;
+		case "import":
+			pickAndImport();
+			break;
+		default:
+			break;
+		}
+	}
+
+	/** Включает/отключает мод переименованием jar. Включённый мод пробуем сразу подключить к игре, отключённый — снимется после перезапуска. */
+	private void toggleEnabled(ModrinthProject p) {
+		String file = this.installedFiles.get(p.id);
+
+		if (file == null || !this.busyIds.add(p.id)) {
+			return;
+		}
+
+		boolean enable = isDisabled(p);
+
+		WORKER.submit(() -> {
+			boolean handed = false;
+
+			try {
+				if (enable) {
+					LocalMods.enable(modsDir(), file);
+					refreshInstalledIndex();
+					refreshLocalMods();
+					handed = true;
+					this.field_22787.execute(() -> hotLoad(Collections.singletonList(modsDir().resolve(file)), p.title, p.id));
+				} else {
+					boolean now = LocalMods.disable(modsDir(), file);
+					refreshInstalledIndex();
+					refreshLocalMods();
+
+					if (now) {
+						setStatus("«" + p.title + "» отключён", C_OK);
+					} else {
+						Handoff.requestPrepare();
+						setStatus("«" + p.title + "» отключится при перезапуске", C_WARN);
+					}
+				}
+			} catch (IOException | RuntimeException e) {
+				Log.warn(LogCategory.MODRINTH, "Не удалось переключить мод «" + p.title + "»", e);
+				setStatus("Не удалось переключить «" + p.title + "»", C_RED);
+			} finally {
+				if (!handed) {
+					this.busyIds.remove(p.id);
+				}
+			}
+		});
+	}
+
+	/** Установка выбранной версии: обновление, откат или первая установка конкретной версии. Замена файла вступает в силу после перезапуска. */
+	private void applyVersion(ModrinthProject p, ModrinthVersion v, boolean isUpdate) {
+		if (!this.busyIds.add(p.id)) {
+			return;
+		}
+
+		boolean replacing = this.installedFiles.containsKey(p.id);
+		setStatus("Ставлю «" + p.title + "» " + v.versionNumber, C_GRAY);
+		this.installFraction = -1F;
+		this.progressById.put(p.id, -1F);
+
+		WORKER.submit(() -> {
+			boolean handed = false;
+
+			try {
+				ModInstaller.InstallResult r = ModUpdates.apply(modsDir(), v, LOADER, this.gameVersion, (fileNo, count, name, done, total) -> {
+					float fraction = total > 0 ? (fileNo + (float) done / total) / count : (float) fileNo / count;
+					this.installFraction = fraction;
+					this.progressById.put(p.id, fraction);
+					setStatus("Скачиваю «" + p.title + "» " + (fileNo + 1) + "/" + count, C_GRAY);
+				});
+				this.installFraction = -1F;
+				this.cache.putProjects(Collections.singletonList(p));
+				this.cache.save();
+				refreshInstalledIndex();
+				refreshLocalMods();
+				Map<String, ModrinthVersion> up = new HashMap<>(this.updates);
+				up.remove(p.id);
+				this.updates = up;
+
+				if (replacing) {
+					Handoff.requestPrepare();
+					setStatus("«" + p.title + "» " + (isUpdate ? "обновлён до " : "заменён на ") + v.versionNumber + " — после перезапуска", C_WARN);
+				} else {
+					handed = true;
+					this.field_22787.execute(() -> hotLoad(r.installedFiles, p.title, p.id));
+				}
+			} catch (Exception e) {
+				Log.warn(LogCategory.MODRINTH, "Не удалось поставить «" + p.title + "» " + v.versionNumber, e);
+				setStatus("Не удалось поставить «" + p.title + "»: " + shortError(e), C_RED);
+			} finally {
+				if (!handed) {
+					this.busyIds.remove(p.id);
+					this.progressById.remove(p.id);
+					this.installFraction = -2F;
+				}
+			}
+		});
+	}
+
+	private void updateAll() {
+		List<Map.Entry<String, ModrinthVersion>> todo = new ArrayList<>(this.updates.entrySet());
+
+		if (todo.isEmpty() || !this.busyIds.add("*all")) {
+			return;
+		}
+
+		this.installFraction = -1F;
+		setStatus("Обновляю моды: " + todo.size(), C_GRAY);
+
+		WORKER.submit(() -> {
+			int done = 0;
+			int failed = 0;
+
+			try {
+				for (Map.Entry<String, ModrinthVersion> e : todo) {
+					final int index = done;
+
+					try {
+						ModUpdates.apply(modsDir(), e.getValue(), LOADER, this.gameVersion, (fileNo, count, name, bytes, total) -> {
+							float inner = total > 0 ? (fileNo + (float) bytes / total) / count : (float) fileNo / count;
+							this.installFraction = (index + inner) / todo.size();
+						});
+					} catch (Exception ex) {
+						failed++;
+						Log.warn(LogCategory.MODRINTH, "Не удалось обновить " + e.getKey(), ex);
+					}
+
+					done++;
+					setStatus("Обновлено " + done + " из " + todo.size(), C_GRAY);
+				}
+
+				refreshInstalledIndex();
+				refreshLocalMods();
+				this.updates = Collections.emptyMap();
+				Handoff.requestPrepare();
+				setStatus(failed == 0 ? "Обновлено модов: " + done + " — после перезапуска" : "Обновлено " + (done - failed) + ", с ошибкой " + failed, failed == 0 ? C_WARN : C_RED);
+			} finally {
+				this.busyIds.remove("*all");
+				this.installFraction = -2F;
+			}
+		});
+	}
+
+	// ---- выбор версии
+
+	private void openVersions(ModrinthProject p, Hit hit) {
+		this.popup = new Popup("ver", p, hit.x + hit.w, hit.y + hit.h + 2);
+
+		if (!this.versionListFor.equals(p.id)) {
+			this.versionListFor = p.id;
+			this.versionList = null;
+
+			QUICK.submit(() -> {
+				try {
+					List<ModrinthVersion> list = ModUpdates.versions(p.id, LOADER, this.gameVersion);
+
+					if (this.versionListFor.equals(p.id)) {
+						this.versionList = list;
+					}
+				} catch (Exception e) {
+					Log.warn(LogCategory.MODRINTH, "Не удалось получить версии «" + p.title + "»", e);
+					setStatus("Не удалось получить версии: " + shortError(e), C_RED);
+					this.popup = null;
+				}
+			});
+		}
+	}
+
+	private List<PopupItem> popupItems(Popup pp) {
+		List<PopupItem> items = new ArrayList<>();
+
+		switch (pp.kind) {
+		case "sort":
+			for (String[] srt : SORTS) {
+				items.add(new PopupItem("sort:" + srt[0], srt[1], srt[0].equals(this.sortKey == null ? "" : this.sortKey), C_TEXT));
+			}
+
+			break;
+		case "filter":
+			items.add(new PopupItem("cat:*", "Сбросить категории", false, C_GRAY));
+
+			for (String c : Fmt.FILTER_CATEGORIES) {
+				items.add(new PopupItem("cat:" + c, Fmt.categoryLabel(c), this.categoryFilter.contains(c), C_TEXT));
+			}
+
+			break;
+		case "instfilter":
+			for (int i = 0; i < INSTALLED_FILTERS.length; i++) {
+				items.add(new PopupItem("if:" + i, INSTALLED_FILTERS[i], i == this.installedFilter, C_TEXT));
+			}
+
+			break;
+		default: { // версии мода
+			List<ModrinthVersion> list = this.versionList;
+
+			if (list == null || pp.p == null || !this.versionListFor.equals(pp.p.id)) {
+				items.add(new PopupItem("none", "Загружаю список версий...", false, C_GRAY));
+			} else if (list.isEmpty()) {
+				items.add(new PopupItem("none", "Нет версий под " + this.gameVersion, false, C_GRAY));
+			} else {
+				String current = this.installedVersions.get(pp.p.id);
+
+				for (int i = 0; i < list.size(); i++) {
+					ModrinthVersion v = list.get(i);
+					String type = "beta".equals(v.versionType) ? "бета" : "alpha".equals(v.versionType) ? "альфа" : "релиз";
+					int color = "beta".equals(v.versionType) ? C_WARN : "alpha".equals(v.versionType) ? C_RED : C_TEXT;
+					String when = Fmt.ago(v.datePublished);
+					items.add(new PopupItem("ver:" + i, v.versionNumber + " · " + type + (when.isEmpty() ? "" : " · " + when), v.id.equals(current), color));
+				}
+			}
+		}
+		}
+
+		return items;
+	}
+
+	private static final int POPUP_ROW = 15;
+
+	private void drawPopup(class_332 ctx, int mx, int my) {
+		Popup pp = this.popup;
+
+		if (pp == null) {
+			return;
+		}
+
+		List<PopupItem> items = popupItems(pp);
+		int widest = 0;
+
+		for (PopupItem it : items) {
+			widest = Math.max(widest, textWidth(it.label));
+		}
+
+		int w = Math.max(130, Math.min(260, widest + 34));
+		int maxH = Math.max(60, listBottom() - pp.ay - 6);
+		int h = Math.min(items.size() * POPUP_ROW + 6, maxH);
+		pp.w = w;
+		pp.h = h;
+		pp.x = Math.max(4, Math.min(this.field_22789 - w - 4, pp.ax - w));
+		pp.y = pp.ay;
+		pp.scroll = Math.max(0, Math.min(Math.max(0, items.size() * POPUP_ROW + 6 - h), pp.scroll));
+
+		frame(ctx, pp.x, pp.y, w, h, C_HEADER, lighter(C_HEADER, 0.1F), darker(C_HEADER, 0.35F), false);
+		ctx.method_44379(pp.x + 2, pp.y + 2, pp.x + w - 2, pp.y + h - 3);
+
+		for (int i = 0; i < items.size(); i++) {
+			PopupItem it = items.get(i);
+			int iy = (int) (pp.y + 3 + i * POPUP_ROW - pp.scroll);
+
+			if (iy + POPUP_ROW < pp.y || iy > pp.y + h) {
+				continue;
+			}
+
+			boolean hv = inside(mx, my, pp.x + 2, iy, w - 4, POPUP_ROW) && my >= pp.y + 2 && my < pp.y + h - 2;
+
+			if (hv && !it.id.equals("none")) {
+				ctx.method_25294(pp.x + 2, iy, pp.x + w - 2, iy + POPUP_ROW, C_SECONDARY_HOVER);
+			}
+
+			// флажок
+			ctx.method_25294(pp.x + 7, iy + 3, pp.x + 16, iy + 12, C_BLACK);
+			ctx.method_25294(pp.x + 8, iy + 4, pp.x + 15, iy + 11, it.checked ? C_ACCENT : C_FIELD);
+			text(ctx, fit(it.label, w - 34), pp.x + 22, iy + 4, it.color);
+		}
+
+		ctx.method_44380();
+	}
+
+	private boolean popupClick(double mx, double my) {
+		Popup pp = this.popup;
+
+		if (pp != null && inside(mx, my, pp.x, pp.y, pp.w, pp.h)) {
+			List<PopupItem> items = popupItems(pp);
+			int index = (int) ((my - pp.y - 3 + pp.scroll) / POPUP_ROW);
+
+			if (index >= 0 && index < items.size()) {
+				PopupItem it = items.get(index);
+
+				if (!it.id.equals("none")) {
+					playClick();
+					handlePopupItem(pp, it);
+				}
+			}
+
+			return true;
+		}
+
+		this.popup = null; // клик мимо закрывает список и не проваливается дальше
+
+		return true;
+	}
+
+	private void handlePopupItem(Popup pp, PopupItem it) {
+		String id = it.id;
+
+		if (id.startsWith("sort:")) {
+			String key = id.substring(5);
+			this.sortKey = key.isEmpty() ? null : key;
+			this.popup = null;
+			search(this.query.trim());
+		} else if (id.equals("cat:*")) {
+			this.categoryFilter.clear();
+			search(this.query.trim());
+		} else if (id.startsWith("cat:")) {
+			String c = id.substring(4);
+
+			if (!this.categoryFilter.remove(c)) {
+				this.categoryFilter.add(c);
+			}
+
+			search(this.query.trim()); // список остаётся открытым: можно отметить несколько категорий
+		} else if (id.startsWith("if:")) {
+			this.installedFilter = Integer.parseInt(id.substring(3));
+			this.popup = null;
+			this.listEpoch++;
+			this.scroll = 0;
+			this.scrollTarget = 0;
+			this.layoutVersion++;
+		} else if (id.startsWith("ver:")) {
+			List<ModrinthVersion> list = this.versionList;
+			int i = Integer.parseInt(id.substring(4));
+			this.popup = null;
+
+			if (list != null && i < list.size()) {
+				ModrinthVersion v = list.get(i);
+
+				if (it.checked) {
+					setStatus("Эта версия уже установлена", C_GRAY);
+				} else {
+					applyVersion(pp.p, v, false);
+				}
+			}
+		}
+	}
+
+	// ---- импорт сборки .mrpack
+
+	private void pickAndImport() {
+		QUICK.submit(() -> {
+			String path = null;
+
+			try (MemoryStack stack = MemoryStack.stackPush()) {
+				PointerBuffer filters = stack.mallocPointer(1);
+				filters.put(stack.UTF8("*.mrpack")).flip();
+				path = TinyFileDialogs.tinyfd_openFileDialog("Импорт сборки Modrinth", "", filters, "Сборки Modrinth (*.mrpack)", false);
+			} catch (Throwable t) {
+				Log.warn(LogCategory.MODRINTH, "Диалог выбора файла недоступен", t);
+				setStatus("Диалог выбора файла недоступен — перетащи .mrpack в окно", C_WARN);
+			}
+
+			if (path != null) {
+				importPackFile(Paths.get(path));
+			}
+		});
+	}
+
+	@Override
+	public void method_29638(List<Path> paths) {
+		for (Path p : paths) {
+			if (p.getFileName().toString().toLowerCase().endsWith(".mrpack")) {
+				QUICK.submit(() -> importPackFile(p));
+
+				return;
+			}
+		}
+
+		setStatus("Нужен файл .mrpack", C_GRAY);
+	}
+
+	private void importPackFile(Path file) {
+		if (!this.busyIds.add("*import")) {
+			return;
+		}
+
+		this.installFraction = -1F;
+		setStatus("Читаю сборку", C_GRAY);
+		boolean handed = false;
+
+		try {
+			MrpackImporter.Result result = MrpackImporter.importPack(file, FabricLoader.getInstance().getGameDir(), this.gameVersion, (done, total, what) -> {
+				this.installFraction = total <= 0 ? -1F : (float) done / total;
+				setStatus("Сборка: " + done + "/" + total, C_GRAY);
+			});
+
+			try {
+				LocalMods.identify(modsDir(), InstalledModsIndex.load(modsDir()));
+			} catch (Exception e) {
+				Log.warn(LogCategory.MODRINTH, "Не удалось опознать моды сборки", e);
+			}
+
+			refreshInstalledIndex();
+			refreshLocalMods();
+			setStatus("Сборка «" + result.name + "»: скачано " + result.downloaded + ", " + result.newMods.size() + " модов", C_OK);
+
+			if (!result.newMods.isEmpty()) {
+				handed = true;
+				List<Path> mods = result.newMods;
+				this.field_22787.execute(() -> {
+					hotLoad(mods, result.name, "*import");
+					this.listEpoch++;
+					loadInstalled();
+				});
+			}
+		} catch (Exception e) {
+			Log.warn(LogCategory.MODRINTH, "Импорт сборки не удался", e);
+			setStatus(shortError(e), C_RED);
+		} finally {
+			if (!handed) {
+				this.busyIds.remove("*import");
+				this.installFraction = -2F;
+			}
+		}
+	}
+
+	// ---- окно диагностики падения
+
+	private final Map<String, Boolean> suspectDone = new HashMap<>();
+	private final List<Hit> modalHits = new ArrayList<>();
+
+	private void closeModal() {
+		CrashDiagnoser.Diagnosis d = this.diag;
+		this.modalOpen = false;
+		this.diag = null;
+
+		if (d != null) {
+			CrashDiagnoser.markHandled(FabricLoader.getInstance().getGameDir(), d.crashFile);
+		}
+	}
+
+	private boolean modalClick(double mx, double my) {
+		for (int i = this.modalHits.size() - 1; i >= 0; i--) {
+			Hit hit = this.modalHits.get(i);
+
+			if (inside(mx, my, hit.x, hit.y, hit.w, hit.h)) {
+				press("modal-" + hit.id);
+
+				if (hit.id.equals("close")) {
+					closeModal();
+				} else if (hit.id.equals("report")) {
+					CrashDiagnoser.Diagnosis d = this.diag;
+
+					if (d != null) {
+						QUICK.submit(() -> {
+							try {
+								ModConfigs.openExternally(FabricLoader.getInstance().getGameDir().resolve("crash-reports").resolve(d.crashFile));
+							} catch (IOException e) {
+								setStatus("Не удалось открыть отчёт", C_RED);
+							}
+						});
+					}
+				} else if (hit.id.startsWith("off:")) {
+					String file = hit.id.substring(4);
+					this.suspectDone.put(file, true);
+
+					QUICK.submit(() -> {
+						try {
+							boolean now = LocalMods.disable(modsDir(), file);
+							refreshInstalledIndex();
+							setStatus(now ? "Мод отключён" : "Мод отключится при перезапуске", now ? C_OK : C_WARN);
+
+							if (!now) {
+								Handoff.requestPrepare();
+							}
+						} catch (IOException e) {
+							setStatus("Не удалось отключить мод", C_RED);
+						}
+					});
+				}
+
+				return true;
+			}
+		}
+
+		return true; // окно модальное: клики мимо не проходят к списку
+	}
+
+	private void drawModal(class_332 ctx, int mx, int my, int w, int h) {
+		CrashDiagnoser.Diagnosis d = this.diag;
+		this.modalHits.clear();
+
+		if (d == null || !this.modalOpen) {
+			return;
+		}
+
+		ctx.method_25294(0, 0, w, h, 0xB0000000);
+
+		int bw = Math.min(w - 24, 400);
+		int rows = Math.max(1, d.suspects.size());
+		int bh = 78 + rows * 34 + 30;
+		int bx = (w - bw) / 2;
+		int by = Math.max(8, (h - bh) / 2);
+		frame(ctx, bx, by, bw, bh, C_HEADER, lighter(C_HEADER, 0.1F), darker(C_HEADER, 0.35F), false);
+		ctx.method_25294(bx + 1, by + 1, bx + bw - 1, by + 2, C_WARN);
+
+		text(ctx, "Игра закрылась с ошибкой", bx + 12, by + 12, C_WHITE);
+		text(ctx, fit(d.description.isEmpty() ? d.crashFile : d.description, bw - 24), bx + 12, by + 26, C_GRAY);
+		text(ctx, d.suspects.isEmpty() ? "Виновника по отчёту определить не удалось." : "Вероятные виновники:", bx + 12, by + 44, C_TEXT);
+
+		int y = by + 60;
+
+		for (CrashDiagnoser.Suspect sp : d.suspects) {
+			frame(ctx, bx + 10, y, bw - 20, 30, C_PANEL, lighter(C_PANEL, 0.07F), darker(C_PANEL, 0.3F), false);
+			text(ctx, fit(sp.name, bw - 130), bx + 18, y + 6, C_WHITE);
+			text(ctx, fit(sp.reason, bw - 130), bx + 18, y + 17, C_GRAY);
+			boolean done = this.suspectDone.containsKey(sp.fileName);
+			int bxx = bx + bw - 10 - 92;
+
+			if (done) {
+				button(ctx, "m-off-" + sp.fileName, bxx, y + 6, 84, 18, "Отключён", null, false, C_DISABLED, C_DISABLED, false, C_GRAY);
+			} else {
+				button(ctx, "m-off-" + sp.fileName, bxx, y + 6, 84, 18, "Отключить", PixelIcons.POWER, false, C_ACCENT, C_ACCENT_HOVER, inside(mx, my, bxx, y + 6, 84, 18), C_ACCENT_TEXT);
+				this.modalHits.add(new Hit("off:" + sp.fileName, null, bxx, y + 6, 84, 18, false));
+			}
+
+			y += 34;
+		}
+
+		if (d.suspects.isEmpty()) {
+			y += 34;
+		}
+
+		int fy = by + bh - 28;
+		button(ctx, "m-close", bx + bw - 10 - 80, fy, 80, 18, "Закрыть", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + bw - 90, fy, 80, 18), C_TEXT);
+		this.modalHits.add(new Hit("close", null, bx + bw - 90, fy, 80, 18, false));
+		button(ctx, "m-report", bx + 10, fy, 110, 18, "Открыть отчёт", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 10, fy, 110, 18), C_TEXT);
+		this.modalHits.add(new Hit("report", null, bx + 10, fy, 110, 18, false));
 	}
 }

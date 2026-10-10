@@ -23,13 +23,13 @@ public abstract class WindowMixin {
 		return !Handoff.isHiddenChild() && settings.field_3283;
 	}
 
-	@Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwCreateWindow(IILjava/lang/CharSequence;JJ)J"))
-	private long argentum$createHidden(int width, int height, CharSequence title, long monitor, long share) {
+	// Перед созданием окна просим GLFW сделать его скрытым. Именно вставка перед вызовом, а не @Redirect: на этот же вызов
+	// у Sodium стоит свой @Redirect (обход проблем драйверов), и конфликт отключил бы его обход.
+	@org.spongepowered.asm.mixin.injection.Inject(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwCreateWindow(IILjava/lang/CharSequence;JJ)J"))
+	private void argentum$hideBeforeCreate(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
 		if (Handoff.isHiddenChild()) {
 			GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
 		}
-
-		return GLFW.glfwCreateWindow(width, height, title, monitor, share);
 	}
 
 	// Window.toggleFullscreen: игра сама включает полный экран при старте, если так записано в настройках, — а

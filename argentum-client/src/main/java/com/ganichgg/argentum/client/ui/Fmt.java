@@ -85,6 +85,17 @@ public final class Fmt {
 		return n + " " + word;
 	}
 
+	/** Категории Modrinth, по которым можно фильтровать каталог (без загрузчиков). */
+	public static final String[] FILTER_CATEGORIES = {"adventure", "cursed", "decoration", "economy", "equipment", "food", "game-mechanics",
+			"library", "magic", "management", "minigame", "mobs", "optimization", "social", "storage", "technology", "transportation", "utility", "worldgen"};
+
+	/** Русская подпись категории; незнакомую показывает с заглавной буквы. */
+	public static String categoryLabel(String id) {
+		String t = TAGS.get(id);
+
+		return t != null ? t : id.isEmpty() ? id : Character.toUpperCase(id.charAt(0)) + id.substring(1);
+	}
+
 	/** Теги карточки: окружение (клиент/сервер) и категории, по-русски где знаем перевод. */
 	public static java.util.List<String> tags(ModrinthProject p) {
 		java.util.List<String> tags = new java.util.ArrayList<>();

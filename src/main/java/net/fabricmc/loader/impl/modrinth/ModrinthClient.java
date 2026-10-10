@@ -42,19 +42,43 @@ public final class ModrinthClient {
 
 	private ModrinthClient() { }
 
+	/** Страница результатов поиска: сами проекты и сколько всего их нашлось (для подгрузки по мере прокрутки). */
+	public static final class SearchPage {
+		public final List<ModrinthProject> hits;
+		public final int totalHits;
+
+		SearchPage(List<ModrinthProject> hits, int totalHits) {
+			this.hits = hits;
+			this.totalHits = totalHits;
+		}
+	}
+
 	public static List<ModrinthProject> search(String query, String loader, String gameVersion) throws ModrinthApiException {
+		return searchPage(query, loader, gameVersion, 0, 30).hits;
+	}
+
+	public static SearchPage searchPage(String query, String loader, String gameVersion, int offset, int limit) throws ModrinthApiException {
 		String facets = "[[\"project_type:mod\"],[\"categories:" + loader + "\"],[\"versions:" + gameVersion + "\"]]";
 		// пустой запрос — витрина самых популярных; иначе обычная релевантность
 		String index = query.trim().isEmpty() ? "downloads" : "relevance";
-		String url = API_BASE + "/search?query=" + urlEncode(query) + "&index=" + index + "&facets=" + urlEncode(facets) + "&limit=30";
+		String url = API_BASE + "/search?query=" + urlEncode(query) + "&index=" + index + "&facets=" + urlEncode(facets)
+				+ "&offset=" + offset + "&limit=" + limit;
 
 		try (JsonReader reader = openJsonReader(url)) {
 			List<ModrinthProject> ret = new ArrayList<>();
+			int total = 0;
 
 			reader.beginObject();
 
 			while (reader.hasNext()) {
-				if (!reader.nextName().equals("hits")) {
+				String key = reader.nextName();
+
+				if (key.equals("total_hits")) {
+					total = (int) readLongOrZero(reader);
+					continue;
+				}
+
+				if (!key.equals("hits")) {
 					reader.skipValue();
 					continue;
 				}
@@ -70,9 +94,35 @@ public final class ModrinthClient {
 
 			reader.endObject();
 
-			return ret;
+			return new SearchPage(ret, total);
 		} catch (IOException e) {
 			throw new ModrinthApiException("Не удалось выполнить поиск модов на Modrinth по запросу \"" + query + "\"", e);
+		}
+	}
+
+	/** Полное описание проекта (markdown) — поле {@code body} из {@code GET /v2/project/{id}}; пустая строка, если его нет. */
+	public static String getProjectBody(String projectIdOrSlug) throws ModrinthApiException {
+		String url = API_BASE + "/project/" + urlEncode(projectIdOrSlug);
+
+		try (JsonReader reader = openJsonReader(url)) {
+			String body = "";
+
+			reader.beginObject();
+
+			while (reader.hasNext()) {
+				if (reader.nextName().equals("body")) {
+					String value = readStringOrNull(reader);
+					body = value == null ? "" : value;
+				} else {
+					reader.skipValue();
+				}
+			}
+
+			reader.endObject();
+
+			return body;
+		} catch (IOException e) {
+			throw new ModrinthApiException("Не удалось получить с Modrinth описание мода \"" + projectIdOrSlug + "\"", e);
 		}
 	}
 

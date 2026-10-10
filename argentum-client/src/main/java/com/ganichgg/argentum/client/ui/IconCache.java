@@ -287,18 +287,79 @@ public final class IconCache {
 			}
 		}
 
-		// скругление «по одному пикселю»: срезаем угловые пиксели размером с единицу GUI при показе иконки в ~40 единиц
-		int cut = Math.max(1, Math.round(Math.min(outW, outH) / 40F));
+		frameIcon(out, outW, outH);
 
-		for (int dy = 0; dy < cut; dy++) {
-			for (int dx = 0; dx < cut; dx++) {
-				out[dy * outW + dx] = 0;
-				out[dy * outW + (outW - 1 - dx)] = 0;
-				out[(outH - 1 - dy) * outW + dx] = 0;
-				out[(outH - 1 - dy) * outW + (outW - 1 - dx)] = 0;
+		return new Decoded(icon, outW, outH, out);
+	}
+
+	private static final int BACKDROP = 0xFF25_2423; // ABGR тёмной подложки (0xFF232425)
+	private static final int OUTLINE = 0xFF0F0E0E; // ABGR чёрного контура (0xFF0E0E0F)
+
+	/**
+	 * Оформление иконки в стиле кнопок: снаружи чёрный контур, под ним внутри — белая полупрозрачная кромка
+	 * (осветление), а если по краям у иконки нет пикселей, она кладётся на небольшую тёмную подложку.
+	 * Толщина — одна единица GUI при показе иконки в ~40 единиц; рамка запечена в текстуру, поэтому одинаково
+	 * выглядит и плоской, и в 3D-наклоне.
+	 */
+	private static void frameIcon(int[] px, int w, int h) {
+		int t = Math.max(1, Math.round(Math.min(w, h) / 40F));
+		int edge = 0;
+		int transparentEdge = 0;
+
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				if (x == 0 || y == 0 || x == w - 1 || y == h - 1) {
+					edge++;
+
+					if ((px[y * w + x] >>> 24) < 128) {
+						transparentEdge++;
+					}
+				}
 			}
 		}
 
-		return new Decoded(icon, outW, outH, out);
+		if (transparentEdge * 5 >= edge) { // по краям пусто — подкладываем тёмную подложку
+			for (int i = 0; i < px.length; i++) {
+				px[i] = over(px[i], BACKDROP);
+			}
+		}
+
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				int d = Math.min(Math.min(x, w - 1 - x), Math.min(y, h - 1 - y)); // расстояние до края
+
+				if (d < t) {
+					px[y * w + x] = OUTLINE;
+				} else if (d < 2 * t) {
+					px[y * w + x] = whiten(px[y * w + x], 0.28F);
+				}
+			}
+		}
+	}
+
+	/** Пиксель (ABGR) поверх непрозрачной подложки. */
+	private static int over(int fg, int bg) {
+		int a = fg >>> 24;
+
+		if (a == 255) {
+			return fg;
+		}
+
+		int r = ((fg & 0xFF) * a + (bg & 0xFF) * (255 - a)) / 255;
+		int g = (((fg >> 8) & 0xFF) * a + ((bg >> 8) & 0xFF) * (255 - a)) / 255;
+		int b = (((fg >> 16) & 0xFF) * a + ((bg >> 16) & 0xFF) * (255 - a)) / 255;
+
+		return 0xFF000000 | (b << 16) | (g << 8) | r;
+	}
+
+	private static int whiten(int abgr, float amount) {
+		int r = (abgr & 0xFF);
+		int g = (abgr >> 8) & 0xFF;
+		int b = (abgr >> 16) & 0xFF;
+		r += (int) ((255 - r) * amount);
+		g += (int) ((255 - g) * amount);
+		b += (int) ((255 - b) * amount);
+
+		return (abgr & 0xFF000000) | (b << 16) | (g << 8) | r;
 	}
 }

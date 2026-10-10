@@ -346,6 +346,20 @@ public final class CatalogScreen extends class_437 {
 
 	// ---------------------------------------------------------------- данные
 
+	/** Короткая причина ошибки для строки состояния: без цепочек исключений, до первой точки. */
+	private static String shortError(Throwable e) {
+		String m = e.getMessage();
+
+		if (m == null || m.isEmpty()) {
+			return e.getClass().getSimpleName();
+		}
+
+		int dot = m.indexOf(". ");
+		String first = dot > 0 ? m.substring(0, dot) : m;
+
+		return first.length() > 60 ? first.substring(0, 57) + "..." : first;
+	}
+
 	private void setStatus(String s, int color) {
 		this.status = s;
 		this.statusColor = color;
@@ -430,7 +444,7 @@ public final class CatalogScreen extends class_437 {
 				Log.warn(LogCategory.MODRINTH, "Поиск «" + q + "» не удался", e);
 
 				if (token == this.requestToken) {
-					setStatus(hadSaved ? "Нет соединения — показан сохранённый список" : "Ошибка поиска: " + e.getMessage(), hadSaved ? C_GRAY : C_RED);
+					setStatus(hadSaved ? "Нет сети — список из кэша" : "Поиск не удался: " + shortError(e), hadSaved ? C_GRAY : C_RED);
 				}
 			} finally {
 				if (token == this.requestToken) {
@@ -494,12 +508,12 @@ public final class CatalogScreen extends class_437 {
 
 		if (ids.isEmpty()) {
 			this.loading = false;
-			setStatus("Через каталог пока ничего не установлено", C_GRAY);
+			setStatus("Здесь пока пусто", C_GRAY);
 			return;
 		}
 
 		this.loading = true;
-		setStatus("Установлено через каталог: " + ids.size(), C_GRAY);
+		setStatus("Установлено: " + ids.size(), C_GRAY);
 
 		WORKER.submit(() -> {
 			try {
@@ -525,7 +539,7 @@ public final class CatalogScreen extends class_437 {
 				Log.warn(LogCategory.MODRINTH, "Не удалось обновить список установленных", e);
 
 				if (token == this.requestToken) {
-					setStatus("Нет соединения — показаны сохранённые данные (" + ids.size() + ")", C_GRAY);
+					setStatus("Нет сети — данные из кэша", C_GRAY);
 				}
 			} finally {
 				if (token == this.requestToken) {
@@ -572,7 +586,7 @@ public final class CatalogScreen extends class_437 {
 			return;
 		}
 
-		setStatus("Устанавливаю «" + p.title + "» и его зависимости...", C_GRAY);
+		setStatus("Подбираю «" + p.title + "»", C_GRAY);
 		this.installFraction = -1F;
 		this.progressById.put(p.id, -1F);
 
@@ -584,7 +598,7 @@ public final class CatalogScreen extends class_437 {
 				List<ModrinthVersion> plan = DependencyResolver.resolve(p.id, LOADER, this.gameVersion, index);
 
 				if (plan.isEmpty()) {
-					setStatus("«" + p.title + "» уже установлен либо нет версии под " + this.gameVersion, C_RED);
+					setStatus("«" + p.title + "»: нет версии под " + this.gameVersion, C_RED);
 					return;
 				}
 
@@ -592,7 +606,7 @@ public final class CatalogScreen extends class_437 {
 					float fraction = total > 0 ? (fileNo + (float) done / total) / count : (float) fileNo / count;
 					this.installFraction = fraction;
 					this.progressById.put(p.id, fraction);
-					setStatus("Скачиваю " + name + " (" + (fileNo + 1) + " из " + count + ")", C_GRAY);
+					setStatus("Скачиваю «" + p.title + "» " + (fileNo + 1) + "/" + count, C_GRAY);
 				});
 				this.installFraction = -1F; // дальше — подключение к игре, прогресс неизвестен
 				this.progressById.put(p.id, -1F);
@@ -600,15 +614,14 @@ public final class CatalogScreen extends class_437 {
 				this.cache.save();
 				refreshInstalledIndex();
 
-				String names = String.join(", ", result.installedModNames);
-				setStatus("Установлено: " + names + ". Подключаю к запущенной игре...", C_GRAY);
+				setStatus("Подключаю «" + p.title + "»", C_GRAY);
 
 				// hot-loader трогает классы игры и запускает инициализаторы модов — это делаем в потоке рендера
 				handedOver = true;
-				this.field_22787.execute(() -> hotLoad(result.installedFiles, names, p.id));
+				this.field_22787.execute(() -> hotLoad(result.installedFiles, p.title, p.id));
 			} catch (Exception e) {
 				Log.warn(LogCategory.MODRINTH, "Установка «" + p.title + "» не удалась", e);
-				setStatus("Ошибка установки: " + e.getMessage() + (e.getCause() != null ? " (" + e.getCause() + ")" : ""), C_RED);
+				setStatus("Не удалось установить «" + p.title + "»: " + shortError(e), C_RED);
 			} finally {
 				if (!handedOver) {
 					this.busyIds.remove(p.id);
@@ -627,7 +640,7 @@ public final class CatalogScreen extends class_437 {
 
 			boolean failed = report.count(HotLoadReport.Status.FAILED) > 0;
 			boolean restart = report.count(HotLoadReport.Status.NEEDS_RESTART) > 0;
-			setStatus("Установлено: " + names + " — " + report.summary(), failed ? C_RED : restart ? C_WARN : C_OK);
+			setStatus(failed ? "«" + names + "» не запустился" : restart ? "«" + names + "» — после перезапуска" : "«" + names + "» работает", failed ? C_RED : restart ? C_WARN : C_OK);
 
 			if (failed || restart) {
 				Handoff.requestPrepare(); // то, что не подключилось на лету, готовим в фоновой копии игры
@@ -638,7 +651,7 @@ public final class CatalogScreen extends class_437 {
 			}
 		} catch (Throwable t) {
 			Log.warn(LogCategory.MODRINTH, "Hot-loader не справился", t);
-			setStatus("Установлено: " + names + ". Перезапусти игру, чтобы мод заработал.", C_WARN);
+			setStatus("«" + names + "» — после перезапуска", C_WARN);
 		} finally {
 			this.busyIds.remove(busyId);
 			this.progressById.remove(busyId);
@@ -663,7 +676,7 @@ public final class CatalogScreen extends class_437 {
 				PendingRemovals.schedule(modsDir(), fileName);
 				deferred = true;
 			} catch (IOException e2) {
-				setStatus("Не удалось удалить " + fileName + ": " + e2.getMessage(), C_RED);
+				setStatus("Не удалось удалить файл мода", C_RED);
 				this.busyIds.remove(p.id);
 				return;
 			}
@@ -674,7 +687,7 @@ public final class CatalogScreen extends class_437 {
 			index.remove(p.id);
 			index.save();
 		} catch (IOException e) {
-			setStatus("Файл удалён, но реестр не обновился: " + e.getMessage(), C_RED);
+			setStatus("Файл удалён, реестр не обновился", C_RED);
 			this.busyIds.remove(p.id);
 			return;
 		}
@@ -692,8 +705,7 @@ public final class CatalogScreen extends class_437 {
 			Handoff.requestPrepare();
 		}
 
-		setStatus(deferred ? "«" + p.title + "» перестанет работать после перезапуска: сейчас файл занят игрой, он удалится при следующем запуске"
-				: "Удалено: " + fileName, deferred ? C_WARN : C_OK);
+		setStatus(deferred ? "«" + p.title + "» удалится при перезапуске" : "«" + p.title + "» удалён", deferred ? C_WARN : C_OK);
 	}
 
 	/** Действие кнопки карточки/панели: поставить, либо удалить на вкладке установленных. */
@@ -710,7 +722,7 @@ public final class CatalogScreen extends class_437 {
 		ConfigInfo c = this.configInfo.get(p.id);
 
 		if (c == null || c.modId == null) {
-			setStatus("«" + p.title + "» ещё не загружен — перезапусти игру, и настройки станут доступны", C_GRAY);
+			setStatus("«" + p.title + "» ещё не загружен — нужен перезапуск", C_GRAY);
 			return;
 		}
 
@@ -725,21 +737,21 @@ public final class CatalogScreen extends class_437 {
 
 		if (c.file != null) {
 			Path file = c.file;
-			setStatus("Открываю настройки: " + file.getFileName(), C_OK);
+			setStatus("Открываю " + file.getFileName(), C_OK);
 
 			WORKER.submit(() -> {
 				try {
 					ModConfigs.openExternally(file);
 				} catch (IOException e) {
 					Log.warn(LogCategory.MODRINTH, "Не удалось открыть " + file, e);
-					setStatus("Не удалось открыть " + file.getFileName() + ": " + e.getMessage(), C_RED);
+					setStatus("Не удалось открыть " + file.getFileName(), C_RED);
 				}
 			});
 
 			return;
 		}
 
-		setStatus("У «" + p.title + "» нет настроек, которые можно открыть отсюда", C_GRAY);
+		setStatus("У «" + p.title + "» нет настроек", C_GRAY);
 	}
 
 	// ---------------------------------------------------------------- панель описания
@@ -1597,7 +1609,7 @@ public final class CatalogScreen extends class_437 {
 		frame(ctx, x, y, w, CARD_H, base, borderColor, darker(base, 0.3F), false);
 
 		// иконка разворачивается к курсору
-		float[] t = this.tilt.computeIfAbsent(p.id, k -> new float[2]);
+		float[] t = this.tilt.computeIfAbsent(p.id, k -> new float[3]);
 		float targetY = 0F;
 		float targetX = 0F;
 
@@ -1608,7 +1620,8 @@ public final class CatalogScreen extends class_437 {
 
 		t[0] = approach(t[0], targetY, dt, 14);
 		t[1] = approach(t[1], targetX, dt, 14);
-		drawIcon(ctx, p, x + 5, y + 8, ICON, t[0], t[1]);
+		t[2] = approach(t[2], hovered ? 1F : 0F, dt, 12);
+		drawIcon(ctx, p, x + 5, y + 8, ICON, t[0], t[1], t[2]);
 
 		int col = rightCol(w);
 		int textX = x + 5 + ICON + 8;
@@ -1733,19 +1746,19 @@ public final class CatalogScreen extends class_437 {
 	}
 
 	private void drawIcon(class_332 ctx, ModrinthProject p, int x, int y, int size) {
-		drawIcon(ctx, p, x, y, size, 0F, 0F);
+		drawIcon(ctx, p, x, y, size, 0F, 0F, 0F);
 	}
 
-	private void drawIcon(class_332 ctx, ModrinthProject p, int x, int y, int size, float ay, float bx) {
+	private void drawIcon(class_332 ctx, ModrinthProject p, int x, int y, int size, float ay, float bx, float pop) {
 		IconCache.Icon icon = this.icons.get(p);
 
 		if (icon.texture == null) {
 			// плейсхолдер: цвет проекта и первая буква — пока иконка грузится (или если её не удалось получить)
 			int color = p.color != 0 ? (0xFF000000 | p.color) : C_CHIP;
 			int fill = lerpColor(color, C_PANEL, 0.55F);
-			ctx.method_25294(x + 1, y, x + size - 1, y + 1, fill); // углы срезаны на пиксель
-			ctx.method_25294(x, y + 1, x + size, y + size - 1, fill);
-			ctx.method_25294(x + 1, y + size - 1, x + size - 1, y + size, fill);
+			ctx.method_25294(x, y, x + size, y + size, C_BLACK); // чёрный контур
+			ctx.method_25294(x + 1, y + 1, x + size - 1, y + size - 1, lighter(fill, 0.22F)); // светлая кромка
+			ctx.method_25294(x + 2, y + 2, x + size - 2, y + size - 2, fill);
 
 			if (p.title != null && !p.title.isEmpty()) {
 				String letter = p.title.substring(0, 1).toUpperCase();
@@ -1758,8 +1771,8 @@ public final class CatalogScreen extends class_437 {
 		// иконка плавно проявляется
 		float alpha = Math.min(1F, (System.nanoTime() - icon.shownAtNanos) / 200_000_000F);
 
-		if (Math.abs(ay) > 0.004F || Math.abs(bx) > 0.004F) {
-			Icon3D.draw(ctx, icon.texture, x, y, size, ay, bx, alpha);
+		if (Math.abs(ay) > 0.004F || Math.abs(bx) > 0.004F || pop > 0.01F) {
+			Icon3D.draw(ctx, icon.texture, x, y, size, ay, bx, alpha, pop);
 			RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
 
 			return;
@@ -1792,10 +1805,11 @@ public final class CatalogScreen extends class_437 {
 
 		// шапка: иконка (разворачивается к курсору), название, автор, крестик
 		boolean overIcon = inside(mx, my, innerX - 6, py + 2, 44, 40);
-		float[] pt = this.tilt.computeIfAbsent("panel", k -> new float[2]);
+		float[] pt = this.tilt.computeIfAbsent("panel", k -> new float[3]);
 		pt[0] = approach(pt[0], overIcon ? clamp((mx - (innerX + 14)) / 40F) * TILT_MAX : 0F, this.dt, 14);
 		pt[1] = approach(pt[1], overIcon ? clamp((my - (py + 22)) / 28F) * TILT_MAX : 0F, this.dt, 14);
-		drawIcon(ctx, p, innerX, py + 8, 28, pt[0], pt[1]);
+		pt[2] = approach(pt[2], overIcon ? 1F : 0F, this.dt, 12);
+		drawIcon(ctx, p, innerX, py + 8, 28, pt[0], pt[1], pt[2]);
 		int titleX = innerX + 28 + 6;
 		int titleW = innerW - 28 - 6 - 18;
 		text(ctx, fit(p.title, titleW), titleX, py + 9, C_WHITE);

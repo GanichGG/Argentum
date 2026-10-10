@@ -75,7 +75,7 @@ public abstract class SplashOverlayMixin {
 		RenderSystem.enableBlend();
 		RenderSystem.defaultBlendFunc();
 
-		drawLine(context, line, (width - line.width) / 2, logoTop - line.height - 8, alpha);
+		drawLine(context, line, (width - line.width) / 2, 10, alpha); // вверху экрана, не над логотипом
 
 		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 		argentum$devSplashShot();

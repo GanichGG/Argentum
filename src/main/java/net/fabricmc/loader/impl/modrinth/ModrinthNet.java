@@ -27,10 +27,10 @@ import java.net.URL;
  * Сетевая часть для Modrinth: соединение с учётом прокси из переменных окружения ({@code HTTPS_PROXY},
  * {@code ALL_PROXY}) — Java сама их не читает, а у многих доступ к Modrinth идёт именно через прокси или VPN.
  */
-final class ModrinthNet {
+public final class ModrinthNet {
 	private ModrinthNet() { }
 
-	static HttpURLConnection open(String url, int connectTimeoutMs, int readTimeoutMs) throws IOException {
+	public static HttpURLConnection open(String url, int connectTimeoutMs, int readTimeoutMs) throws IOException {
 		URL u = new URL(url);
 		Proxy proxy = envProxy();
 		HttpURLConnection connection = (HttpURLConnection) (proxy == null ? u.openConnection() : u.openConnection(proxy));

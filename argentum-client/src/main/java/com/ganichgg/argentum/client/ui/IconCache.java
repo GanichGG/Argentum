@@ -4,7 +4,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
@@ -25,6 +24,7 @@ import org.lwjgl.system.MemoryUtil;
 import com.ganichgg.argentum.client.ui.webp.WebP;
 
 import net.fabricmc.loader.impl.modrinth.ModrinthCache;
+import net.fabricmc.loader.impl.modrinth.ModrinthNet;
 import net.fabricmc.loader.impl.modrinth.ModrinthProject;
 import net.minecraft.class_1011;
 import net.minecraft.class_1043;
@@ -43,11 +43,14 @@ public final class IconCache {
 	private static final int MAX_SIDE = 128; // больше не нужно: в карточке иконка ~40 единиц GUI
 	private static final Pattern CDN_ID = Pattern.compile("^https://cdn\\.modrinth\\.com/data/([^/]+)/");
 
-	private static final ExecutorService POOL = Executors.newFixedThreadPool(3, r -> {
+	/** Загрузка иконок: шесть потоков, очередь с «устареванием» — иконки, которые уже ушли с экрана, не качаются. */
+	private static final ExecutorService POOL = Executors.newFixedThreadPool(6, r -> {
 		Thread t = new Thread(r, "argentum-icons");
 		t.setDaemon(true);
 		return t;
 	});
+	private static final int MAX_ATTEMPTS = 6;
+	private static final long STALE_MS = 4000;
 
 	/** Состояние одной иконки; поля пишет то фоновый поток, то рендер — отсюда volatile. */
 	public static final class Icon {
@@ -56,6 +59,10 @@ public final class IconCache {
 		public volatile int height;
 		public volatile long shownAtNanos;
 		volatile boolean failed;
+		volatile boolean queued;
+		volatile long lastSeen = System.currentTimeMillis();
+		volatile long retryAt;
+		volatile int attempts;
 	}
 
 	private static final class Decoded {
@@ -83,13 +90,36 @@ public final class IconCache {
 		this.cache = cache;
 	}
 
+	/**
+	 * Иконка проекта; вызывается каждый кадр для того, что на экране. Первый вызов ставит загрузку в очередь, а если она
+	 * не удалась (таймаут, обрыв) — через нарастающую паузу пробуем снова, пока иконка остаётся на экране.
+	 */
 	public Icon get(ModrinthProject project) {
-		return icons.computeIfAbsent(project.id, id -> {
-			Icon icon = new Icon();
-			POOL.submit(() -> load(project, icon));
+		Icon icon = icons.computeIfAbsent(project.id, id -> new Icon());
+		icon.lastSeen = System.currentTimeMillis();
 
-			return icon;
-		});
+		if (icon.texture == null && !icon.queued && System.currentTimeMillis() >= icon.retryAt && icon.attempts < MAX_ATTEMPTS) {
+			icon.queued = true;
+			POOL.submit(() -> {
+				try {
+					if (System.currentTimeMillis() - icon.lastSeen > STALE_MS) {
+						return; // пока ждали очереди, иконка ушла с экрана — не тратим сеть
+					}
+
+					icon.attempts++;
+					icon.failed = false;
+					load(project, icon);
+
+					if (icon.failed) {
+						icon.retryAt = System.currentTimeMillis() + Math.min(30_000L, 2_000L << icon.attempts);
+					}
+				} finally {
+					icon.queued = false;
+				}
+			});
+		}
+
+		return icon;
 	}
 
 	/** Раз в кадр из потока рендера: превращает готовые картинки в текстуры (не больше двух за кадр). */
@@ -131,8 +161,8 @@ public final class IconCache {
 		List<String> candidates = new ArrayList<>();
 		String url = project.iconUrl;
 
-		if (url != null && !url.toLowerCase().endsWith(".webp")) {
-			candidates.add(url);
+		if (url != null) {
+			candidates.add(url); // PNG/JPEG/WebP — декодер понимает всё
 		}
 
 		if (url != null) {
@@ -179,9 +209,7 @@ public final class IconCache {
 	}
 
 	private static byte[] download(String url) throws Exception {
-		HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-		c.setConnectTimeout(15_000);
-		c.setReadTimeout(20_000);
+		HttpURLConnection c = ModrinthNet.open(url, 12_000, 20_000); // с учётом прокси из окружения
 		c.setRequestProperty("User-Agent", "ArgentumLoader (github.com/GanichGG/ArgentumLoader)");
 
 		if (c.getResponseCode() != 200) {

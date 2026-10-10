@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -137,9 +136,7 @@ public final class ModInstaller {
 		Path tmp = target.resolveSibling(target.getFileName() + ".tmp");
 
 		try {
-			HttpURLConnection connection = (HttpURLConnection) new URL(file.url).openConnection();
-			connection.setConnectTimeout(30_000);
-			connection.setReadTimeout(60_000);
+			HttpURLConnection connection = ModrinthNet.open(file.url, 30_000, 60_000);
 
 			int status = connection.getResponseCode();
 

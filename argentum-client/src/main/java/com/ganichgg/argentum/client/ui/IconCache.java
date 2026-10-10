@@ -287,6 +287,18 @@ public final class IconCache {
 			}
 		}
 
+		// скругление «по одному пикселю»: срезаем угловые пиксели размером с единицу GUI при показе иконки в ~40 единиц
+		int cut = Math.max(1, Math.round(Math.min(outW, outH) / 40F));
+
+		for (int dy = 0; dy < cut; dy++) {
+			for (int dx = 0; dx < cut; dx++) {
+				out[dy * outW + dx] = 0;
+				out[dy * outW + (outW - 1 - dx)] = 0;
+				out[(outH - 1 - dy) * outW + dx] = 0;
+				out[(outH - 1 - dy) * outW + (outW - 1 - dx)] = 0;
+			}
+		}
+
 		return new Decoded(icon, outW, outH, out);
 	}
 }

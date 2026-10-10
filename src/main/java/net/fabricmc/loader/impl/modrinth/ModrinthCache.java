@@ -296,8 +296,11 @@ public final class ModrinthCache {
 			case '\r': sb.append("\\r"); break;
 			case '\t': sb.append("\\t"); break;
 			default:
-				if (c < 0x20) sb.append(String.format("\\u%04x", (int) c));
-				else sb.append(c);
+				if (c < 0x20) {
+					sb.append(String.format("\\u%04x", (int) c));
+				} else {
+					sb.append(c);
+				}
 			}
 		}
 

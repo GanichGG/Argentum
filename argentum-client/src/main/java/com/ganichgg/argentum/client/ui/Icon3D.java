@@ -27,7 +27,7 @@ import net.minecraft.class_757;
 public final class Icon3D {
 	private static final int N = 8; // ячеек по стороне
 	private static final float CAMERA = 2.4F; // расстояние до камеры в размерах иконки
-	private static final float POP = 0.2F; // насколько иконка вырастает при наведении (доля размера)
+	private static final float POP = 0.14F; // насколько иконка вырастает при наведении (доля размера): с запасом до рамки карточки
 	private static final float LIGHT_X = -0.35F;
 	private static final float LIGHT_Y = -0.5F;
 	private static final float LIGHT_Z = 0.79F;
@@ -37,7 +37,7 @@ public final class Icon3D {
 	/**
 	 * @param ay поворот вокруг вертикальной оси (радианы): больше нуля — правый край уходит вдаль
 	 * @param bx поворот вокруг горизонтальной оси: больше нуля — нижний край уходит вдаль
-	 * @param pop 0..1 — насколько иконка надвинута на зрителя (вырастает до +20 %)
+	 * @param pop 0..1 — насколько иконка надвинута на зрителя (вырастает до +14 %)
 	 */
 	public static void draw(class_332 ctx, class_2960 texture, float x, float y, float size, float ay, float bx, float alpha, float pop) {
 		ctx.method_51452(); // draw(): сначала сбрасываем то, что DrawContext накопил, чтобы порядок слоёв не нарушился

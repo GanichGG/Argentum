@@ -20,6 +20,7 @@ import java.util.concurrent.Executors;
 import com.mojang.blaze3d.systems.RenderSystem;
 
 import com.ganichgg.argentum.client.handoff.Handoff;
+import com.ganichgg.argentum.client.queue.ChangeQueue;
 import com.ganichgg.argentum.client.ui.ClientCache;
 import com.ganichgg.argentum.client.ui.Fmt;
 import com.ganichgg.argentum.client.ui.Icon3D;
@@ -28,8 +29,6 @@ import com.ganichgg.argentum.client.ui.ModConfigs;
 import com.ganichgg.argentum.client.ui.PixelIcons;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.impl.hotload.HotLoadReport;
-import net.fabricmc.loader.impl.hotload.HotLoader;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.modrinth.DependencyResolver;
 import net.fabricmc.loader.impl.modrinth.CrashDiagnoser;
@@ -213,6 +212,8 @@ public final class CatalogScreen extends class_437 {
 	private boolean devFake;
 	private boolean devLeaveDone;
 	private int devStep2;
+	private boolean devQueued;
+	private boolean devApplyStarted;
 	private boolean devConfigOpened;
 	private int[] devMouse;
 	private long devNextShot;
@@ -225,6 +226,7 @@ public final class CatalogScreen extends class_437 {
 	private int gearX;
 	private int gearW;
 	private int applyX;
+	private volatile String applyMessage = "";
 	private int applyW;
 
 	// отключение, обновления, фильтры, выбор версии, диагностика
@@ -379,6 +381,22 @@ public final class CatalogScreen extends class_437 {
 			closeModal(); // dev: окно диагностики уже снято, дальше проверяем остальное
 		}
 
+		// Dev: с флагом .argentum-apply-dev ставим в очередь первый не установленный мод и применяем очередь (скачивание → копия → подмена окна)
+		if (!this.devApplyStarted && java.nio.file.Files.exists(FabricLoader.getInstance().getGameDir().resolve(".argentum-apply-dev"))) {
+			if (t > 6000 && !this.devQueued) {
+				for (ModrinthProject candidate : this.catalogRows) {
+					if (!this.installedFiles.containsKey(candidate.id)) {
+						install(candidate);
+						this.devQueued = true;
+						break;
+					}
+				}
+			} else if (t > 10000 && this.devQueued) {
+				this.devApplyStarted = true;
+				startApply();
+			}
+		}
+
 		// Dev: всплывающие списки для снимков — фильтры каталога и список версий мода из панели
 		if (this.devStep2 == 0 && t > 5000) {
 			this.popup = new Popup("filter", null, this.field_22789 - PAD, TABS_Y - 1 + BTN_H + 2);
@@ -487,6 +505,12 @@ public final class CatalogScreen extends class_437 {
 
 	@Override
 	public void method_25419() {
+		if (ChangeQueue.applying()) {
+			setStatus("Подожди, применяю изменения", C_GRAY);
+
+			return;
+		}
+
 		this.field_22787.method_1507(this.parent);
 	}
 
@@ -823,133 +847,255 @@ public final class CatalogScreen extends class_437 {
 		}
 	}
 
-	private void install(ModrinthProject p) {
-		if (!this.busyIds.add(p.id)) {
-			return;
+	// ---------------------------------------------------------------- очередь изменений
+
+	/** Мод отключён с учётом очереди: поставленное «отключить» / «включить» уже считается сделанным. */
+	private boolean offNow(ModrinthProject p) {
+		ChangeQueue.Change c = ChangeQueue.get(p.id);
+
+		if (c != null && c.kind == ChangeQueue.Kind.ENABLE) {
+			return false;
 		}
 
-		setStatus("Подбираю «" + p.title + "»", C_GRAY);
-		this.installFraction = -1F;
-		this.progressById.put(p.id, -1F);
+		if (c != null && c.kind == ChangeQueue.Kind.DISABLE) {
+			return true;
+		}
 
-		WORKER.submit(() -> {
-			boolean handedOver = false;
-
-			try {
-				InstalledModsIndex index = InstalledModsIndex.load(modsDir());
-				List<ModrinthVersion> plan = DependencyResolver.resolve(p.id, LOADER, this.gameVersion, index);
-
-				if (plan.isEmpty()) {
-					setStatus("«" + p.title + "»: нет версии под " + this.gameVersion, C_RED);
-					return;
-				}
-
-				ModInstaller.InstallResult result = ModInstaller.install(modsDir(), plan, (fileNo, count, name, done, total) -> {
-					float fraction = total > 0 ? (fileNo + (float) done / total) / count : (float) fileNo / count;
-					this.installFraction = fraction;
-					this.progressById.put(p.id, fraction);
-					setStatus("Скачиваю «" + p.title + "» " + (fileNo + 1) + "/" + count, C_GRAY);
-				});
-				this.installFraction = -1F; // дальше — подключение к игре, прогресс неизвестен
-				this.progressById.put(p.id, -1F);
-				this.cache.putProjects(Collections.singletonList(p)); // карточка нужна вкладке «Установленные» без сети
-				this.cache.save();
-				refreshInstalledIndex();
-
-				setStatus("Подключаю «" + p.title + "»", C_GRAY);
-
-				// hot-loader трогает классы игры и запускает инициализаторы модов — это делаем в потоке рендера
-				handedOver = true;
-				this.field_22787.execute(() -> hotLoad(result.installedFiles, p.title, p.id));
-			} catch (Exception e) {
-				Log.warn(LogCategory.MODRINTH, "Установка «" + p.title + "» не удалась", e);
-				setStatus("Не удалось установить «" + p.title + "»: " + shortError(e), C_RED);
-			} finally {
-				if (!handedOver) {
-					this.busyIds.remove(p.id);
-					this.progressById.remove(p.id);
-					this.installFraction = -2F;
-				}
-			}
-		});
+		return isDisabled(p);
 	}
 
-	/** Подключает свежеустановленные моды без перезапуска там, где это безопасно; остальным честно пишет причину. */
-	private void hotLoad(List<Path> files, String names, String busyId) {
-		try {
-			HotLoadReport report = HotLoader.load(files);
-			refreshInstalledIndex();
+	private boolean queuedKind(ModrinthProject p, ChangeQueue.Kind kind) {
+		ChangeQueue.Change c = ChangeQueue.get(p.id);
 
-			boolean failed = report.count(HotLoadReport.Status.FAILED) > 0;
-			boolean restart = report.count(HotLoadReport.Status.NEEDS_RESTART) > 0;
-			setStatus(failed ? "«" + names + "» не запустился" : restart ? "«" + names + "» — после перезапуска" : "«" + names + "» работает", failed ? C_RED : restart ? C_WARN : C_OK);
+		return c != null && c.kind == kind;
+	}
 
-			if (failed || restart) {
-				Handoff.requestPrepare(); // то, что не подключилось на лету, готовим в фоновой копии игры
-			}
+	private void queue(ChangeQueue.Kind kind, ModrinthProject p, ModrinthVersion v, String message, int color) {
+		ChangeQueue.put(new ChangeQueue.Change(kind, p, v));
+		setStatus(message, color);
+	}
 
-			if (report.needsResourceReload()) {
-				this.field_22787.method_1521(); // reloadResources: игра увидит текстуры и переводы новых модов
-			}
-		} catch (Throwable t) {
-			Log.warn(LogCategory.MODRINTH, "Hot-loader не справился", t);
-			setStatus("«" + names + "» — после перезапуска", C_WARN);
-		} finally {
-			this.busyIds.remove(busyId);
-			this.progressById.remove(busyId);
-			this.installFraction = -2F;
+	private void unqueue(ModrinthProject p) {
+		ChangeQueue.remove(p.id);
+		setStatus("Убрано из очереди: «" + p.title + "»", C_GRAY);
+	}
+
+	/** Кнопка «Установить»: мод встаёт в очередь (повторное нажатие убирает), скачивается он при «Применить изменения». */
+	private void install(ModrinthProject p) {
+		if (ChangeQueue.get(p.id) != null) {
+			unqueue(p);
+		} else {
+			queue(ChangeQueue.Kind.INSTALL, p, null, "В очереди: «" + p.title + "»", C_GRAY);
 		}
 	}
 
 	private void remove(ModrinthProject p) {
-		String fileName = this.installedFiles.get(p.id);
-
-		if (fileName == null || !this.busyIds.add(p.id)) {
+		if (!this.installedFiles.containsKey(p.id)) {
 			return;
 		}
 
-		boolean deferred = false;
+		if (queuedKind(p, ChangeQueue.Kind.REMOVE)) {
+			unqueue(p);
+		} else {
+			queue(ChangeQueue.Kind.REMOVE, p, null, "Будет удалён: «" + p.title + "»", C_WARN);
+		}
+	}
+
+	// ---------------------------------------------------------------- применение очереди
+
+	/**
+	 * «Применить изменения»: файлы меняются по очереди (с прогрессом), затем готовится и подменяется копия игры — игроку
+	 * остаётся только подождать.
+	 */
+	private void startApply() {
+		if (ChangeQueue.applying()) {
+			return;
+		}
+
+		List<ChangeQueue.Change> todo = ChangeQueue.snapshot();
+
+		if (todo.isEmpty() && !ChangeQueue.dirty()) {
+			return;
+		}
+
+		ChangeQueue.begin();
+		this.popup = null;
+		this.applyMessage = "";
+		setStatus("Применяю изменения", C_GRAY);
+		WORKER.submit(() -> runApply(todo));
+	}
+
+	private void retryPrepare() {
+		Handoff.requestPrepare();
+		ChangeQueue.beginPrepareOnly();
+		setStatus("Готовлю клиент", C_GRAY);
+	}
+
+	private static String applyLabel(ChangeQueue.Change c) {
+		String t = "«" + c.project.title + "»";
+
+		switch (c.kind) {
+		case REMOVE:
+			return "Удаляю " + t;
+		case DISABLE:
+			return "Отключаю " + t;
+		case ENABLE:
+			return "Включаю " + t;
+		default:
+			return "Скачиваю " + t;
+		}
+	}
+
+	private void runApply(List<ChangeQueue.Change> todo) {
+		int total = todo.size();
+		int done = 0;
+		int failed = 0;
+		String lastError = null;
+		Set<String> applied = new HashSet<>();
+
+		try {
+			for (int i = 0; i < total; i++) {
+				ChangeQueue.Change c = todo.get(i);
+				final int index = i;
+				this.busyIds.add(c.project.id);
+				this.progressById.put(c.project.id, -1F);
+				setStatus(applyLabel(c), C_GRAY);
+
+				try {
+					executeChange(c, (fileNo, count, name, bytes, size) -> {
+						float inner = size > 0 ? (fileNo + (float) bytes / size) / count : (float) fileNo / count;
+						ChangeQueue.setWork((index + inner) / total);
+						this.progressById.put(c.project.id, inner);
+					});
+					ChangeQueue.remove(c.project.id);
+					applied.add(c.project.id);
+					done++;
+				} catch (Exception e) {
+					failed++;
+					lastError = shortError(e);
+					Log.warn(LogCategory.MODRINTH, "Не удалось применить изменение «" + c.project.title + "»", e);
+				} finally {
+					this.busyIds.remove(c.project.id);
+					this.progressById.remove(c.project.id);
+					ChangeQueue.setWork((index + 1F) / total);
+				}
+			}
+
+			refreshInstalledIndex();
+			refreshLocalMods();
+
+			Map<String, ModrinthVersion> up = new HashMap<>(this.updates);
+			up.keySet().removeAll(applied);
+			this.updates = up;
+
+			if (done == 0 && failed > 0 && !ChangeQueue.dirty()) {
+				setStatus("Не удалось применить: " + lastError, C_RED);
+				ChangeQueue.end();
+
+				return;
+			}
+
+			this.applyMessage = failed == 0 ? "Изменения применены: " + done : "Применено " + done + ", с ошибкой " + failed;
+			setStatus(failed == 0 ? "Готовлю клиент" : "С ошибкой: " + failed + " — " + lastError, failed == 0 ? C_GRAY : C_WARN);
+			Handoff.requestPrepare(); // сначала запрос (состояние становится PREPARING), потом признак — иначе кадр увидит старое состояние
+			ChangeQueue.filesDone();
+		} catch (Throwable t) {
+			Log.warn(LogCategory.MODRINTH, "Применение изменений оборвалось", t);
+			setStatus("Не удалось применить изменения", C_RED);
+			ChangeQueue.end();
+		}
+	}
+
+	private void executeChange(ChangeQueue.Change c, ModInstaller.Progress progress) throws Exception {
+		ModrinthProject p = c.project;
+		String file = this.installedFiles.get(p.id);
+
+		switch (c.kind) {
+		case INSTALL:
+		case VERSION:
+			if (c.version != null) {
+				ModUpdates.apply(modsDir(), c.version, LOADER, this.gameVersion, progress);
+			} else {
+				List<ModrinthVersion> plan = DependencyResolver.resolve(p.id, LOADER, this.gameVersion, InstalledModsIndex.load(modsDir()));
+
+				if (plan.isEmpty()) {
+					throw new IOException("нет версии под " + this.gameVersion);
+				}
+
+				ModInstaller.install(modsDir(), plan, progress);
+			}
+
+			this.cache.putProjects(Collections.singletonList(p)); // карточка нужна вкладке «Установленные» без сети
+			this.cache.save();
+			break;
+		case REMOVE:
+			removeMod(p, file);
+			break;
+		case DISABLE:
+			if (file == null) {
+				throw new IOException("файл мода не найден");
+			}
+
+			LocalMods.disable(modsDir(), file);
+			break;
+		case ENABLE:
+			if (file == null) {
+				throw new IOException("файл мода не найден");
+			}
+
+			LocalMods.enable(modsDir(), file);
+			break;
+		default:
+			break;
+		}
+	}
+
+	private void removeMod(ModrinthProject p, String fileName) throws IOException {
+		if (fileName == null) {
+			throw new IOException("файл мода не найден");
+		}
 
 		for (String name : new String[] {fileName, fileName + LocalMods.DISABLED_SUFFIX}) {
 			try {
 				Files.deleteIfExists(modsDir().resolve(name));
 			} catch (IOException e) {
-				// Windows не даёт удалить jar, который игра сейчас держит открытым — удалим его при следующем запуске
-				try {
-					PendingRemovals.schedule(modsDir(), name);
-					deferred = true;
-				} catch (IOException e2) {
-					setStatus("Не удалось удалить файл мода", C_RED);
-					this.busyIds.remove(p.id);
-					return;
-				}
+				// Windows не даёт удалить jar, который игра сейчас держит открытым — он исчезнет при запуске новой копии
+				PendingRemovals.schedule(modsDir(), name);
 			}
 		}
 
-		try {
-			InstalledModsIndex index = InstalledModsIndex.load(modsDir());
-			index.remove(p.id);
-			index.save();
-		} catch (IOException e) {
-			setStatus("Файл удалён, реестр не обновился", C_RED);
-			this.busyIds.remove(p.id);
+		InstalledModsIndex index = InstalledModsIndex.load(modsDir());
+		index.remove(p.id);
+		index.save();
+	}
+
+	/** Каждый кадр: когда копия игры готова — подменяем окно сами; если не вышло — возвращаем игроку кнопку повтора. */
+	private void tickApply() {
+		if (!ChangeQueue.applying() || !ChangeQueue.preparing()) {
 			return;
 		}
 
-		refreshInstalledIndex();
-		this.leaving.put(p.id, 0F); // карточка плавно уходит; из списка её уберёт цикл анимации
-		this.layoutVersion++;
-		this.busyIds.remove(p.id);
+		Handoff.State hs = Handoff.state();
 
-		if (this.detail != null && this.detail.id.equals(p.id)) {
-			closeDetail();
+		if (hs == Handoff.State.READY) {
+			ChangeQueue.end();
+
+			if (!Handoff.swap(this.field_22787, true, this.applyMessage)) {
+				setStatus("Не удалось переключиться на новую копию", C_RED);
+			}
+		} else if (hs == Handoff.State.FAILED) {
+			ChangeQueue.end();
+			setStatus("Моды не подготовлены: " + Handoff.failure(), C_RED);
+		}
+	}
+
+	/** Цель общей полосы применения: файлы — первые 35 %, остальное — подготовка копии игры. */
+	private float applyTarget() {
+		if (!ChangeQueue.preparing()) {
+			return 0.35F * ChangeQueue.work();
 		}
 
-		if (deferred) {
-			Handoff.requestPrepare();
-		}
-
-		setStatus(deferred ? "«" + p.title + "» удалится при перезапуске" : "«" + p.title + "» удалён", deferred ? C_WARN : C_OK);
+		return 0.35F + 0.65F * (Handoff.state() == Handoff.State.PREPARING ? Handoff.progress() : 1F);
 	}
 
 	/** Действие кнопки карточки/панели: поставить, либо удалить на вкладке установленных. */
@@ -1265,12 +1411,19 @@ public final class CatalogScreen extends class_437 {
 		if (this.applyW > 0 && inside(mx, my, this.applyX, h - STATUS_H + 3, this.applyW, BTN_H)) {
 			Handoff.State hs = Handoff.state();
 
+			if (ChangeQueue.applying() || hs == Handoff.State.PREPARING || hs == Handoff.State.SWAPPING) {
+				return true; // уже идёт
+			}
+
 			if (hs == Handoff.State.READY) {
 				press("apply");
-				Handoff.swap(this.field_22787, true, "Моды применены: " + pendingNames());
+				Handoff.swap(this.field_22787, true, "Изменения применены");
 			} else if (hs == Handoff.State.FAILED) {
 				press("apply");
-				Handoff.requestPrepare();
+				retryPrepare();
+			} else if (ChangeQueue.count() > 0) {
+				press("apply");
+				startApply();
 			}
 
 			return true;
@@ -1610,7 +1763,7 @@ public final class CatalogScreen extends class_437 {
 	private boolean busyNow() {
 		Handoff.State hs = Handoff.state();
 
-		return this.loading || this.loadingMore || !this.busyIds.isEmpty() || hs == Handoff.State.PREPARING || hs == Handoff.State.SWAPPING;
+		return this.loading || this.loadingMore || !this.busyIds.isEmpty() || ChangeQueue.applying() || hs == Handoff.State.PREPARING || hs == Handoff.State.SWAPPING;
 	}
 
 	@Override
@@ -1698,7 +1851,13 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		this.installShown = this.installFraction >= 0F ? approach(this.installShown, this.installFraction, dt, 10) : 0F;
-		this.prepShown = Handoff.state() == Handoff.State.PREPARING ? approach(this.prepShown, Handoff.progress(), dt, 8) : 0F;
+		tickApply();
+
+		if (ChangeQueue.applying()) {
+			this.prepShown = approach(this.prepShown, applyTarget(), dt, 8);
+		} else {
+			this.prepShown = Handoff.state() == Handoff.State.PREPARING ? approach(this.prepShown, Handoff.progress(), dt, 8) : 0F;
+		}
 
 		if (this.appearEpoch != this.listEpoch) { // список заменили — карточки появляются заново
 			this.appearEpoch = this.listEpoch;
@@ -1739,7 +1898,7 @@ public final class CatalogScreen extends class_437 {
 
 		if (this.installFraction >= 0F) {
 			line = this.installShown;
-		} else if (this.installFraction < -1.5F && hs == Handoff.State.PREPARING) {
+		} else if (this.installFraction < -1.5F && (hs == Handoff.State.PREPARING || ChangeQueue.applying())) {
 			line = this.prepShown;
 		}
 
@@ -2045,7 +2204,7 @@ public final class CatalogScreen extends class_437 {
 		boolean inList = my >= LIST_TOP && my < listBottom();
 
 		if (r[0] != null) {
-			boolean off = isDisabled(p);
+			boolean off = offNow(p);
 			boolean hv = inList && inside(mx, my, r[0][0], r[0][1], r[0][2], r[0][3]);
 			button(ctx, "tg:" + p.id, r[0][0], r[0][1], r[0][2], r[0][3], null, PixelIcons.POWER, false, off ? C_DISABLED : C_SECONDARY,
 					off ? C_SECONDARY : C_SECONDARY_HOVER, hv, off ? C_WARN : C_WHITE);
@@ -2059,7 +2218,8 @@ public final class CatalogScreen extends class_437 {
 
 		if (r[2] != null) {
 			boolean hv = inList && inside(mx, my, r[2][0], r[2][1], r[2][2], r[2][3]);
-			button(ctx, "up:" + p.id, r[2][0], r[2][1], r[2][2], r[2][3], null, PixelIcons.UP, false, C_ACCENT, C_ACCENT_HOVER, hv, C_ACCENT_TEXT);
+			boolean q = queuedKind(p, ChangeQueue.Kind.VERSION);
+			button(ctx, "up:" + p.id, r[2][0], r[2][1], r[2][2], r[2][3], null, PixelIcons.UP, false, q ? C_SECONDARY : C_ACCENT, q ? C_SECONDARY_HOVER : C_ACCENT_HOVER, hv, q ? C_ACCENT : C_ACCENT_TEXT);
 			addHit("up", p, r[2][0], r[2][1], r[2][2], r[2][3], true);
 		}
 
@@ -2078,6 +2238,36 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		int used = 0;
+		ChangeQueue.Change q = ChangeQueue.get(p.id);
+
+		if (q != null) {
+			String label = null;
+			int color = C_WARN;
+
+			switch (q.kind) {
+			case REMOVE:
+				label = "Будет удалён";
+				color = C_RED;
+				break;
+			case DISABLE:
+				label = "Будет отключён";
+				break;
+			case ENABLE:
+				label = "Будет включён";
+				color = C_OK;
+				break;
+			case VERSION:
+				label = q.version != null ? "Станет " + q.version.versionNumber : "Обновится";
+				color = C_ACCENT;
+				break;
+			default:
+				break;
+			}
+
+			if (label != null) {
+				used += badge(ctx, label, color, x + used, y, maxWidth - used);
+			}
+		}
 
 		if (isDisabled(p)) {
 			used += badge(ctx, "Отключён", C_GRAY, x + used, y, maxWidth - used);
@@ -2139,7 +2329,13 @@ public final class CatalogScreen extends class_437 {
 		boolean busy = this.busyIds.contains(p.id);
 
 		if (this.tab == Tab.INSTALLED) {
-			button(ctx, key, x, y, w, h, busy ? "Удаляю" : "Удалить", null, busy, busy ? C_DISABLED : C_SECONDARY, C_SECONDARY_HOVER, hovered && !busy, busy ? C_GRAY : C_WHITE);
+			if (busy) {
+				button(ctx, key, x, y, w, h, "Применяю", null, true, C_DISABLED, C_SECONDARY_HOVER, false, C_GRAY);
+			} else if (queuedKind(p, ChangeQueue.Kind.REMOVE)) {
+				button(ctx, key, x, y, w, h, "Вернуть", null, false, C_SECONDARY, C_SECONDARY_HOVER, hovered, C_WARN);
+			} else {
+				button(ctx, key, x, y, w, h, "Удалить", null, false, C_SECONDARY, C_SECONDARY_HOVER, hovered, C_WHITE);
+			}
 		} else if (this.installedFiles.containsKey(p.id) && !busy) {
 			button(ctx, key, x, y, w, h, "Установлен", null, false, C_DISABLED, C_DISABLED, false, C_GRAY);
 		} else if (busy) {
@@ -2148,6 +2344,8 @@ public final class CatalogScreen extends class_437 {
 			float shown = approach(this.btnHover.getOrDefault("pf:" + p.id, 0F), Math.max(0F, fl), this.dt, 10);
 			this.btnHover.put("pf:" + p.id, shown);
 			buttonFill(ctx, key, x, y, w, h, fl >= 0F ? Math.round(shown * 100) + "%" : "Установка", null, false, C_DISABLED, C_DISABLED, false, C_WHITE, fl >= 0F ? shown : -2F);
+		} else if (ChangeQueue.get(p.id) != null) {
+			button(ctx, key, x, y, w, h, hovered ? "Убрать" : "В очереди", null, false, C_SECONDARY, C_SECONDARY_HOVER, hovered, hovered ? C_WHITE : C_ACCENT);
 		} else {
 			button(ctx, key, x, y, w, h, "Установить", null, false, C_ACCENT, C_ACCENT_HOVER, hovered, C_ACCENT_TEXT);
 		}
@@ -2280,7 +2478,7 @@ public final class CatalogScreen extends class_437 {
 
 		if (this.tab == Tab.INSTALLED) {
 			int half = (innerW - 4) / 2;
-			boolean off = isDisabled(p);
+			boolean off = offNow(p);
 			drawGearButton(ctx, "panel-gear", innerX, y, half, bh, p, "Настройки", mx, my);
 			addHit("gear", p, innerX, y, half, bh, false);
 			button(ctx, "panel-tg", innerX + half + 4, y, innerW - half - 4, bh, off ? "Включить" : "Отключить", PixelIcons.POWER, false,
@@ -2289,7 +2487,9 @@ public final class CatalogScreen extends class_437 {
 			y += bh + 4;
 
 			if (this.updates.containsKey(p.id)) {
-				button(ctx, "panel-up", innerX, y, half, bh, "Обновить", PixelIcons.UP, false, C_ACCENT, C_ACCENT_HOVER, inside(mx, my, innerX, y, half, bh), C_ACCENT_TEXT);
+				boolean qv = queuedKind(p, ChangeQueue.Kind.VERSION);
+				button(ctx, "panel-up", innerX, y, half, bh, qv ? "Отменить" : "Обновить", PixelIcons.UP, false, qv ? C_SECONDARY : C_ACCENT, qv ? C_SECONDARY_HOVER : C_ACCENT_HOVER,
+						inside(mx, my, innerX, y, half, bh), qv ? C_ACCENT : C_ACCENT_TEXT);
 				addHit("up", p, innerX, y, half, bh, false);
 				drawActionButton(ctx, "panel-act", p, innerX + half + 4, y, innerW - half - 4, bh, mx, my);
 				addHit("act", p, innerX + half + 4, y, innerW - half - 4, bh, false);
@@ -2380,12 +2580,6 @@ public final class CatalogScreen extends class_437 {
 		return this.detailLines;
 	}
 
-	private String pendingNames() {
-		int n = this.installedFiles.size();
-
-		return n == 0 ? "изменений нет" : "установлено через каталог: " + n;
-	}
-
 	private void drawStatusBar(class_332 ctx, int mx, int my, int w, int h) {
 		int top = h - STATUS_H;
 		ctx.method_25294(0, top, w, h, C_GLASS);
@@ -2395,49 +2589,48 @@ public final class CatalogScreen extends class_437 {
 		int rightEdge = w - PAD - backW - 4;
 		int by = top + 3;
 
-		// «Подготовка модов» / «Применить» слева от «Назад»; во время подготовки это полоса прогресса
+		// «Применить изменения» слева от «Назад»; пока идёт применение это полоса прогресса
 		Handoff.State hs = Handoff.state();
+		boolean applying = ChangeQueue.applying();
+		int pending = ChangeQueue.count();
 		this.applyW = 0;
 
-		if (hs != Handoff.State.IDLE) {
+		if (applying || hs != Handoff.State.IDLE || pending > 0) {
 			String label;
 			boolean clickable = false;
-			boolean spin = false;
 			int base = C_DISABLED;
 			int hover = C_DISABLED;
 			int textColor = C_GRAY;
 			float fill = -1F;
+			String widest = null;
 
-			switch (hs) {
-			case PREPARING:
-				label = "Подготовка модов " + Math.round(this.prepShown * 100) + "%";
-				fill = this.prepShown;
-				textColor = C_WHITE;
-				break;
-			case READY:
-				label = "Применить моды";
-				clickable = true;
-				base = C_ACCENT;
-				hover = C_ACCENT_HOVER;
-				textColor = C_ACCENT_TEXT;
-				break;
-			case SWAPPING:
+			if (hs == Handoff.State.SWAPPING) {
 				label = "Переключаю";
 				fill = -2F;
-				break;
-			default:
+			} else if (applying || hs == Handoff.State.PREPARING) {
+				label = "Применяю изменения " + Math.round(this.prepShown * 100) + "%";
+				widest = "Применяю изменения 100%";
+				fill = this.prepShown;
+				textColor = C_WHITE;
+			} else if (hs == Handoff.State.FAILED) {
 				label = "Не вышло — повторить";
 				clickable = true;
 				base = C_SECONDARY;
 				hover = C_SECONDARY_HOVER;
 				textColor = C_WARN;
+			} else {
+				label = pending > 0 && ChangeQueue.size() > 0 ? "Применить изменения (" + ChangeQueue.size() + ")" : "Применить изменения";
+				clickable = true;
+				base = C_ACCENT;
+				hover = C_ACCENT_HOVER;
+				textColor = C_ACCENT_TEXT;
 			}
 
-			int bw = Math.max(110, Math.min(170, textWidth(label) + (spin ? 11 + 4 : 0) + 18));
+			int bw = Math.max(110, Math.min(200, textWidth(widest != null ? widest : label) + 18));
 			this.applyW = bw;
 			this.applyX = rightEdge - bw;
 			boolean hovered = clickable && inside(mx, my, this.applyX, by, bw, BTN_H);
-			buttonFill(ctx, "apply", this.applyX, by, bw, BTN_H, label, null, spin, base, hover, hovered, textColor, fill);
+			buttonFill(ctx, "apply", this.applyX, by, bw, BTN_H, label, null, false, base, hover, hovered, textColor, fill);
 			rightEdge = this.applyX - 6;
 		}
 
@@ -2480,6 +2673,12 @@ public final class CatalogScreen extends class_437 {
 	private void handleHit(Hit hit) {
 		ModrinthProject p = hit.p;
 
+		if (ChangeQueue.applying() && !hit.id.equals("gear") && !hit.id.equals("close")) {
+			setStatus("Подожди, применяю изменения", C_GRAY);
+
+			return;
+		}
+
 		switch (hit.id) {
 		case "tg":
 			toggleEnabled(p);
@@ -2491,7 +2690,7 @@ public final class CatalogScreen extends class_437 {
 			ModrinthVersion v = this.updates.get(p.id);
 
 			if (v != null) {
-				applyVersion(p, v, true);
+				applyVersion(p, v);
 			}
 
 			break;
@@ -2532,141 +2731,45 @@ public final class CatalogScreen extends class_437 {
 		}
 	}
 
-	/** Включает/отключает мод переименованием jar. Включённый мод пробуем сразу подключить к игре, отключённый — снимется после перезапуска. */
+	/** Включение / отключение мода: ставится в очередь (повторное нажатие отменяет), переименование jar — при «Применить изменения». */
 	private void toggleEnabled(ModrinthProject p) {
-		String file = this.installedFiles.get(p.id);
-
-		if (file == null || !this.busyIds.add(p.id)) {
+		if (!this.installedFiles.containsKey(p.id)) {
 			return;
 		}
 
-		boolean enable = isDisabled(p);
-
-		WORKER.submit(() -> {
-			boolean handed = false;
-
-			try {
-				if (enable) {
-					LocalMods.enable(modsDir(), file);
-					refreshInstalledIndex();
-					refreshLocalMods();
-					handed = true;
-					this.field_22787.execute(() -> hotLoad(Collections.singletonList(modsDir().resolve(file)), p.title, p.id));
-				} else {
-					boolean now = LocalMods.disable(modsDir(), file);
-					refreshInstalledIndex();
-					refreshLocalMods();
-
-					if (now) {
-						setStatus("«" + p.title + "» отключён", C_OK);
-					} else {
-						Handoff.requestPrepare();
-						setStatus("«" + p.title + "» отключится при перезапуске", C_WARN);
-					}
-				}
-			} catch (IOException | RuntimeException e) {
-				Log.warn(LogCategory.MODRINTH, "Не удалось переключить мод «" + p.title + "»", e);
-				setStatus("Не удалось переключить «" + p.title + "»", C_RED);
-			} finally {
-				if (!handed) {
-					this.busyIds.remove(p.id);
-				}
-			}
-		});
+		if (queuedKind(p, ChangeQueue.Kind.ENABLE) || queuedKind(p, ChangeQueue.Kind.DISABLE)) {
+			unqueue(p);
+		} else if (isDisabled(p)) {
+			queue(ChangeQueue.Kind.ENABLE, p, null, "Будет включён: «" + p.title + "»", C_GRAY);
+		} else {
+			queue(ChangeQueue.Kind.DISABLE, p, null, "Будет отключён: «" + p.title + "»", C_WARN);
+		}
 	}
 
-	/** Установка выбранной версии: обновление, откат или первая установка конкретной версии. Замена файла вступает в силу после перезапуска. */
-	private void applyVersion(ModrinthProject p, ModrinthVersion v, boolean isUpdate) {
-		if (!this.busyIds.add(p.id)) {
+	/** Выбор версии: обновление, откат или первая установка конкретной версии — в очередь (то же версия ещё раз — отмена). */
+	private void applyVersion(ModrinthProject p, ModrinthVersion v) {
+		ChangeQueue.Change c = ChangeQueue.get(p.id);
+
+		if (c != null && c.version != null && c.version.id.equals(v.id)) {
+			unqueue(p);
+
 			return;
 		}
 
-		boolean replacing = this.installedFiles.containsKey(p.id);
-		setStatus("Ставлю «" + p.title + "» " + v.versionNumber, C_GRAY);
-		this.installFraction = -1F;
-		this.progressById.put(p.id, -1F);
-
-		WORKER.submit(() -> {
-			boolean handed = false;
-
-			try {
-				ModInstaller.InstallResult r = ModUpdates.apply(modsDir(), v, LOADER, this.gameVersion, (fileNo, count, name, done, total) -> {
-					float fraction = total > 0 ? (fileNo + (float) done / total) / count : (float) fileNo / count;
-					this.installFraction = fraction;
-					this.progressById.put(p.id, fraction);
-					setStatus("Скачиваю «" + p.title + "» " + (fileNo + 1) + "/" + count, C_GRAY);
-				});
-				this.installFraction = -1F;
-				this.cache.putProjects(Collections.singletonList(p));
-				this.cache.save();
-				refreshInstalledIndex();
-				refreshLocalMods();
-				Map<String, ModrinthVersion> up = new HashMap<>(this.updates);
-				up.remove(p.id);
-				this.updates = up;
-
-				if (replacing) {
-					Handoff.requestPrepare();
-					setStatus("«" + p.title + "» " + (isUpdate ? "обновлён до " : "заменён на ") + v.versionNumber + " — после перезапуска", C_WARN);
-				} else {
-					handed = true;
-					this.field_22787.execute(() -> hotLoad(r.installedFiles, p.title, p.id));
-				}
-			} catch (Exception e) {
-				Log.warn(LogCategory.MODRINTH, "Не удалось поставить «" + p.title + "» " + v.versionNumber, e);
-				setStatus("Не удалось поставить «" + p.title + "»: " + shortError(e), C_RED);
-			} finally {
-				if (!handed) {
-					this.busyIds.remove(p.id);
-					this.progressById.remove(p.id);
-					this.installFraction = -2F;
-				}
-			}
-		});
+		boolean installed = this.installedFiles.containsKey(p.id);
+		queue(installed ? ChangeQueue.Kind.VERSION : ChangeQueue.Kind.INSTALL, p, v, "В очереди: «" + p.title + "» " + v.versionNumber, C_GRAY);
 	}
 
 	private void updateAll() {
-		List<Map.Entry<String, ModrinthVersion>> todo = new ArrayList<>(this.updates.entrySet());
+		int n = 0;
 
-		if (todo.isEmpty() || !this.busyIds.add("*all")) {
-			return;
+		for (Map.Entry<String, ModrinthVersion> e : this.updates.entrySet()) {
+			ModrinthProject p = this.cache.project(e.getKey());
+			ChangeQueue.put(new ChangeQueue.Change(ChangeQueue.Kind.VERSION, p != null ? p : fallbackProject(e.getKey()), e.getValue()));
+			n++;
 		}
 
-		this.installFraction = -1F;
-		setStatus("Обновляю моды: " + todo.size(), C_GRAY);
-
-		WORKER.submit(() -> {
-			int done = 0;
-			int failed = 0;
-
-			try {
-				for (Map.Entry<String, ModrinthVersion> e : todo) {
-					final int index = done;
-
-					try {
-						ModUpdates.apply(modsDir(), e.getValue(), LOADER, this.gameVersion, (fileNo, count, name, bytes, total) -> {
-							float inner = total > 0 ? (fileNo + (float) bytes / total) / count : (float) fileNo / count;
-							this.installFraction = (index + inner) / todo.size();
-						});
-					} catch (Exception ex) {
-						failed++;
-						Log.warn(LogCategory.MODRINTH, "Не удалось обновить " + e.getKey(), ex);
-					}
-
-					done++;
-					setStatus("Обновлено " + done + " из " + todo.size(), C_GRAY);
-				}
-
-				refreshInstalledIndex();
-				refreshLocalMods();
-				this.updates = Collections.emptyMap();
-				Handoff.requestPrepare();
-				setStatus(failed == 0 ? "Обновлено модов: " + done + " — после перезапуска" : "Обновлено " + (done - failed) + ", с ошибкой " + failed, failed == 0 ? C_WARN : C_RED);
-			} finally {
-				this.busyIds.remove("*all");
-				this.installFraction = -2F;
-			}
-		});
+		setStatus("Обновлений в очереди: " + n, C_GRAY);
 	}
 
 	// ---- выбор версии
@@ -2854,7 +2957,7 @@ public final class CatalogScreen extends class_437 {
 				if (it.checked) {
 					setStatus("Эта версия уже установлена", C_GRAY);
 				} else {
-					applyVersion(pp.p, v, false);
+					applyVersion(pp.p, v);
 				}
 			}
 		}
@@ -2920,10 +3023,11 @@ public final class CatalogScreen extends class_437 {
 			setStatus("Сборка «" + result.name + "»: скачано " + result.downloaded + ", " + result.newMods.size() + " модов", C_OK);
 
 			if (!result.newMods.isEmpty()) {
+				ChangeQueue.markDirty(); // файлы уже на месте — остаётся применить изменения (перезапуск)
 				handed = true;
-				List<Path> mods = result.newMods;
 				this.field_22787.execute(() -> {
-					hotLoad(mods, result.name, "*import");
+					this.busyIds.remove("*import");
+					this.installFraction = -2F;
 					this.listEpoch++;
 					loadInstalled();
 				});
@@ -2983,11 +3087,8 @@ public final class CatalogScreen extends class_437 {
 						try {
 							boolean now = LocalMods.disable(modsDir(), file);
 							refreshInstalledIndex();
-							setStatus(now ? "Мод отключён" : "Мод отключится при перезапуске", now ? C_OK : C_WARN);
-
-							if (!now) {
-								Handoff.requestPrepare();
-							}
+							ChangeQueue.markDirty();
+							setStatus(now ? "Мод отключён — примени изменения" : "Мод отключится при перезапуске", now ? C_OK : C_WARN);
 						} catch (IOException e) {
 							setStatus("Не удалось отключить мод", C_RED);
 						}

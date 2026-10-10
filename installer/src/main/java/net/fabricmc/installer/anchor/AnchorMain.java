@@ -62,6 +62,7 @@ import javax.swing.JPanel;
 public final class AnchorMain {
 	private static final String LIBRARIES_RESOURCE = "/anchor-libraries.properties";
 	private static final String LOADER_JAR_RESOURCE = "/argentumloader.jar";
+	private static final String CLIENT_MOD_RESOURCE = "/argentum-client.jar";
 
 	// AWT/Swing под GraalVM native-image не встраиваются в сам .exe целиком — эти маленькие
 	// нативные библиотеки собраны как встроенные ресурсы (см. installer/build.gradle,
@@ -180,6 +181,7 @@ public final class AnchorMain {
 		String ownCoordinate = loaderGroup + ":" + loaderArtifact + ":" + loaderVersion;
 		String relativePath = mavenPath(loaderGroup, loaderArtifact, loaderVersion);
 		installOwnJar(librariesDir, loaderGroup, loaderArtifact, loaderVersion);
+		installClientMod(gameDir.resolve("mods"));
 		String ownLibraryJson = libraryJsonVanillaLocal(librariesDir.resolve(relativePath), ownCoordinate, relativePath);
 
 		List<String> thirdPartyLibraries = readThirdPartyLibraries(props);
@@ -232,6 +234,10 @@ public final class AnchorMain {
 		Path librariesDir = instanceDir.resolve("libraries");
 		String ownCoordinate = loaderGroup + ":" + loaderArtifact + ":" + loaderVersion;
 		installOwnJarFlat(librariesDir, loaderArtifact, loaderVersion);
+
+		// Игровая папка инстанса Prism — ".minecraft" (по умолчанию в новых версиях "minecraft"); берём существующую.
+		Path gameFolder = Files.isDirectory(instanceDir.resolve(".minecraft")) ? instanceDir.resolve(".minecraft") : instanceDir.resolve("minecraft");
+		installClientMod(gameFolder.resolve("mods"));
 		String ownLibraryJson = libraryJsonMmcLocal(ownCoordinate);
 
 		List<String> thirdPartyLibraries = readThirdPartyLibraries(props);
@@ -692,6 +698,29 @@ public final class AnchorMain {
 	// Схема из wiki MultiMC (с вложенными папками) для этого случая не подтвердилась.
 	private static void installOwnJarFlat(Path librariesDir, String artifact, String version) throws IOException {
 		extractLoaderJar(librariesDir.resolve(artifact + "-" + version + ".jar"));
+	}
+
+	/**
+	 * Клиентская часть (надпись на экране загрузки и т.п.) — обычный мод в mods/. Ресурса может не
+	 * быть, если якорь собран без argentum-client — тогда это не ошибка, просто ставим один лоадер.
+	 */
+	private static void installClientMod(Path modsDir) throws IOException {
+		try (InputStream is = AnchorMain.class.getResourceAsStream(CLIENT_MOD_RESOURCE)) {
+			if (is == null) {
+				return;
+			}
+
+			Files.createDirectories(modsDir);
+
+			try (OutputStream os = Files.newOutputStream(modsDir.resolve("argentum-client.jar"))) {
+				byte[] buf = new byte[8192];
+				int read;
+
+				while ((read = is.read(buf)) >= 0) {
+					os.write(buf, 0, read);
+				}
+			}
+		}
 	}
 
 	private static void extractLoaderJar(Path targetJar) throws IOException {

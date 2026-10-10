@@ -121,8 +121,19 @@ tasks.register('copyNativeLibs') {
 	}
 }
 
+// Клиентский мод (надпись на экране загрузки) — отдельная сборка argentum-client; кладём её jar в якорь,
+// если она уже собрана (см. argentum-client/build.gradle), иначе якорь ставит один лоадер.
+tasks.register('copyClientMod', Copy) {
+	from(rootProject.file('argentum-client/build/libs')) {
+		include 'argentum-client-*.jar'
+		exclude '*-sources.jar'
+	}
+	into generatedResources
+	rename { 'argentum-client.jar' }
+}
+
 sourceSets.main.resources.srcDir generatedResources
-processResources.dependsOn copyLoaderJar, generateAnchorLibraries, copyNativeLibs, copyFontConfig
+processResources.dependsOn copyLoaderJar, generateAnchorLibraries, copyNativeLibs, copyFontConfig, copyClientMod
 
 jar {
 	archiveBaseName = 'argentum-anchor'

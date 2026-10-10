@@ -93,6 +93,8 @@ public final class CatalogScreen extends class_437 {
 	private static final int GEAR_W = 18;
 	private static final int BTN_H = 18; // высота кнопок в карточке и строке состояния
 	private static final int BTN_Y = 32; // кнопки в карточке: отступ сверху
+	private static final int CHIP_H = 13;
+	private static final int C_TAG_TEXT = 0xFFB9BCC2;
 	private static final float TILT_MAX = 0.42F; // наклон иконки к курсору, радианы (~24°)
 
 	// Раскладка (в единицах GUI)
@@ -1152,8 +1154,10 @@ public final class CatalogScreen extends class_437 {
 
 	/** Плашка-тег: заливка и тёмная линия снизу. */
 	private static void chip(class_332 ctx, int x, int y, int w, int h) {
-		ctx.method_25294(x, y, x + w, y + h, C_CHIP);
-		ctx.method_25294(x, y + h - 1, x + w, y + h, darker(C_CHIP, 0.3F));
+		ctx.method_25294(x, y, x + w, y + h, C_BLACK); // чёрный контур, как у кнопок
+		ctx.method_25294(x + 1, y + 1, x + w - 1, y + h - 1, C_CHIP);
+		ctx.method_25294(x + 1, y + 1, x + w - 1, y + 2, lighter(C_CHIP, 0.09F)); // светлая кромка сверху
+		ctx.method_25294(x + 1, y + h - 2, x + w - 1, y + h - 1, darker(C_CHIP, 0.3F)); // тёмная полоса снизу
 	}
 
 	/** Полоса прогресса: чёрный контур, тёмный жёлоб и акцентная заливка; frac < 0 — бегущий отрезок. */
@@ -1596,17 +1600,17 @@ public final class CatalogScreen extends class_437 {
 		text(ctx, fit(p.description, textW), textX, y + 20, C_TEXT);
 
 		// теги (на вкладке установленных первым идёт статус: работает сейчас или после перезапуска)
-		int chipX = textX + drawBadge(ctx, p, textX, y + 35, textW);
+		int chipX = textX + drawBadge(ctx, p, textX, y + 34, textW);
 
 		for (String tag : Fmt.tags(p)) {
-			int chipW = textWidth(tag) + 8;
+			int chipW = textWidth(tag) + 10;
 
 			if (chipX + chipW > textX + textW) {
 				break;
 			}
 
-			chip(ctx, chipX, y + 35, chipW, 11);
-			text(ctx, tag, chipX + 4, y + 37, C_GRAY);
+			chip(ctx, chipX, y + 34, chipW, CHIP_H);
+			text(ctx, tag, chipX + 5, y + 37, C_TAG_TEXT);
 			chipX += chipW + 4;
 		}
 
@@ -1637,14 +1641,14 @@ public final class CatalogScreen extends class_437 {
 		ConfigInfo c = this.configInfo.get(p.id);
 		boolean active = c != null && c.modId != null;
 		String label = active ? "Активен" : "После перезапуска";
-		int chipW = textWidth(label) + 8;
+		int chipW = textWidth(label) + 10;
 
 		if (chipW > maxWidth) {
 			return 0;
 		}
 
-		chip(ctx, x, y, chipW, 11);
-		text(ctx, label, x + 4, y + 2, active ? C_OK : C_WARN);
+		chip(ctx, x, y, chipW, CHIP_H);
+		text(ctx, label, x + 5, y + 3, active ? C_OK : C_WARN);
 
 		return chipW + 4;
 	}
@@ -1711,7 +1715,10 @@ public final class CatalogScreen extends class_437 {
 		if (icon.texture == null) {
 			// плейсхолдер: цвет проекта и первая буква — пока иконка грузится (или если её не удалось получить)
 			int color = p.color != 0 ? (0xFF000000 | p.color) : C_CHIP;
-			ctx.method_25294(x, y, x + size, y + size, lerpColor(color, C_PANEL, 0.55F));
+			int fill = lerpColor(color, C_PANEL, 0.55F);
+			ctx.method_25294(x + 1, y, x + size - 1, y + 1, fill); // углы срезаны на пиксель
+			ctx.method_25294(x, y + 1, x + size, y + size - 1, fill);
+			ctx.method_25294(x + 1, y + size - 1, x + size - 1, y + size, fill);
 
 			if (p.title != null && !p.title.isEmpty()) {
 				String letter = p.title.substring(0, 1).toUpperCase();
@@ -1784,19 +1791,19 @@ public final class CatalogScreen extends class_437 {
 		int chipX = innerX + drawBadge(ctx, p, innerX, y, innerW);
 
 		for (String tag : Fmt.tags(p)) {
-			int chipW = textWidth(tag) + 8;
+			int chipW = textWidth(tag) + 10;
 
 			if (chipX + chipW > innerX + innerW) {
 				chipX = innerX;
-				y += 13;
+				y += CHIP_H + 3;
 			}
 
-			chip(ctx, chipX, y, chipW, 11);
-			text(ctx, tag, chipX + 4, y + 2, C_GRAY);
+			chip(ctx, chipX, y, chipW, CHIP_H);
+			text(ctx, tag, chipX + 5, y + 3, C_TAG_TEXT);
 			chipX += chipW + 4;
 		}
 
-		y += 16;
+		y += CHIP_H + 6;
 
 		// кнопки (прямоугольники запоминаем для обработки клика): на вкладке установленных — «Настройки» и «Удалить» в ряд
 		this.btnY = y;

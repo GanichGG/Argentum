@@ -129,4 +129,18 @@ public final class DevHooks {
 			// неважно
 		}
 	}
+
+	/** Dev: сохраняет текущий кадр игры в .argentum/shots/<name>.png. */
+	public static void dumpFrame(net.minecraft.class_310 client, String name) {
+		try {
+			Path dir = FabricLoader.getInstance().getGameDir().resolve(".argentum").resolve("shots");
+			Files.createDirectories(dir);
+
+			try (net.minecraft.class_1011 image = net.minecraft.class_318.method_1663(client.method_1522())) {
+				image.method_4314(dir.resolve(name + ".png"));
+			}
+		} catch (IOException | RuntimeException ignored) {
+			// неважно
+		}
+	}
 }

@@ -4,9 +4,12 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
+
+import com.ganichgg.argentum.client.config.ConfigDoc;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
@@ -134,36 +137,62 @@ public final class ModConfigs {
 		return null;
 	}
 
-	/** Файл или папка настроек мода в config/: по id мода или slug проекта. null — не нашли. */
-	public static Path configPath(String modId, String slug) {
+	/**
+	 * Файлы настроек мода в config/: всё, что называется как id мода или slug проекта (файл или папка с файлами),
+	 * сначала поддерживаемые встроенным редактором, потом остальные. Пусто — не нашли.
+	 */
+	public static List<Path> configFiles(String modId, String slug) {
 		Path dir = FabricLoader.getInstance().getConfigDir();
+		List<Path> found = new ArrayList<>();
 
 		if (!Files.isDirectory(dir)) {
-			return null;
+			return found;
 		}
 
 		String a = modId == null ? null : modId.toLowerCase(Locale.ROOT);
 		String b = slug == null ? null : slug.toLowerCase(Locale.ROOT);
-		Path best = null;
 
-		try (Stream<Path> files = Files.list(dir)) {
-			for (Path p : (Iterable<Path>) files::iterator) {
+		try (Stream<Path> top = Files.list(dir)) {
+			for (Path p : (Iterable<Path>) top::iterator) {
 				String name = p.getFileName().toString().toLowerCase(Locale.ROOT);
 				String stem = name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name;
+				boolean match = stem.equals(a) || stem.equals(b)
+						|| (a != null && (name.startsWith(a + "-") || name.startsWith(a + "_") || name.startsWith(a + ".")))
+						|| (b != null && (name.startsWith(b + "-") || name.startsWith(b + "_") || name.startsWith(b + ".")));
 
-				if (stem.equals(a) || stem.equals(b)) {
-					return p; // точное совпадение лучше
+				if (!match) {
+					continue;
 				}
 
-				if (best == null && ((a != null && name.startsWith(a)) || (b != null && name.startsWith(b)))) {
-					best = p;
+				if (Files.isDirectory(p)) {
+					try (Stream<Path> inner = Files.walk(p, 3)) {
+						inner.filter(Files::isRegularFile).limit(20).forEach(found::add);
+					}
+				} else {
+					found.add(p);
 				}
 			}
 		} catch (IOException e) {
-			return null;
+			return found;
 		}
 
-		return best;
+		// сначала файлы, которые редактор умеет читать, а среди них — настоящие настройки, а не служебные отпечатки/кэши
+		found.sort((x, y) -> Integer.compare(configRank(x), configRank(y)));
+
+		return found;
+	}
+
+	private static int configRank(Path p) {
+		String n = p.getFileName().toString().toLowerCase(Locale.ROOT);
+		int rank = ConfigDoc.supports(p) ? 0 : 10;
+
+		if (n.contains("fingerprint") || n.contains("cache") || n.contains("state") || n.contains("history") || n.contains("hash")) {
+			rank += 5;
+		} else if (n.contains("option") || n.contains("config") || n.contains("settings") || n.contains("client")) {
+			rank -= 1;
+		}
+
+		return rank;
 	}
 
 	/** Открывает файл/папку программой по умолчанию. */

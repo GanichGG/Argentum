@@ -37,8 +37,10 @@ import net.fabricmc.loader.impl.modrinth.ModrinthProject;
 import net.fabricmc.loader.impl.modrinth.ModrinthVersion;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
+import net.minecraft.class_1109;
 import net.minecraft.class_2561;
 import net.minecraft.class_332;
+import net.minecraft.class_3417;
 import net.minecraft.class_342;
 import net.minecraft.class_437;
 
@@ -75,7 +77,7 @@ public final class CatalogScreen extends class_437 {
 	private static final int C_PANEL_HOVER = 0xFF323334;
 	private static final int C_BLACK = 0xFF0E0E0F;
 	private static final int C_BORDER = C_BLACK;
-	private static final int C_CHIP = 0xFF39393B;
+	private static final int C_CHIP = 0xFF353637;
 	private static final int C_WHITE = 0xFFFFFFFF;
 	private static final int C_TEXT = 0xFFD0D0D6;
 	private static final int C_GRAY = 0xFF8E8E98;
@@ -93,8 +95,9 @@ public final class CatalogScreen extends class_437 {
 	private static final int GEAR_W = 18;
 	private static final int BTN_H = 18; // высота кнопок в карточке и строке состояния
 	private static final int BTN_Y = 32; // кнопки в карточке: отступ сверху
-	private static final int CHIP_H = 13;
-	private static final int C_TAG_TEXT = 0xFFB9BCC2;
+	private static final int CHIP_H = 18; // как у кнопок
+	private static final int PANEL_CHIP_H = 14; // в узкой панели теги ниже, чтобы не отнимать место у описания
+	private static final int C_TAG_TEXT = 0xFF9DA0A6;
 	private static final float TILT_MAX = 0.42F; // наклон иконки к курсору, радианы (~24°)
 
 	// Раскладка (в единицах GUI)
@@ -508,6 +511,10 @@ public final class CatalogScreen extends class_437 {
 					List<ModrinthProject> ordered = new ArrayList<>();
 
 					for (String id : ids) {
+						if (!this.installedFiles.containsKey(id)) {
+							continue; // мод успели удалить, пока шла загрузка, — не возвращаем его в список
+						}
+
 						ModrinthProject p = this.cache.project(id);
 						ordered.add(p != null ? p : fallbackProject(id));
 					}
@@ -938,6 +945,10 @@ public final class CatalogScreen extends class_437 {
 
 		for (Tab t : Tab.values()) {
 			if (inside(mx, my, tabX(t), TABS_Y, tabWidth(t), TABS_H)) {
+				if (t != this.tab) {
+					playClick();
+				}
+
 				switchTab(t);
 				return true;
 			}
@@ -1152,12 +1163,10 @@ public final class CatalogScreen extends class_437 {
 		ctx.method_25294(x + w - 2, y + 1, x + w - 1, regionBottom, borderColor);
 	}
 
-	/** Плашка-тег: заливка и тёмная линия снизу. */
+	/** Плашка-тег: ровная заливка чуть светлее фона и тёмная нижняя полоса — без обводки, чтобы не спорить с кнопками. */
 	private static void chip(class_332 ctx, int x, int y, int w, int h) {
-		ctx.method_25294(x, y, x + w, y + h, C_BLACK); // чёрный контур, как у кнопок
-		ctx.method_25294(x + 1, y + 1, x + w - 1, y + h - 1, C_CHIP);
-		ctx.method_25294(x + 1, y + 1, x + w - 1, y + 2, lighter(C_CHIP, 0.09F)); // светлая кромка сверху
-		ctx.method_25294(x + 1, y + h - 2, x + w - 1, y + h - 1, darker(C_CHIP, 0.3F)); // тёмная полоса снизу
+		ctx.method_25294(x, y, x + w, y + h, C_CHIP);
+		ctx.method_25294(x, y + h - 2, x + w, y + h, darker(C_CHIP, 0.25F));
 	}
 
 	/** Полоса прогресса: чёрный контур, тёмный жёлоб и акцентная заливка; frac < 0 — бегущий отрезок. */
@@ -1191,6 +1200,12 @@ public final class CatalogScreen extends class_437 {
 	/** Вспышка кнопки при нажатии (сама затухает). */
 	private void press(String key) {
 		this.flash.put(key, 1F);
+		playClick();
+	}
+
+	/** Ванильный звук нажатия кнопки (SoundEvents.UI_BUTTON_CLICK = class_3417.field_15015). */
+	private void playClick() {
+		this.field_22787.method_1483().method_4873(class_1109.method_47978(class_3417.field_15015, 1.0F));
 	}
 
 	/** Плавное наведение: 0..1, для каждой кнопки своё состояние по ключу. */
@@ -1221,7 +1236,19 @@ public final class CatalogScreen extends class_437 {
 		int bottomColor = darker(body, accent ? 0.55F : 0.28F);
 		frame(ctx, x, y, w, h, body, borderColor, bottomColor, pressed);
 
-		if (fill >= 0F) {
+		if (fill == -2F) { // прогресс неизвестен: по полосе бежит отрезок
+			int inner = w - 4;
+			int seg = Math.max(10, inner * 3 / 10);
+			float phase = (System.currentTimeMillis() % 1300) / 1300F;
+			int from = Math.max(0, (int) (-seg + (inner + seg) * phase));
+			int to = Math.min(inner, (int) ((-seg + (inner + seg) * phase) + seg));
+
+			if (to > from) {
+				int bottom = y + h - (pressed ? 3 : 5);
+				ctx.method_25294(x + 2 + from, y + 2, x + 2 + to, bottom, C_FILL);
+				ctx.method_25294(x + 2 + from, y + 2, x + 2 + to, y + 3, lighter(C_FILL, 0.25F));
+			}
+		} else if (fill >= 0F) {
 			int fw = Math.round((w - 4) * Math.min(1F, fill));
 
 			if (fw > 0) {
@@ -1600,17 +1627,17 @@ public final class CatalogScreen extends class_437 {
 		text(ctx, fit(p.description, textW), textX, y + 20, C_TEXT);
 
 		// теги (на вкладке установленных первым идёт статус: работает сейчас или после перезапуска)
-		int chipX = textX + drawBadge(ctx, p, textX, y + 34, textW);
+		int chipX = textX + drawBadge(ctx, p, textX, y + BTN_Y, textW);
 
 		for (String tag : Fmt.tags(p)) {
-			int chipW = textWidth(tag) + 10;
+			int chipW = textWidth(tag) + 12;
 
 			if (chipX + chipW > textX + textW) {
 				break;
 			}
 
-			chip(ctx, chipX, y + 34, chipW, CHIP_H);
-			text(ctx, tag, chipX + 5, y + 37, C_TAG_TEXT);
+			chip(ctx, chipX, y + BTN_Y, chipW, CHIP_H);
+			text(ctx, tag, chipX + 6, y + BTN_Y + 4, C_TAG_TEXT);
 			chipX += chipW + 4;
 		}
 
@@ -1641,14 +1668,14 @@ public final class CatalogScreen extends class_437 {
 		ConfigInfo c = this.configInfo.get(p.id);
 		boolean active = c != null && c.modId != null;
 		String label = active ? "Активен" : "После перезапуска";
-		int chipW = textWidth(label) + 10;
+		int chipW = textWidth(label) + 12;
 
 		if (chipW > maxWidth) {
 			return 0;
 		}
 
 		chip(ctx, x, y, chipW, CHIP_H);
-		text(ctx, label, x + 5, y + 3, active ? C_OK : C_WARN);
+		text(ctx, label, x + 6, y + 4, active ? C_OK : C_WARN);
 
 		return chipW + 4;
 	}
@@ -1689,7 +1716,7 @@ public final class CatalogScreen extends class_437 {
 			float fl = target == null ? -1F : target;
 			float shown = approach(this.btnHover.getOrDefault("pf:" + p.id, 0F), Math.max(0F, fl), this.dt, 10);
 			this.btnHover.put("pf:" + p.id, shown);
-			buttonFill(ctx, key, x, y, w, h, fl >= 0F ? Math.round(shown * 100) + "%" : "Установка", null, true, C_DISABLED, C_DISABLED, false, C_WHITE, fl >= 0F ? shown : -1F);
+			buttonFill(ctx, key, x, y, w, h, fl >= 0F ? Math.round(shown * 100) + "%" : "Установка", null, false, C_DISABLED, C_DISABLED, false, C_WHITE, fl >= 0F ? shown : -2F);
 		} else {
 			button(ctx, key, x, y, w, h, "Установить", null, false, C_ACCENT, C_ACCENT_HOVER, hovered, C_ACCENT_TEXT);
 		}
@@ -1791,19 +1818,19 @@ public final class CatalogScreen extends class_437 {
 		int chipX = innerX + drawBadge(ctx, p, innerX, y, innerW);
 
 		for (String tag : Fmt.tags(p)) {
-			int chipW = textWidth(tag) + 10;
+			int chipW = textWidth(tag) + 12;
 
 			if (chipX + chipW > innerX + innerW) {
 				chipX = innerX;
-				y += CHIP_H + 3;
+				y += PANEL_CHIP_H + 3;
 			}
 
-			chip(ctx, chipX, y, chipW, CHIP_H);
-			text(ctx, tag, chipX + 5, y + 3, C_TAG_TEXT);
+			chip(ctx, chipX, y, chipW, PANEL_CHIP_H);
+			text(ctx, tag, chipX + 6, y + 3, C_TAG_TEXT);
 			chipX += chipW + 4;
 		}
 
-		y += CHIP_H + 6;
+		y += PANEL_CHIP_H + 6;
 
 		// кнопки (прямоугольники запоминаем для обработки клика): на вкладке установленных — «Настройки» и «Удалить» в ряд
 		this.btnY = y;
@@ -1932,7 +1959,6 @@ public final class CatalogScreen extends class_437 {
 			switch (hs) {
 			case PREPARING:
 				label = "Подготовка модов " + Math.round(this.prepShown * 100) + "%";
-				spin = true;
 				fill = this.prepShown;
 				textColor = C_WHITE;
 				break;
@@ -1945,7 +1971,7 @@ public final class CatalogScreen extends class_437 {
 				break;
 			case SWAPPING:
 				label = "Переключаю";
-				spin = true;
+				fill = -2F;
 				break;
 			default:
 				label = "Не вышло — повторить";

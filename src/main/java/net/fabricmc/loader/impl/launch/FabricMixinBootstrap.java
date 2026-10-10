@@ -16,6 +16,7 @@
 
 package net.fabricmc.loader.impl.launch;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -110,6 +111,59 @@ public final class FabricMixinBootstrap {
 		}
 
 		initialized = true;
+	}
+
+	/**
+	 * ArgentumLoader hot-loader: подключает миксин-конфиги модов, добавленных после старта игры.
+	 *
+	 * <p>Миксины применяются в момент загрузки класса, поэтому работают только для классов, которые ещё не загружены
+	 * (это проверяет hot-loader заранее). Сам Mixin после первой трансформации новые конфиги игнорирует, поэтому мы
+	 * сбрасываем счётчик трансформаций его процессора — тогда на следующей загрузке класса он выберет новые конфиги.
+	 */
+	public static void addLate(EnvType side, List<ModContainerImpl> mods) {
+		if (!initialized) {
+			throw new IllegalStateException("Mixin ещё не инициализирован");
+		}
+
+		Map<String, ModContainerImpl> configToModMap = new HashMap<>();
+
+		for (ModContainerImpl mod : mods) {
+			for (String config : mod.getMetadata().getMixinConfigs(side)) {
+				configToModMap.put(config, mod);
+
+				try {
+					Mixins.addConfiguration(config);
+				} catch (Throwable t) {
+					throw new RuntimeException(String.format("Error parsing or using Mixin config %s for mod %s", config, mod.getMetadata().getId()), t);
+				}
+			}
+		}
+
+		if (configToModMap.isEmpty()) {
+			return;
+		}
+
+		try {
+			IMixinConfig.class.getMethod("decorate", String.class, Object.class);
+			MixinConfigDecorator.apply(configToModMap);
+		} catch (NoSuchMethodException e) {
+			Log.info(LogCategory.MIXIN, "Detected old Mixin version without config decoration support");
+		}
+
+		try {
+			Object transformer = MixinEnvironment.getCurrentEnvironment().getActiveTransformer();
+			Field processorField = transformer.getClass().getDeclaredField("processor");
+			processorField.setAccessible(true);
+			Object processor = processorField.get(transformer);
+			Field countField = processor.getClass().getDeclaredField("transformedCount");
+			countField.setAccessible(true);
+
+			synchronized (processor) { // applyMixins тоже synchronized: не вклиниваемся в идущую трансформацию
+				countField.setInt(processor, 0);
+			}
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			throw new RuntimeException("Не удалось заставить Mixin подхватить новые конфиги", e);
+		}
 	}
 
 	private static final class MixinConfigDecorator {

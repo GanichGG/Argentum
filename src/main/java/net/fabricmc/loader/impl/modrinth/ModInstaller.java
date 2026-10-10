@@ -41,10 +41,13 @@ public final class ModInstaller {
 
 	public static final class InstallResult {
 		public final List<String> installedModNames;
+		/** Файлы, положенные в mods, в порядке установки (зависимости раньше самого мода). */
+		public final List<Path> installedFiles;
 		public final Path modsDir;
 
-		InstallResult(List<String> installedModNames, Path modsDir) {
+		InstallResult(List<String> installedModNames, List<Path> installedFiles, Path modsDir) {
 			this.installedModNames = installedModNames;
+			this.installedFiles = installedFiles;
 			this.modsDir = modsDir;
 		}
 	}
@@ -52,6 +55,7 @@ public final class ModInstaller {
 	public static InstallResult install(Path modsDir, List<ModrinthVersion> toInstall) throws ModrinthApiException {
 		InstalledModsIndex index = InstalledModsIndex.load(modsDir);
 		List<String> installedNames = new ArrayList<>();
+		List<Path> installedFiles = new ArrayList<>();
 
 		try {
 			Files.createDirectories(modsDir);
@@ -73,6 +77,7 @@ public final class ModInstaller {
 
 			index.put(version.projectId, version.id, file.filename);
 			installedNames.add(version.name != null ? version.name : file.filename);
+			installedFiles.add(target);
 		}
 
 		try {
@@ -81,7 +86,7 @@ public final class ModInstaller {
 			throw new ModrinthApiException("Моды скачаны, но не удалось сохранить реестр установленных модов", e);
 		}
 
-		return new InstallResult(installedNames, modsDir);
+		return new InstallResult(installedNames, installedFiles, modsDir);
 	}
 
 	/** Канал до CDN бывает медленным и рвётся — пробуем несколько раз, а не сдаёмся на первой ошибке. */

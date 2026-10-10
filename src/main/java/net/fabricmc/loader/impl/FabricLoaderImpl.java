@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -85,9 +87,9 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 	public static final String REMAPPED_JARS_DIR_NAME = "remappedJars"; // relative to cache dir
 	private static final String TMP_DIR_NAME = "tmp"; // relative to cache dir
 
-	protected final Map<String, ModContainerImpl> modMap = new HashMap<>();
+	protected final Map<String, ModContainerImpl> modMap = new ConcurrentHashMap<>(); // ArgentumLoader: моды подгружаются на лету из другого потока
 	private List<ModCandidateImpl> modCandidates;
-	protected List<ModContainerImpl> mods = new ArrayList<>();
+	protected List<ModContainerImpl> mods = new CopyOnWriteArrayList<>();
 
 	private final Map<String, LanguageAdapter> adapterMap = new HashMap<>();
 	private final EntrypointStorage entrypointStorage = new EntrypointStorage();
@@ -499,6 +501,34 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 		return FabricLauncherBase.getLauncher().isDevelopment();
 	}
 
+	/**
+	 * ArgentumLoader hot-loader: регистрирует моды уже после старта игры. Вызывающий обязан заранее проверить, что их можно
+	 * загрузить на лету (см. {@code hotload.HotLoader}); здесь только регистрация, classpath и entrypoint'ы.
+	 * Языковые адаптеры не поддерживаются — такие моды отсеиваются проверкой.
+	 */
+	public List<ModContainerImpl> hotAddMods(List<ModCandidateImpl> candidates) throws ModResolutionException, IOException {
+		Path outputDir = gameDir.resolve(CACHE_DIR_NAME).resolve(PROCESSED_MODS_DIR_NAME);
+		List<ModContainerImpl> added = new ArrayList<>();
+
+		for (ModCandidateImpl candidate : candidates) {
+			if (!candidate.hasPath() && !candidate.isBuiltin()) {
+				candidate.setPaths(Collections.singletonList(candidate.copyToDir(outputDir, false)));
+			}
+
+			addMod(candidate);
+			ModContainerImpl container = modMap.get(candidate.getId());
+			added.add(container);
+
+			for (Path path : container.getCodeSourcePaths()) {
+				FabricLauncherBase.getLauncher().addToClassPath(path);
+			}
+		}
+
+		setupMods(added);
+
+		return added;
+	}
+
 	private void addMod(ModCandidateImpl candidate) throws ModResolutionException {
 		ModContainerImpl container = new ModContainerImpl(candidate);
 		mods.add(container);
@@ -529,7 +559,11 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 	}
 
 	private void setupMods() {
-		for (ModContainerImpl mod : mods) {
+		setupMods(mods);
+	}
+
+	private void setupMods(Collection<ModContainerImpl> toSetup) {
+		for (ModContainerImpl mod : toSetup) {
 			try {
 				for (String in : mod.getInfo().getOldInitializers()) {
 					String adapter = mod.getInfo().getOldStyleLanguageAdapter();

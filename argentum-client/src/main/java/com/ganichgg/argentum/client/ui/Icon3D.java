@@ -27,6 +27,7 @@ import net.minecraft.class_757;
 public final class Icon3D {
 	private static final int N = 8; // ячеек по стороне
 	private static final float CAMERA = 2.4F; // расстояние до камеры в размерах иконки
+	private static final float POP = 0.2F; // насколько иконка вырастает при наведении (доля размера)
 	private static final float LIGHT_X = -0.35F;
 	private static final float LIGHT_Y = -0.5F;
 	private static final float LIGHT_Z = 0.79F;
@@ -36,8 +37,9 @@ public final class Icon3D {
 	/**
 	 * @param ay поворот вокруг вертикальной оси (радианы): больше нуля — правый край уходит вдаль
 	 * @param bx поворот вокруг горизонтальной оси: больше нуля — нижний край уходит вдаль
+	 * @param pop 0..1 — насколько иконка надвинута на зрителя (вырастает до +20 %)
 	 */
-	public static void draw(class_332 ctx, class_2960 texture, float x, float y, float size, float ay, float bx, float alpha) {
+	public static void draw(class_332 ctx, class_2960 texture, float x, float y, float size, float ay, float bx, float alpha, float pop) {
 		ctx.method_51452(); // draw(): сначала сбрасываем то, что DrawContext накопил, чтобы порядок слоёв не нарушился
 
 		Matrix4f m = ctx.method_51448().method_23760().method_23761();
@@ -61,7 +63,7 @@ public final class Icon3D {
 				float z1 = -lx * sa;
 				float y2 = ly * cb + z1 * sb;
 				float z2 = z1 * cb - ly * sb;
-				float f = camera / (camera - z2);
+				float f = camera / (camera - z2) * (1F + POP * pop); // pop: иконка надвигается на зрителя
 				px[j * (N + 1) + i] = cx + x1 * f;
 				py[j * (N + 1) + i] = cy + y2 * f;
 			}

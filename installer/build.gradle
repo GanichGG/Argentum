@@ -123,7 +123,19 @@ tasks.register('copyNativeLibs') {
 
 // Клиентский мод (надпись на экране загрузки) — отдельная сборка argentum-client; кладём её jar в якорь,
 // если она уже собрана (см. argentum-client/build.gradle), иначе якорь ставит один лоадер.
+// Собирает argentum-client отдельным вызовом Gradle (у него своя независимая сборка). Ему нужен
+// client-intermediary.jar от уже запускавшейся игры; если его нет или сборка упала — не ломаем сборку
+// якоря, он просто поставит один лоадер (copyClientMod копирует то, что есть).
+tasks.register('buildClientMod', Exec) {
+	workingDir rootProject.file('argentum-client')
+	def wrapper = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'gradlew.bat' : 'gradlew'
+	commandLine rootProject.file(wrapper).absolutePath, 'build', '--console=plain', '-q'
+	ignoreExitValue = true
+	outputs.upToDateWhen { false }
+}
+
 tasks.register('copyClientMod', Copy) {
+	dependsOn 'buildClientMod'
 	from(rootProject.file('argentum-client/build/libs')) {
 		include 'argentum-client-*.jar'
 		exclude '*-sources.jar'

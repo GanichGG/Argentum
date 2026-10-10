@@ -27,7 +27,7 @@ hot-loader сам решает, что безопасно, и честно об�
 Удаление: загруженный jar Windows не отдаёт, поэтому `PendingRemovals` записывает файл в
 `mods/.argentum-pending-delete`, а лоадер удаляет его на следующем старте до поиска модов.
 
-Проверено на реальных модах: Sodium/AppleSkin/Zoomify/Mod Menu/Mouse Tweaks/BetterF3 корректно определяются как
+Проверено на реальных модах: AppleSkin, Zoomify, Mod Menu, Mouse Tweaks, BetterF3, Cloth Config корректно определяются как
 «после перезапуска» (они патчат `MinecraftClient`, `InGameHud` и т.п., которые к главному меню уже загружены), а пробный
 мод с миксином на ещё не загруженный `ClientPlayerInteractionManager` загружается, миксин применяется, инициализатор
 отрабатывает.

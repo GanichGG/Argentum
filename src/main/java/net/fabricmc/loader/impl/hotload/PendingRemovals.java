@@ -21,7 +21,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.List;
+import java.util.ArrayList;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
@@ -46,7 +48,19 @@ public final class PendingRemovals {
 				StandardOpenOption.CREATE, StandardOpenOption.APPEND);
 	}
 
-	/** Вызывается при старте до поиска модов: удаляет всё, что было отложено. */
+	/** Файлы, которые не удалось удалить сразу (их держит другой процесс, например прежняя копия игры): не загружаем их. */
+	private static final Set<String> STILL_PENDING = ConcurrentHashMap.newKeySet();
+
+	/** Помечен ли файл на удаление — такие моды не должны загружаться. */
+	public static boolean isPending(String fileName) {
+		return STILL_PENDING.contains(fileName);
+	}
+
+	/**
+	 * Вызывается при старте до поиска модов: удаляет всё, что было отложено. Файл, который удалить не вышло (его ещё
+	 * держит предыдущая копия игры при бесшовном переключении), остаётся помеченным: он не загружается, а удаление
+	 * повторяется в фоне, пока файл не освободится.
+	 */
 	public static void apply(Path modsDir) {
 		Path list = modsDir.resolve(FILE_NAME);
 
@@ -55,34 +69,75 @@ public final class PendingRemovals {
 		}
 
 		try {
-			List<String> names = Files.readAllLines(list, StandardCharsets.UTF_8);
-
-			for (String name : names) {
+			for (String name : Files.readAllLines(list, StandardCharsets.UTF_8)) {
 				name = name.trim();
 
-				if (name.isEmpty() || !isPlainName(name)) {
-					continue;
-				}
-
-				try {
-					if (Files.deleteIfExists(modsDir.resolve(name))) {
-						Log.info(LogCategory.GENERAL, "Удалён мод, отмеченный на удаление: %s", name);
-					}
-				} catch (IOException e) {
-					Log.warn(LogCategory.GENERAL, "Не удалось удалить " + name + " (останется до следующего запуска)", e);
-					Files.write(modsDir.resolve(FILE_NAME + ".keep"), (name + "\n").getBytes(StandardCharsets.UTF_8),
-							StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+				if (!name.isEmpty() && isPlainName(name)) {
+					STILL_PENDING.add(name);
 				}
 			}
 
-			Files.delete(list);
-			Path keep = modsDir.resolve(FILE_NAME + ".keep");
-
-			if (Files.exists(keep)) {
-				Files.move(keep, list);
+			for (String name : new ArrayList<>(STILL_PENDING)) {
+				tryDelete(modsDir, name);
 			}
+
+			rewrite(list);
 		} catch (IOException e) {
 			Log.warn(LogCategory.GENERAL, "Не удалось обработать список отложенных удалений", e);
+			return;
+		}
+
+		if (!STILL_PENDING.isEmpty()) {
+			Thread retry = new Thread(() -> retryLoop(modsDir, list), "argentum-pending-delete");
+			retry.setDaemon(true);
+			retry.start();
+		}
+	}
+
+	private static void retryLoop(Path modsDir, Path list) {
+		for (int i = 0; i < 100 && !STILL_PENDING.isEmpty(); i++) {
+			try {
+				Thread.sleep(3000);
+			} catch (InterruptedException e) {
+				return;
+			}
+
+			boolean changed = false;
+
+			for (String name : new ArrayList<>(STILL_PENDING)) {
+				changed |= tryDelete(modsDir, name);
+			}
+
+			if (changed) {
+				try {
+					rewrite(list);
+				} catch (IOException e) {
+					return;
+				}
+			}
+		}
+	}
+
+	private static boolean tryDelete(Path modsDir, String name) {
+		try {
+			if (Files.deleteIfExists(modsDir.resolve(name))) {
+				Log.info(LogCategory.GENERAL, "Удалён мод, отмеченный на удаление: %s", name);
+			}
+
+			STILL_PENDING.remove(name);
+
+			return true;
+		} catch (IOException e) {
+			return false; // файл занят — попробуем позже
+		}
+	}
+
+	/** Оставляет в списке только то, что ещё не удалено. */
+	private static void rewrite(Path list) throws IOException {
+		if (STILL_PENDING.isEmpty()) {
+			Files.deleteIfExists(list);
+		} else {
+			Files.write(list, (String.join("\n", STILL_PENDING) + "\n").getBytes(StandardCharsets.UTF_8));
 		}
 	}
 

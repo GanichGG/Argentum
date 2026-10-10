@@ -28,5 +28,19 @@ public abstract class TitleScreenMixin extends class_437 {
 	private void argentum$addCatalogButton(CallbackInfo ci) {
 		this.method_37063(class_4185.method_46430(class_2561.method_43470("Моды Argentum"),
 				button -> this.field_22787.method_1507(new CatalogScreen(this))).method_46434(6, 6, 100, 20).method_46431());
+
+		// Для разработки: файл .argentum-open-catalog в папке игры открывает каталог сразу при старте (и удаляется) —
+		// удобно снимать скриншоты без ввода. Переменная окружения не годится: Prism уже запущен и игре её не передаст.
+		java.nio.file.Path flag = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve(".argentum-open-catalog");
+
+		if (java.nio.file.Files.exists(flag)) {
+			try {
+				java.nio.file.Files.delete(flag);
+			} catch (java.io.IOException ignored) {
+				// неважно
+			}
+
+			this.field_22787.method_1507(new CatalogScreen(this));
+		}
 	}
 }

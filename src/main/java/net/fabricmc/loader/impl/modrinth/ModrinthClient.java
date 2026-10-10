@@ -208,17 +208,17 @@ public final class ModrinthClient {
 			String key = reader.nextName();
 
 			switch (key) {
-			case "project_id":
+			case "project_id": id = readStringOrNull(reader); break;
 			case "id": id = readStringOrNull(reader); break;
 			case "slug": slug = readStringOrNull(reader); break;
 			case "title": title = readStringOrNull(reader); break;
 			case "description": description = readStringOrNull(reader); break;
 			case "author": author = readStringOrNull(reader); break;
 			case "downloads": downloads = readLongOrZero(reader); break;
-			case "follows":
+			case "follows": follows = readLongOrZero(reader); break;
 			case "followers": follows = readLongOrZero(reader); break;
 			case "icon_url": iconUrl = readStringOrNull(reader); break;
-			case "date_modified":
+			case "date_modified": dateModified = readStringOrNull(reader); break;
 			case "updated": dateModified = readStringOrNull(reader); break;
 			case "categories": readStringArray(reader, categories); break;
 			case "display_categories": readStringArray(reader, displayCategories); break;

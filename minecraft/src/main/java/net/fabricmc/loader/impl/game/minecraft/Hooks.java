@@ -30,16 +30,22 @@ public final class Hooks {
 
 	public static String appletMainClass;
 
-	public static final String FABRIC = "fabric";
+	// Машиночитаемый идентификатор бренда (используется другими модами для проверки
+	// совместимости через FabricLoader/brand API) остаётся коротким и латиницей.
+	public static final String FABRIC = "argentum";
 	public static final String VANILLA = "vanilla";
+
+	// Отдельно — то, что реально видно в левом нижнем углу главного меню и на экране
+	// отладки (F3): человекочитаемая надпись вместо голого идентификатора бренда.
+	public static final String DISPLAY_BRAND = "Argentum — спасибо за использование!";
 
 	public static String insertBranding(final String brand) {
 		if (brand == null || brand.isEmpty()) {
 			Log.warn(LogCategory.GAME_PROVIDER, "Null or empty branding found!", new IllegalStateException());
-			return FABRIC;
+			return DISPLAY_BRAND;
 		}
 
-		return VANILLA.equals(brand) ? FABRIC : brand + ',' + FABRIC;
+		return VANILLA.equals(brand) ? DISPLAY_BRAND : brand + ',' + DISPLAY_BRAND;
 	}
 
 	public static void startClient(File runDir, Object gameInstance) {

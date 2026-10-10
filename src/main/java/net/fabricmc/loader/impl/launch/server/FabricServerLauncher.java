@@ -60,7 +60,7 @@ public class FabricServerLauncher {
 			try {
 				setup(args);
 			} catch (Exception e) {
-				throw new RuntimeException("Failed to setup Fabric server environment!", e);
+				throw new RuntimeException("Failed to setup ArgentumLoader server environment!", e);
 			}
 		}
 
@@ -85,10 +85,10 @@ public class FabricServerLauncher {
 		if (!Files.exists(serverJar)) {
 			System.err.println("The Minecraft server .JAR is missing (" + serverJar + ")!");
 			System.err.println();
-			System.err.println("Fabric's server-side launcher expects the server .JAR to be provided.");
+			System.err.println("ArgentumLoader's server-side launcher expects the server .JAR to be provided.");
 			System.err.println("You can edit its location in fabric-server-launcher.properties.");
 			System.err.println();
-			System.err.println("Without the official Minecraft server .JAR, Fabric Loader cannot launch.");
+			System.err.println("Without the official Minecraft server .JAR, ArgentumLoader cannot launch.");
 			throw new RuntimeException("Missing game jar at " + serverJar);
 		}
 	}

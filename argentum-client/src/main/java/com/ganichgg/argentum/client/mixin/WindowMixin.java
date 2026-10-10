@@ -31,4 +31,14 @@ public abstract class WindowMixin {
 
 		return GLFW.glfwCreateWindow(width, height, title, monitor, share);
 	}
+
+	// Window.toggleFullscreen: игра сама включает полный экран при старте, если так записано в настройках, — а
+	// эксклюзивный полноэкранный режим скрыть нельзя, окно фоновой копии вылезло бы поверх основной игры.
+	// Полный экран включается в Handoff при показе.
+	@org.spongepowered.asm.mixin.injection.Inject(method = "method_4500", at = @At("HEAD"), cancellable = true)
+	private void argentum$noFullscreenWhileHidden(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+		if (Handoff.isHiddenChild()) {
+			ci.cancel();
+		}
+	}
 }

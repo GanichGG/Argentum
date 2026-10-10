@@ -27,8 +27,12 @@ import net.minecraft.class_310;
  * class_2960 = Identifier, class_310 = MinecraftClient.
  */
 public final class EarlyText {
-	/** Размер шрифта в пикселях текстуры; тексель = 1 единица GUI, поэтому пиксели резкие при любом масштабе GUI. */
-	public static final int FONT_PX = 16;
+	/**
+	 * Размер шрифта в пикселях текстуры; тексель = 1 единица GUI, поэтому пиксели резкие при любом масштабе GUI.
+	 * Пиксель PIXY — 200 единиц шрифта из 2048 на em, поэтому 20,48 px/em дают ровно 2 текселя на пиксель шрифта:
+	 * при любом другом размере пиксели получаются неравной ширины, и шрифт перестаёт выглядеть как PIXY.
+	 */
+	public static final float FONT_PX = 20.48F;
 	private static final String FONT_RESOURCE = "/argentum-client/PIXY.ttf";
 
 	/** Готовая строка: текстура и её размер в пикселях (= в единицах GUI при масштабе 1). */
@@ -148,7 +152,7 @@ public final class EarlyText {
 						for (int gy = 0; gy < gh; gy++) {
 							for (int gx = 0; gx < gw; gx++) {
 								// пиксельный шрифт: сглаживание STB размывает края при увеличении, поэтому режем альфу до 0/255
-								int alpha = (bitmap.get(gy * gw + gx) & 0xFF) >= 96 ? 255 : 0;
+								int alpha = (bitmap.get(gy * gw + gx) & 0xFF) >= 128 ? 255 : 0;
 								int px = pen + x0.get(0) + gx;
 								int py = ascent + y0.get(0) + gy;
 

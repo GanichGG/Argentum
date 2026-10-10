@@ -102,9 +102,6 @@ public final class CatalogScreen extends class_437 {
 	private static final int C_SECONDARY = 0xFF39393B;
 	private static final int C_SECONDARY_HOVER = 0xFF47484A;
 	private static final int C_DISABLED = 0xFF2E2F30;
-	// заблокированная «Назад» на время применения: плоская серая, как в Ore UI
-	private static final int C_LOCKED = 0xFF47484A;
-	private static final int C_LOCKED_TEXT = 0xFF737476;
 	private static final int C_RED = 0xFFFF8A8A;
 	private static final int GEAR_W = 18;
 	private static final int BTN_H = 18; // высота кнопок в карточке и строке состояния
@@ -217,6 +214,7 @@ public final class CatalogScreen extends class_437 {
 	private int devStep2;
 	private boolean devQueued;
 	private boolean devApplyStarted;
+	private boolean devReloaded;
 	private boolean devConfigOpened;
 	private int[] devMouse;
 	private long devNextShot;
@@ -387,17 +385,41 @@ public final class CatalogScreen extends class_437 {
 		// Dev: с флагом .argentum-apply-dev ставим в очередь первый не установленный мод и применяем очередь (скачивание → копия → подмена окна)
 		if (!this.devApplyStarted && java.nio.file.Files.exists(FabricLoader.getInstance().getGameDir().resolve(".argentum-apply-dev"))) {
 			if (t > 6000 && !this.devQueued) {
-				for (ModrinthProject candidate : this.catalogRows) {
-					if (!this.installedFiles.containsKey(candidate.id)) {
-						install(candidate);
-						this.devQueued = true;
-						break;
+				String mode = "";
+
+				try {
+					mode = new String(Files.readAllBytes(FabricLoader.getInstance().getGameDir().resolve(".argentum-apply-dev")), java.nio.charset.StandardCharsets.UTF_8).trim();
+				} catch (IOException ignored) {
+					// пустой флаг — режим по умолчанию
+				}
+
+				if (mode.startsWith("remove:")) { // «remove:<projectId>» — убрать установленный мод, а не ставить новый
+					for (ModrinthProject candidate : this.installedRows) {
+						if (candidate.id.equals(mode.substring(7))) {
+							remove(candidate);
+							this.devQueued = true;
+							break;
+						}
+					}
+				} else {
+					for (ModrinthProject candidate : this.catalogRows) {
+						if (!this.installedFiles.containsKey(candidate.id)) {
+							install(candidate);
+							this.devQueued = true;
+							break;
+						}
 					}
 				}
 			} else if (t > 10000 && this.devQueued) {
 				this.devApplyStarted = true;
 				startApply();
 			}
+		}
+
+		// Dev: пока готовится копия, открываем «Установленные» заново — удалённый мод не должен вернуться
+		if (this.devApplyStarted && !this.devReloaded && t > 19000) {
+			this.devReloaded = true;
+			switchTab(Tab.INSTALLED);
 		}
 
 		// Dev: всплывающие списки для снимков — фильтры каталога и список версий мода из панели
@@ -1703,14 +1725,6 @@ public final class CatalogScreen extends class_437 {
 		int borderColor = lighter(body, accent ? 0.26F : 0.08F + 0.1F * k);
 		int bottomColor = darker(body, accent ? 0.55F : 0.28F);
 
-		if (base == C_LOCKED) {
-			body = C_LOCKED;
-			borderColor = C_LOCKED;
-			bottomColor = C_LOCKED;
-			textColor = C_LOCKED_TEXT;
-			pressed = false;
-		}
-
 		frame(ctx, x, y, w, h, body, borderColor, bottomColor, pressed);
 
 		if (fill == -2F) { // прогресс неизвестен: по полосе бежит отрезок
@@ -2678,7 +2692,7 @@ public final class CatalogScreen extends class_437 {
 
 		boolean backHover = inside(mx, my, w - PAD - backW, by, backW, BTN_H);
 		boolean backLocked = ChangeQueue.applying();
-		button(ctx, "back", w - PAD - backW, by, backW, BTN_H, "Назад", null, false, backLocked ? C_LOCKED : C_SECONDARY, backLocked ? C_LOCKED : C_SECONDARY_HOVER, backHover && !backLocked, C_TEXT);
+		button(ctx, "back", w - PAD - backW, by, backW, BTN_H, "Назад", null, false, backLocked ? C_DISABLED : C_SECONDARY, backLocked ? C_DISABLED : C_SECONDARY_HOVER, backHover && !backLocked, backLocked ? C_GRAY : C_TEXT);
 	}
 
 	// ---------------------------------------------------------------- отключение, обновления, версии, импорт, диагностика

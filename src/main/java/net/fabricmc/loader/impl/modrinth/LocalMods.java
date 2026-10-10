@@ -131,6 +131,11 @@ public final class LocalMods {
 					continue;
 				}
 
+				// файл, который уже удалён из списка, но ещё держит игра (Windows): ждёт удаления при запуске — как мод его считать нельзя
+				if (enabled && PendingRemovals.isPending(name) && !PendingRemovals.isPendingDisable(name)) {
+					continue;
+				}
+
 				Mod mod = read(p, enabled ? name : name.substring(0, name.length() - DISABLED_SUFFIX.length()), enabled);
 
 				if (mod != null && !"argentum-client".equals(mod.id)) {

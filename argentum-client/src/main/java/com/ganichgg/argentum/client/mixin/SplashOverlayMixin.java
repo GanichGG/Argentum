@@ -7,6 +7,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+
+import com.ganichgg.argentum.client.EarlyText;
+
 import net.minecraft.class_156;
 import net.minecraft.class_310;
 import net.minecraft.class_332;
@@ -14,14 +18,16 @@ import net.minecraft.class_3532;
 import net.minecraft.class_425;
 
 /**
- * Надпись над логотипом Mojang на красном экране загрузки.
+ * Надпись над логотипом Mojang на красном экране загрузки — с первого кадра, своим шрифтом
+ * ({@link EarlyText}), а не шрифтом игры, которого в начале загрузки ещё нет.
  *
- * <p>Написано сразу в intermediary-именах (в рантайме игра именно в них, рефмап не нужен), а не в Yarn —
- * соответствие: class_425 = SplashOverlay, class_310 = MinecraftClient, class_332 = DrawContext,
- * class_156 = Util, class_3532 = MathHelper.
+ * <p>Написано в intermediary-именах (в рантайме игра именно в них, рефмап не нужен): class_425 = SplashOverlay,
+ * class_310 = MinecraftClient, class_332 = DrawContext, class_156 = Util, class_3532 = MathHelper.
  */
 @Mixin(class_425.class)
 public abstract class SplashOverlayMixin {
+	private static final String THANKS = "Спасибо за использование Argentum";
+
 	// MinecraftClient client
 	@Shadow
 	@Final
@@ -34,6 +40,12 @@ public abstract class SplashOverlayMixin {
 	// SplashOverlay.render(DrawContext, int, int, float)
 	@Inject(method = "method_25394", at = @At("TAIL"))
 	private void argentum$drawThanks(class_332 context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+		EarlyText.Line line = EarlyText.get(this.field_18217, THANKS);
+
+		if (line == null) {
+			return;
+		}
+
 		int width = context.method_51421(); // getScaledWindowWidth
 		int height = context.method_51443(); // getScaledWindowHeight
 
@@ -41,25 +53,23 @@ public abstract class SplashOverlayMixin {
 		double logoHeight = Math.min(width * 0.75, height) * 0.25;
 		int logoTop = (int) (height * 0.5 - logoHeight * 0.5);
 
-		// Шрифт игры применяется только в самом конце загрузки ресурсов: раньше текст рисуется рядом
-		// квадратиков-"пустых глифов". Поэтому показываем надпись, начиная с момента завершения загрузки.
-		if (this.field_17771 <= -1L) {
-			return;
-		}
-
 		// Ваниль держит оверлей полностью непрозрачным секунду после конца загрузки, потом гасит за секунду.
-		float sinceComplete = (class_156.method_658() - this.field_17771) / 1000.0F; // Util.getMeasuringTimeMs
-		float alpha = class_3532.method_15363(2.0F - sinceComplete, 0.0F, 1.0F); // MathHelper.clamp
+		float alpha = 1.0F;
 
-		int alphaByte = (int) (alpha * 255.0F);
+		if (this.field_17771 > -1L) {
+			float sinceComplete = (class_156.method_658() - this.field_17771) / 1000.0F; // Util.getMeasuringTimeMs
+			alpha = class_3532.method_15363(2.0F - sinceComplete, 0.0F, 1.0F); // MathHelper.clamp
+		}
 
-		// У текстового рендера значения альфы <= 3 трактуются как непрозрачные — не рисуем почти прозрачное.
-		if (alphaByte <= 4) {
+		if (alpha <= 0.0F) {
 			return;
 		}
 
-		int color = (alphaByte << 24) | 0xFFFFFF;
-		// DrawContext.drawCenteredTextWithShadow(TextRenderer, String, int, int, int); client.textRenderer = field_1772
-		context.method_25300(this.field_18217.field_1772, "Спасибо за использование Argentum", width / 2, logoTop - 16, color);
+		RenderSystem.enableBlend();
+		RenderSystem.defaultBlendFunc();
+		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
+		// DrawContext.drawTexture(Identifier, x, y, u, v, w, h, textureW, textureH)
+		context.method_25290(line.texture, (width - line.width) / 2, logoTop - line.height - 8, 0.0F, 0.0F, line.width, line.height, line.width, line.height);
+		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 	}
 }

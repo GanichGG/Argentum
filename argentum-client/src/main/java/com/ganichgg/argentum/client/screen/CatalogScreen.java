@@ -194,6 +194,7 @@ public final class CatalogScreen extends class_437 {
 	private String initialStatus;
 	private boolean devFake;
 	private boolean devLeaveDone;
+	private boolean devConfigOpened;
 	private int[] devMouse;
 	private long devNextShot;
 	private long devStart;
@@ -211,16 +212,16 @@ public final class CatalogScreen extends class_437 {
 	private static final class ConfigInfo {
 		final String modId;
 		final boolean screen;
-		final Path file;
+		final List<Path> files;
 
-		ConfigInfo(String modId, boolean screen, Path file) {
+		ConfigInfo(String modId, boolean screen, List<Path> files) {
 			this.modId = modId;
 			this.screen = screen;
-			this.file = file;
+			this.files = files;
 		}
 
 		boolean usable() {
-			return this.modId != null && (this.screen || this.file != null);
+			return this.modId != null && (this.screen || !this.files.isEmpty());
 		}
 	}
 
@@ -261,6 +262,21 @@ public final class CatalogScreen extends class_437 {
 			this.devMouse = new int[] {this.field_22789 - PAD - SCROLLBAR_W - 3 - 40, LIST_TOP + 2 * (CARD_H + GAP) + BTN_Y + 5};
 		} else {
 			this.devMouse = null;
+		}
+
+		// Dev: с флагом .argentum-config-dev на 20-й секунде открываем редактор настроек первого мода, у которого они есть
+		if (!this.devConfigOpened && t > 20000 && java.nio.file.Files.exists(FabricLoader.getInstance().getGameDir().resolve(".argentum-config-dev"))) {
+			this.devConfigOpened = true;
+
+			for (ModrinthProject candidate : this.catalogRows) {
+				ConfigInfo info = this.configInfo.get(candidate.id);
+				Log.info(LogCategory.MODRINTH, "dev: %s -> %s files=%s", candidate.title, info == null ? "нет" : info.modId + "/" + info.screen, info == null ? "-" : info.files);
+
+				if (info != null && info.usable()) {
+					openConfig(candidate);
+					return;
+				}
+			}
 		}
 
 		// имитация удаления первой установленной карточки (без удаления файлов), замедленная для снимков
@@ -390,7 +406,7 @@ public final class CatalogScreen extends class_437 {
 			String modId = ModConfigs.modIdForFile(e.getValue());
 			ModrinthProject known = this.cache.project(e.getKey());
 			info.put(e.getKey(), new ConfigInfo(modId, modId != null && ModConfigs.hasScreen(modId),
-					modId == null ? null : ModConfigs.configPath(modId, known == null ? null : known.slug)));
+					modId == null ? Collections.emptyList() : ModConfigs.configFiles(modId, known == null ? null : known.slug)));
 		}
 
 		this.configInfo = info;
@@ -740,8 +756,20 @@ public final class CatalogScreen extends class_437 {
 			}
 		}
 
-		if (c.file != null) {
-			Path file = c.file;
+		// у мода нет своего экрана — открываем его файлы настроек во встроенном редакторе
+		boolean editable = false;
+
+		for (Path f : c.files) {
+			editable |= com.ganichgg.argentum.client.config.ConfigDoc.supports(f);
+		}
+
+		if (editable) {
+			this.field_22787.method_1507(new ConfigScreen(this, p.title, c.files));
+			return;
+		}
+
+		if (!c.files.isEmpty()) { // формат редактору незнаком — отдаём системной программе
+			Path file = c.files.get(0);
 			setStatus("Открываю " + file.getFileName(), C_OK);
 
 			WORKER.submit(() -> {

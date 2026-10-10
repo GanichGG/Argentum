@@ -70,8 +70,9 @@ public final class CatalogScreen extends class_437 {
 	private static final int PAGE_SIZE = 20;
 
 	// Палитра: тёмные тона, белые и серебряные акценты
-	private static final int C_BG = 0xFF1C1D1D;
 	private static final int C_HEADER = 0xFF232425;
+	private static final int C_GLASS = 0xE6232425; // шапка и строка состояния: чуть прозрачные, сквозь них видна панорама
+	private static final int C_DIM = 0x661C1D1D; // затемнение панорамы
 	private static final int C_FIELD = 0xFF151616;
 	private static final int C_PANEL = 0xFF2A2B2C;
 	private static final int C_PANEL_HOVER = 0xFF323334;
@@ -1289,6 +1290,18 @@ public final class CatalogScreen extends class_437 {
 		}
 	}
 
+	/** Всё, что нарисовано между fadeBegin и fadeEnd, выводится с прозрачностью alpha (модуляция цвета при сбросе буфера). */
+	private static void fadeBegin(class_332 ctx, float alpha) {
+		ctx.method_51452();
+		RenderSystem.enableBlend();
+		RenderSystem.setShaderColor(1F, 1F, 1F, Math.max(0F, Math.min(1F, alpha)));
+	}
+
+	private static void fadeEnd(class_332 ctx) {
+		ctx.method_51452();
+		RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+	}
+
 	private static float approach(float current, float target, float dt, float speed) {
 		float next = current + (target - current) * (1 - (float) Math.exp(-dt * speed));
 
@@ -1403,7 +1416,10 @@ public final class CatalogScreen extends class_437 {
 		int w = this.field_22789;
 		int h = this.field_22790;
 
-		ctx.method_25294(0, 0, w, h, C_BG);
+		// Фон — панорама главного меню с ванильным размытием (renderBackground родителя); интерфейс рисуем уже поверх,
+		// иначе размытие накрыло бы и его. Сверху лёгкое затемнение, чтобы карточки читались.
+		super.method_25420(ctx, mx, my, delta);
+		ctx.method_25294(0, 0, w, h, C_DIM);
 
 		drawHeader(ctx, mx, my, w);
 		drawList(ctx, mx, my, dt, w);
@@ -1412,7 +1428,7 @@ public final class CatalogScreen extends class_437 {
 	}
 
 	private void drawHeader(class_332 ctx, int mx, int my, int w) {
-		ctx.method_25294(0, 0, w, LIST_TOP - 2, C_HEADER);
+		ctx.method_25294(0, 0, w, LIST_TOP - 2, C_GLASS);
 		ctx.method_25294(0, LIST_TOP - 2, w, LIST_TOP - 1, C_BLACK);
 
 		// полоска под шапкой: ход установки или подготовки модов, а если прогресс неизвестен — бегущий отрезок
@@ -1504,8 +1520,9 @@ public final class CatalogScreen extends class_437 {
 
 				if (visibleH > 0) {
 					ctx.method_44379(0, Math.max(y, LIST_TOP), right, Math.min(y + visibleH, bottom));
+					fadeBegin(ctx, 1F - e);
 					drawCard(ctx, p, PAD, y, cardW, -1000, -1000, dt);
-					ctx.method_25294(0, y - 1, right, y + CARD_H + 1, (((int) (e * 255)) << 24) | (C_BG & 0x00FFFFFF));
+					fadeEnd(ctx);
 					ctx.method_44380();
 				}
 
@@ -1530,10 +1547,15 @@ public final class CatalogScreen extends class_437 {
 			}
 
 			int dy = a >= 1F ? 0 : (int) ((1F - a) * 6);
+
+			if (a < 1F) {
+				fadeBegin(ctx, a);
+			}
+
 			drawCard(ctx, p, PAD, y + dy, cardW, mx, my, dt);
 
 			if (a < 1F) {
-				ctx.method_25294(0, y + dy - 1, right, y + dy + CARD_H + 1, (((int) ((1F - a) * 255)) << 24) | (C_BG & 0x00FFFFFF));
+				fadeEnd(ctx);
 			}
 		}
 
@@ -1950,7 +1972,7 @@ public final class CatalogScreen extends class_437 {
 
 	private void drawStatusBar(class_332 ctx, int mx, int my, int w, int h) {
 		int top = h - STATUS_H;
-		ctx.method_25294(0, top, w, h, C_HEADER);
+		ctx.method_25294(0, top, w, h, C_GLASS);
 		ctx.method_25294(0, top, w, top + 1, C_BLACK);
 
 		int backW = 52;

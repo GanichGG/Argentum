@@ -37,9 +37,16 @@ public abstract class SplashOverlayMixin {
 	@Shadow
 	private long field_17771;
 
+	// float progress (сглаженный ход загрузки ресурсов, 0..1)
+	@Shadow
+	private float field_17770;
+
 	// SplashOverlay.render(DrawContext, int, int, float)
 	@Inject(method = "method_25394", at = @At("TAIL"))
 	private void argentum$drawThanks(class_332 context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+		// скрытая фоновая копия игры сообщает основной, как далеко она с загрузкой (полоса «Подготовка модов»)
+		com.ganichgg.argentum.client.handoff.Handoff.childReportProgress(this.field_17770, this.field_17771 > -1L);
+
 		EarlyText.Line line = EarlyText.get(this.field_18217, THANKS);
 
 		if (line == null) {

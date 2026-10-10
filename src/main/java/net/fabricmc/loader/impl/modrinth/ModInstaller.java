@@ -52,7 +52,16 @@ public final class ModInstaller {
 		}
 	}
 
+	/** Ход скачивания: какой по счёту файл из скольки, сколько байт получено (total может быть -1, если сервер не сообщил). */
+	public interface Progress {
+		void update(int index, int count, String fileName, long done, long total);
+	}
+
 	public static InstallResult install(Path modsDir, List<ModrinthVersion> toInstall) throws ModrinthApiException {
+		return install(modsDir, toInstall, null);
+	}
+
+	public static InstallResult install(Path modsDir, List<ModrinthVersion> toInstall, Progress progress) throws ModrinthApiException {
 		InstalledModsIndex index = InstalledModsIndex.load(modsDir);
 		List<String> installedNames = new ArrayList<>();
 		List<Path> installedFiles = new ArrayList<>();
@@ -62,6 +71,8 @@ public final class ModInstaller {
 		} catch (IOException e) {
 			throw new ModrinthApiException("Не удалось создать папку mods: " + modsDir, e);
 		}
+
+		int fileIndex = 0;
 
 		for (ModrinthVersion version : toInstall) {
 			ModrinthFile file = version.getPrimaryFile();
@@ -73,7 +84,9 @@ public final class ModInstaller {
 			Path target = modsDir.resolve(file.filename);
 
 			Log.info(LogCategory.MODRINTH, "Скачиваю %s (%s)...", file.filename, version.name);
-			downloadWithRetries(file, target);
+			final int current = fileIndex++;
+			final int count = toInstall.size();
+			downloadWithRetries(file, target, progress == null ? null : (done, total) -> progress.update(current, count, file.filename, done, total));
 
 			index.put(version.projectId, version.id, file.filename);
 			installedNames.add(version.name != null ? version.name : file.filename);
@@ -90,12 +103,12 @@ public final class ModInstaller {
 	}
 
 	/** Канал до CDN бывает медленным и рвётся — пробуем несколько раз, а не сдаёмся на первой ошибке. */
-	private static void downloadWithRetries(ModrinthFile file, Path target) throws ModrinthApiException {
+	private static void downloadWithRetries(ModrinthFile file, Path target, ByteProgress progress) throws ModrinthApiException {
 		final int attempts = 3;
 
 		for (int attempt = 1; ; attempt++) {
 			try {
-				downloadAndVerify(file, target);
+				downloadAndVerify(file, target, progress);
 				return;
 			} catch (ModrinthApiException e) {
 				Log.warn(LogCategory.MODRINTH, "Попытка %d/%d скачать %s не удалась: %s", attempt, attempts, file.filename, describe(e));
@@ -103,6 +116,10 @@ public final class ModInstaller {
 				if (attempt >= attempts) throw e;
 			}
 		}
+	}
+
+	private interface ByteProgress {
+		void update(long done, long total);
 	}
 
 	private static String describe(Throwable t) {
@@ -116,7 +133,7 @@ public final class ModInstaller {
 		return sb.toString();
 	}
 
-	private static void downloadAndVerify(ModrinthFile file, Path target) throws ModrinthApiException {
+	private static void downloadAndVerify(ModrinthFile file, Path target, ByteProgress progress) throws ModrinthApiException {
 		Path tmp = target.resolveSibling(target.getFileName() + ".tmp");
 
 		try {
@@ -131,6 +148,8 @@ public final class ModInstaller {
 			}
 
 			MessageDigest sha1Digest = file.sha1 != null ? newSha1() : null;
+			long total = connection.getContentLengthLong();
+			long done = 0;
 
 			try (InputStream is = connection.getInputStream();
 					OutputStream os = Files.newOutputStream(tmp)) {
@@ -140,6 +159,11 @@ public final class ModInstaller {
 				while ((read = is.read(buf)) >= 0) {
 					os.write(buf, 0, read);
 					if (sha1Digest != null) sha1Digest.update(buf, 0, read);
+					done += read;
+
+					if (progress != null) {
+						progress.update(done, total);
+					}
 				}
 			}
 

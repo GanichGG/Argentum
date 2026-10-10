@@ -19,6 +19,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.ganichgg.argentum.client.handoff.Handoff;
 import com.ganichgg.argentum.client.ui.ClientCache;
 import com.ganichgg.argentum.client.ui.Fmt;
+import com.ganichgg.argentum.client.ui.Icon3D;
 import com.ganichgg.argentum.client.ui.IconCache;
 import com.ganichgg.argentum.client.ui.ModConfigs;
 import com.ganichgg.argentum.client.ui.PixelIcons;
@@ -67,13 +68,14 @@ public final class CatalogScreen extends class_437 {
 	private static final int PAGE_SIZE = 20;
 
 	// Палитра: тёмные тона, белые и серебряные акценты
-	private static final int C_BG = 0xFF0E0E11;
-	private static final int C_HEADER = 0xFF121216;
-	private static final int C_FIELD = 0xFF1A1A1F;
-	private static final int C_PANEL = 0xFF18181C;
-	private static final int C_PANEL_HOVER = 0xFF202027;
-	private static final int C_BORDER = 0xFF2A2A31;
-	private static final int C_CHIP = 0xFF26262D;
+	private static final int C_BG = 0xFF1C1D1D;
+	private static final int C_HEADER = 0xFF232425;
+	private static final int C_FIELD = 0xFF151616;
+	private static final int C_PANEL = 0xFF2A2B2C;
+	private static final int C_PANEL_HOVER = 0xFF323334;
+	private static final int C_BLACK = 0xFF0E0E0F;
+	private static final int C_BORDER = C_BLACK;
+	private static final int C_CHIP = 0xFF39393B;
 	private static final int C_WHITE = 0xFFFFFFFF;
 	private static final int C_TEXT = 0xFFD0D0D6;
 	private static final int C_GRAY = 0xFF8E8E98;
@@ -83,11 +85,13 @@ public final class CatalogScreen extends class_437 {
 	private static final int C_ACCENT_TEXT = C_WHITE;
 	private static final int C_OK = 0xFF8AB8FF;
 	private static final int C_WARN = 0xFFFFC857;
-	private static final int C_SECONDARY = 0xFF2E2E36;
-	private static final int C_SECONDARY_HOVER = 0xFF3C3C46;
-	private static final int C_DISABLED = 0xFF222228;
+	private static final int C_SECONDARY = 0xFF39393B;
+	private static final int C_SECONDARY_HOVER = 0xFF47484A;
+	private static final int C_DISABLED = 0xFF2E2F30;
 	private static final int C_RED = 0xFFFF8A8A;
 	private static final int GEAR_W = 14;
+	private static final int BTN_Y = 31; // кнопки в карточке: отступ сверху
+	private static final float TILT_MAX = 0.42F; // наклон иконки к курсору, радианы (~24°)
 
 	// Раскладка (в единицах GUI)
 	private static final int PAD = 8;
@@ -97,11 +101,11 @@ public final class CatalogScreen extends class_437 {
 	private static final int TABS_H = 16;
 	private static final int LIST_TOP = 54;
 	private static final int STATUS_H = 20;
-	private static final int CARD_H = 48;
+	private static final int CARD_H = 50;
 	private static final int GAP = 4;
 	private static final int ICON = 40;
 	private static final int RIGHT_COL = 112;
-	private static final int SCROLLBAR_W = 3;
+	private static final int SCROLLBAR_W = 5;
 	private static final int PANEL_W = 190;
 	private static final int LINE_H = 11;
 
@@ -147,6 +151,12 @@ public final class CatalogScreen extends class_437 {
 	private float dt;
 	private final Map<String, Float> btnHover = new HashMap<>();
 	private final Map<String, Float> flash = new HashMap<>(); // вспышка кнопки после нажатия
+	private final Map<String, float[]> tilt = new HashMap<>(); // наклон иконки к курсору: {вокруг вертикали, вокруг горизонтали}
+	/** Ход установки: -2 — не идёт, -1 — идёт без известного прогресса, 0..1 — скачивание. */
+	private volatile float installFraction = -2F;
+	private final Map<String, Float> progressById = new ConcurrentHashMap<>();
+	private float installShown;
+	private float prepShown;
 	private volatile Map<String, ConfigInfo> configInfo = Collections.emptyMap();
 	private long lastFrameNanos;
 	private final Map<String, Float> hover = new HashMap<>();
@@ -164,6 +174,9 @@ public final class CatalogScreen extends class_437 {
 	// только для разработки: сценарий, который сам листает экран по таймеру (для скриншотов без ввода)
 	private boolean devTimeline;
 	private String initialStatus;
+	private boolean devFake;
+	private int[] devMouse;
+	private long devNextShot;
 	private long devStart;
 	private int devStep;
 	private int btnX;
@@ -221,6 +234,30 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		long t = System.currentTimeMillis() - this.devStart;
+
+		// виртуальная мышь для скриншотов без ввода: сначала над иконкой третьей карточки, потом над её кнопкой
+		if (t > 28000 && t < 33500) {
+			this.devMouse = new int[] {PAD + 5 + ICON - 6 + (int) ((t - 28000) / 400), LIST_TOP + 2 * (CARD_H + GAP) + 9};
+		} else if (t >= 33500 && t < 40000) {
+			this.devMouse = new int[] {this.field_22789 - PAD - SCROLLBAR_W - 3 - 40, LIST_TOP + 2 * (CARD_H + GAP) + BTN_Y + 5};
+		} else {
+			this.devMouse = null;
+		}
+
+		// имитация установки для скриншотов: полоса растёт от 0 до 100 % (без сети)
+		if (t > 19000 && t < 27000 && !this.catalogRows.isEmpty()) {
+			String id = this.catalogRows.get(0).id;
+			float f = Math.min(1F, (t - 19000) / 7000F);
+			this.busyIds.add(id);
+			this.progressById.put(id, f);
+			this.installFraction = f;
+			this.devFake = true;
+		} else if (this.devFake && t >= 27000) {
+			this.busyIds.clear();
+			this.progressById.clear();
+			this.installFraction = -2F;
+			this.devFake = false;
+		}
 
 		if (this.devStep == 0 && t > 3000 && this.catalogRows.size() > 2) {
 			openDetail(this.catalogRows.get(2));
@@ -511,6 +548,8 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		setStatus("Устанавливаю «" + p.title + "» и его зависимости...", C_GRAY);
+		this.installFraction = -1F;
+		this.progressById.put(p.id, -1F);
 
 		WORKER.submit(() -> {
 			boolean handedOver = false;
@@ -524,7 +563,14 @@ public final class CatalogScreen extends class_437 {
 					return;
 				}
 
-				ModInstaller.InstallResult result = ModInstaller.install(modsDir(), plan);
+				ModInstaller.InstallResult result = ModInstaller.install(modsDir(), plan, (fileNo, count, name, done, total) -> {
+					float fraction = total > 0 ? (fileNo + (float) done / total) / count : (float) fileNo / count;
+					this.installFraction = fraction;
+					this.progressById.put(p.id, fraction);
+					setStatus("Скачиваю " + name + " (" + (fileNo + 1) + " из " + count + ")", C_GRAY);
+				});
+				this.installFraction = -1F; // дальше — подключение к игре, прогресс неизвестен
+				this.progressById.put(p.id, -1F);
 				this.cache.putProjects(Collections.singletonList(p)); // карточка нужна вкладке «Установленные» без сети
 				this.cache.save();
 				refreshInstalledIndex();
@@ -541,6 +587,8 @@ public final class CatalogScreen extends class_437 {
 			} finally {
 				if (!handedOver) {
 					this.busyIds.remove(p.id);
+					this.progressById.remove(p.id);
+					this.installFraction = -2F;
 				}
 			}
 		});
@@ -568,6 +616,8 @@ public final class CatalogScreen extends class_437 {
 			setStatus("Установлено: " + names + ". Перезапусти игру, чтобы мод заработал.", C_WARN);
 		} finally {
 			this.busyIds.remove(busyId);
+			this.progressById.remove(busyId);
+			this.installFraction = -2F;
 		}
 	}
 
@@ -863,13 +913,13 @@ public final class CatalogScreen extends class_437 {
 				}
 
 				int col = rightCol(cw);
-				int colX = PAD + cw - col - 4;
+				int colX = PAD + cw - col - 5;
 				int off = actionOffset();
 
-				if (off > 0 && inside(mx, my, colX, cardY + 30, GEAR_W, 14)) {
+				if (off > 0 && inside(mx, my, colX, cardY + BTN_Y, GEAR_W, 14)) {
 					press("gear:" + p.id);
 					openConfig(p);
-				} else if (inside(mx, my, colX + off, cardY + 30, col - off, 14)) {
+				} else if (inside(mx, my, colX + off, cardY + BTN_Y, col - off, 14)) {
 					press("act:" + p.id);
 					act(p);
 				} else {
@@ -1004,6 +1054,69 @@ public final class CatalogScreen extends class_437 {
 		ctx.method_25294(x + w - 1, y, x + w, y + h, color);
 	}
 
+	private static int lighter(int c, float t) {
+		return lerpColor(c, C_WHITE, t);
+	}
+
+	private static int darker(int c, float t) {
+		return lerpColor(c, 0xFF000000, t);
+	}
+
+	/**
+	 * Рамка в духе Ore UI: чёрный контур в 1 px, чуть более светлая обводка (1 px) и тёмная нижняя полоса в 2 px.
+	 * При нажатии нижняя полоса «проваливается».
+	 */
+	private static void frame(class_332 ctx, int x, int y, int w, int h, int base, int borderColor, int bottomColor, boolean pressed) {
+		ctx.method_25294(x, y, x + w, y + h, C_BLACK);
+		ctx.method_25294(x + 1, y + 1, x + w - 1, y + h - 1, base);
+
+		int strip = pressed ? 0 : 2;
+
+		if (strip > 0) {
+			ctx.method_25294(x + 1, y + h - 1 - strip, x + w - 1, y + h - 1, bottomColor);
+		}
+
+		int regionBottom = y + h - 1 - strip;
+		ctx.method_25294(x + 1, y + 1, x + w - 1, y + 2, borderColor);
+		ctx.method_25294(x + 1, regionBottom - 1, x + w - 1, regionBottom, borderColor);
+		ctx.method_25294(x + 1, y + 1, x + 2, regionBottom, borderColor);
+		ctx.method_25294(x + w - 2, y + 1, x + w - 1, regionBottom, borderColor);
+	}
+
+	/** Плашка-тег: заливка и тёмная линия снизу. */
+	private static void chip(class_332 ctx, int x, int y, int w, int h) {
+		ctx.method_25294(x, y, x + w, y + h, C_CHIP);
+		ctx.method_25294(x, y + h - 1, x + w, y + h, darker(C_CHIP, 0.3F));
+	}
+
+	/** Полоса прогресса: чёрный контур, тёмный жёлоб и акцентная заливка; frac < 0 — бегущий отрезок. */
+	private void progressBar(class_332 ctx, int x, int y, int w, int h, float frac) {
+		ctx.method_25294(x, y, x + w, y + h, C_BLACK);
+		ctx.method_25294(x + 1, y + 1, x + w - 1, y + h - 1, C_FIELD);
+
+		int innerW = w - 2;
+		int from;
+		int to;
+
+		if (frac >= 0F) {
+			from = 0;
+			to = Math.round(innerW * Math.min(1F, frac));
+		} else {
+			float phase = (System.currentTimeMillis() % 1300) / 1300F;
+			int seg = Math.max(8, innerW * 3 / 10);
+			from = (int) (-seg + (innerW + seg) * phase);
+			to = from + seg;
+			from = Math.max(0, from);
+			to = Math.min(innerW, to);
+		}
+
+		if (to > from) {
+			ctx.method_25294(x + 1 + from, y + 1, x + 1 + to, y + h - 1, C_ACCENT);
+			ctx.method_25294(x + 1 + from, y + 1, x + 1 + to, y + 2, lighter(C_ACCENT, 0.3F));
+			ctx.method_25294(x + 1 + from, y + h - 2, x + 1 + to, y + h - 1, darker(C_ACCENT, 0.4F));
+		}
+	}
+
 	/** Вспышка кнопки при нажатии (сама затухает). */
 	private void press(String key) {
 		this.flash.put(key, 1F);
@@ -1018,30 +1131,51 @@ public final class CatalogScreen extends class_437 {
 	}
 
 	/**
-	 * Плоская кнопка: цвет плавно перетекает при наведении, при нажатии коротко вспыхивает.
+	 * Кнопка в стиле Ore UI: цвет плавно перетекает при наведении, при нажатии рамка «вдавливается».
 	 * Слева может стоять иконка или крутящийся спиннер (кнопка занята).
 	 */
 	private void button(class_332 ctx, String key, int x, int y, int w, int h, String label, String[] icon, boolean spin,
 			int base, int hoverColor, boolean hovered, int textColor) {
+		buttonFill(ctx, key, x, y, w, h, label, icon, spin, base, hoverColor, hovered, textColor, -1F);
+	}
+
+	/** То же, что {@link #button}, но с заливкой-прогрессом внутри (fill 0..1; меньше нуля — без заливки). */
+	private void buttonFill(class_332 ctx, String key, int x, int y, int w, int h, String label, String[] icon, boolean spin,
+			int base, int hoverColor, boolean hovered, int textColor, float fill) {
 		float k = anim(key, hovered);
-		float f = this.flash.getOrDefault(key, 0F);
-		int bg = lerpColor(lerpColor(base, hoverColor, k), C_WHITE, f * 0.3F);
-		ctx.method_25294(x, y, x + w, y + h, bg);
+		boolean pressed = this.flash.getOrDefault(key, 0F) > 0.55F;
+		int body = lerpColor(base, hoverColor, k);
+		boolean accent = base == C_ACCENT;
+		int borderColor = lighter(body, accent ? 0.26F : 0.08F + 0.1F * k);
+		int bottomColor = darker(body, accent ? 0.55F : 0.28F);
+		frame(ctx, x, y, w, h, body, borderColor, bottomColor, pressed);
+
+		if (fill >= 0F) {
+			int fw = Math.round((w - 4) * Math.min(1F, fill));
+
+			if (fw > 0) {
+				int bottom = y + h - (pressed ? 3 : 5);
+				ctx.method_25294(x + 2, y + 2, x + 2 + fw, bottom, C_ACCENT);
+				ctx.method_25294(x + 2, y + 2, x + 2 + fw, y + 3, lighter(C_ACCENT, 0.3F));
+			}
+		}
 
 		int lead = spin ? 11 : icon != null ? PixelIcons.width(icon) : 0;
-		String s = label == null ? "" : fit(label, w - 6 - (lead > 0 ? lead + 4 : 0));
+		String s = label == null ? "" : fit(label, w - 8 - (lead > 0 ? lead + 4 : 0));
 		int textW = textWidth(s);
 		int total = lead + (lead > 0 && !s.isEmpty() ? 4 : 0) + textW;
 		int cx = x + (w - total) / 2;
+		int shift = pressed ? 1 : 0;
+		int midY = y + (h - 2) / 2 + shift; // центр области над нижней полосой
 
 		if (spin) {
-			PixelIcons.spinner(ctx, cx, y + (h - 11) / 2, textColor);
+			PixelIcons.spinner(ctx, cx, midY - 5, textColor);
 		} else if (icon != null) {
-			PixelIcons.draw(ctx, icon, cx, y + (h - PixelIcons.height(icon)) / 2, textColor);
+			PixelIcons.draw(ctx, icon, cx, midY - PixelIcons.height(icon) / 2, textColor);
 		}
 
 		if (!s.isEmpty()) {
-			text(ctx, s, cx + total - textW, y + (h - 8) / 2 + 1, textColor);
+			text(ctx, s, cx + total - textW, midY - 4, textColor);
 		}
 	}
 
@@ -1057,6 +1191,37 @@ public final class CatalogScreen extends class_437 {
 		return this.loading || this.loadingMore || !this.busyIds.isEmpty() || hs == Handoff.State.PREPARING || hs == Handoff.State.SWAPPING;
 	}
 
+	@Override
+	public void method_25394(class_332 ctx, int mx, int my, float delta) {
+		super.method_25394(ctx, mx, my, delta);
+
+		if (this.devTimeline) {
+			devShot();
+		}
+	}
+
+	/** Dev: сохраняет кадр игры в .argentum/shots каждые 2,5 с (без участия окна ОС и без ввода). */
+	private void devShot() {
+		long t = this.devStart == 0 ? 0 : System.currentTimeMillis() - this.devStart;
+
+		if (t < this.devNextShot || t > 80_000) {
+			return;
+		}
+
+		this.devNextShot = t + 2500;
+
+		try {
+			Path dir = FabricLoader.getInstance().getGameDir().resolve(".argentum").resolve("shots");
+			Files.createDirectories(dir);
+
+			try (net.minecraft.class_1011 image = net.minecraft.class_318.method_1663(this.field_22787.method_1522())) {
+				image.method_4314(dir.resolve(String.format("s%03d.png", t / 1000)));
+			}
+		} catch (IOException | RuntimeException e) {
+			Log.warn(LogCategory.MODRINTH, "dev: не удалось сохранить кадр", e);
+		}
+	}
+
 	// Рисуем в renderBackground: он вызывается до виджетов (поле поиска ляжет сверху), а ванильный блюр заменён нашим фоном.
 	@Override
 	public void method_25420(class_332 ctx, int mx, int my, float delta) {
@@ -1068,6 +1233,11 @@ public final class CatalogScreen extends class_437 {
 
 		if (this.devTimeline) {
 			devTick();
+		}
+
+		if (this.devMouse != null) {
+			mx = this.devMouse[0];
+			my = this.devMouse[1];
 		}
 
 		// живой поиск: запрос уходит, когда ввод затих
@@ -1086,6 +1256,8 @@ public final class CatalogScreen extends class_437 {
 		this.detailScroll = approach(this.detailScroll, this.detailScrollTarget, dt, 16);
 		this.focusAnim = approach(this.focusAnim, this.searchField.method_25370() ? 1F : 0F, dt, 12);
 		this.loadAnim = approach(this.loadAnim, busyNow() ? 1F : 0F, dt, 8);
+		this.installShown = this.installFraction >= 0F ? approach(this.installShown, this.installFraction, dt, 10) : 0F;
+		this.prepShown = Handoff.state() == Handoff.State.PREPARING ? approach(this.prepShown, Handoff.progress(), dt, 8) : 0F;
 
 		if (this.appearEpoch != this.listEpoch) { // список заменили — карточки появляются заново
 			this.appearEpoch = this.listEpoch;
@@ -1113,31 +1285,39 @@ public final class CatalogScreen extends class_437 {
 
 	private void drawHeader(class_332 ctx, int mx, int my, int w) {
 		ctx.method_25294(0, 0, w, LIST_TOP - 2, C_HEADER);
-		ctx.method_25294(0, LIST_TOP - 2, w, LIST_TOP - 1, C_BORDER);
+		ctx.method_25294(0, LIST_TOP - 2, w, LIST_TOP - 1, C_BLACK);
 
-		// бегущая полоска под шапкой, пока что-то грузится
-		if (this.loadAnim > 0.01F) {
-			float phase = (System.currentTimeMillis() % 1500) / 1500F;
-			float eased = phase * phase * (3 - 2 * phase);
-			int segW = w * 3 / 10;
-			int x0 = (int) (-segW + (w + segW) * eased);
-			int color = ((int) (this.loadAnim * 255) << 24) | (C_ACCENT & 0x00FFFFFF);
-			ctx.method_25294(Math.max(0, x0), LIST_TOP - 3, Math.min(w, x0 + segW), LIST_TOP - 1, color);
+		// полоска под шапкой: ход установки или подготовки модов, а если прогресс неизвестен — бегущий отрезок
+		float line = -1F;
+		Handoff.State hs = Handoff.state();
+
+		if (this.installFraction >= 0F) {
+			line = this.installShown;
+		} else if (this.installFraction < -1.5F && hs == Handoff.State.PREPARING) {
+			line = this.prepShown;
 		}
 
-		// поле поиска (текст рисует виджет поверх): рамка плавно становится акцентной при фокусе
+		if (this.loadAnim > 0.01F) {
+			int color = ((int) (this.loadAnim * 255) << 24) | (C_ACCENT & 0x00FFFFFF);
+
+			if (line >= 0F) {
+				ctx.method_25294(0, LIST_TOP - 3, (int) (w * line), LIST_TOP - 1, color);
+			} else {
+				float phase = (System.currentTimeMillis() % 1500) / 1500F;
+				float eased = phase * phase * (3 - 2 * phase);
+				int segW = w * 3 / 10;
+				int x0 = (int) (-segW + (w + segW) * eased);
+				ctx.method_25294(Math.max(0, x0), LIST_TOP - 3, Math.min(w, x0 + segW), LIST_TOP - 1, color);
+			}
+		}
+
+		// поле поиска (текст рисует виджет поверх): обводка плавно становится акцентной при фокусе
 		int fieldW = w - PAD * 2 - FIELD_H - 4;
-		ctx.method_25294(PAD, SEARCH_Y, PAD + fieldW, SEARCH_Y + FIELD_H, C_FIELD);
-		border(ctx, PAD, SEARCH_Y, fieldW, FIELD_H, lerpColor(C_BORDER, C_ACCENT, this.focusAnim));
+		frame(ctx, PAD, SEARCH_Y, fieldW, FIELD_H, C_FIELD, lerpColor(lighter(C_FIELD, 0.14F), C_ACCENT, this.focusAnim), darker(C_FIELD, 0.4F), false);
 
 		// кнопка-лупа
 		int lx = w - PAD - FIELD_H;
-		boolean lupaHover = inside(mx, my, lx, SEARCH_Y, FIELD_H, FIELD_H);
-		float lk = anim("lupa", lupaHover);
-		float lf = this.flash.getOrDefault("lupa", 0F);
-		ctx.method_25294(lx, SEARCH_Y, lx + FIELD_H, SEARCH_Y + FIELD_H, lerpColor(lerpColor(C_FIELD, C_ACCENT, lk * 0.35F), C_ACCENT, lf * 0.8F));
-		border(ctx, lx, SEARCH_Y, FIELD_H, FIELD_H, lerpColor(C_BORDER, C_ACCENT, lk));
-		PixelIcons.draw(ctx, PixelIcons.SEARCH, lx + (FIELD_H - PixelIcons.width(PixelIcons.SEARCH)) / 2, SEARCH_Y + (FIELD_H - PixelIcons.height(PixelIcons.SEARCH)) / 2, C_WHITE);
+		button(ctx, "lupa", lx, SEARCH_Y, FIELD_H, FIELD_H, null, PixelIcons.SEARCH, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, lx, SEARCH_Y, FIELD_H, FIELD_H), C_WHITE);
 
 		// вкладки: подчёркивание плавно переезжает, подписи плавно меняют цвет
 		for (Tab t : Tab.values()) {
@@ -1235,8 +1415,9 @@ public final class CatalogScreen extends class_437 {
 			int thumbH = Math.max(14, (int) (trackH * (trackH / contentHeight())));
 			int thumbY = LIST_TOP + (int) ((trackH - thumbH) * (this.scroll / max));
 			int sx = right - PAD - SCROLLBAR_W;
-			ctx.method_25294(sx, LIST_TOP, sx + SCROLLBAR_W, bottom, C_FIELD);
-			ctx.method_25294(sx, thumbY, sx + SCROLLBAR_W, thumbY + thumbH, 0xFF6A6A76);
+			ctx.method_25294(sx, LIST_TOP, sx + SCROLLBAR_W, bottom, C_BLACK);
+			ctx.method_25294(sx + 1, thumbY + 1, sx + SCROLLBAR_W - 1, thumbY + thumbH - 1, C_SECONDARY_HOVER);
+			ctx.method_25294(sx + 1, thumbY + 1, sx + SCROLLBAR_W - 1, thumbY + 2, lighter(C_SECONDARY_HOVER, 0.15F));
 		}
 	}
 
@@ -1260,9 +1441,8 @@ public final class CatalogScreen extends class_437 {
 			int rightX = x + cardW - col - 4;
 			int textEnd = rightX - 6;
 
-			ctx.method_25294(x, y, x + cardW, y + CARD_H, C_PANEL);
-			border(ctx, x, y, cardW, CARD_H, C_BORDER);
-			ctx.method_25294(x + 4, y + 4, x + 4 + ICON, y + 4 + ICON, bar);
+			frame(ctx, x, y, cardW, CARD_H, C_PANEL, lighter(C_PANEL, 0.07F), darker(C_PANEL, 0.3F), false);
+			ctx.method_25294(x + 5, y + 5, x + 5 + ICON, y + 5 + ICON, bar);
 			ctx.method_25294(textX, y + 6, Math.min(textEnd, textX + 90 + (i % 3) * 28), y + 14, bar);
 			ctx.method_25294(textX, y + 19, Math.min(textEnd, textX + 150 + (i % 4) * 22), y + 27, bar);
 			ctx.method_25294(textX, y + 31, Math.min(textEnd, textX + 38), y + 42, bar);
@@ -1279,29 +1459,42 @@ public final class CatalogScreen extends class_437 {
 		h = approach(h, hovered || selected ? 1F : 0F, dt, 14);
 		this.hover.put(p.id, h);
 
-		ctx.method_25294(x, y, x + w, y + CARD_H, lerpColor(C_PANEL, C_PANEL_HOVER, h));
-		border(ctx, x, y, w, CARD_H, lerpColor(C_BORDER, selected ? C_ACCENT : 0xFF3A3A44, h));
+		int base = lerpColor(C_PANEL, C_PANEL_HOVER, h);
+		int borderColor = selected ? lerpColor(lighter(base, 0.08F), C_ACCENT, h) : lighter(base, 0.07F + 0.08F * h);
+		frame(ctx, x, y, w, CARD_H, base, borderColor, darker(base, 0.3F), false);
 
-		drawIcon(ctx, p, x + 4, y + 4, ICON);
+		// иконка разворачивается к курсору
+		float[] t = this.tilt.computeIfAbsent(p.id, k -> new float[2]);
+		float targetY = 0F;
+		float targetX = 0F;
+
+		if (hovered) {
+			targetY = clamp((mx - (x + 5 + ICON / 2F)) / 90F) * TILT_MAX;
+			targetX = clamp((my - (y + 5 + ICON / 2F)) / 40F) * TILT_MAX;
+		}
+
+		t[0] = approach(t[0], targetY, dt, 14);
+		t[1] = approach(t[1], targetX, dt, 14);
+		drawIcon(ctx, p, x + 5, y + 5, ICON, t[0], t[1]);
 
 		int col = rightCol(w);
-		int textX = x + 4 + ICON + 8;
-		int rightX = x + w - col - 4;
+		int textX = x + 5 + ICON + 8;
+		int rightX = x + w - col - 5;
 		int textW = rightX - textX - 6;
 
 		// название + «by автор»
 		String title = fit(p.title, textW);
-		text(ctx, title, textX, y + 5, C_WHITE);
+		text(ctx, title, textX, y + 6, C_WHITE);
 
 		if (p.author != null) {
-			text(ctx, fit("by " + p.author, textW - textWidth(title) - 4), textX + textWidth(title) + 4, y + 5, C_GRAY);
+			text(ctx, fit("by " + p.author, textW - textWidth(title) - 4), textX + textWidth(title) + 4, y + 6, C_GRAY);
 		}
 
 		// описание — как на Modrinth, одной строкой с многоточием
-		text(ctx, fit(p.description, textW), textX, y + 17, C_TEXT);
+		text(ctx, fit(p.description, textW), textX, y + 18, C_TEXT);
 
 		// теги (на вкладке установленных первым идёт статус: работает сейчас или после перезапуска)
-		int chipX = textX + drawBadge(ctx, p, textX, y + 31, textW);
+		int chipX = textX + drawBadge(ctx, p, textX, y + 32, textW);
 
 		for (String tag : Fmt.tags(p)) {
 			int chipW = textWidth(tag) + 8;
@@ -1310,23 +1503,27 @@ public final class CatalogScreen extends class_437 {
 				break;
 			}
 
-			ctx.method_25294(chipX, y + 31, chipX + chipW, y + 42, C_CHIP);
-			text(ctx, tag, chipX + 4, y + 33, C_GRAY);
+			chip(ctx, chipX, y + 32, chipW, 11);
+			text(ctx, tag, chipX + 4, y + 34, C_GRAY);
 			chipX += chipW + 4;
 		}
 
 		// правая колонка: скачивания, лайки, обновление, кнопки
 		if (!noStats(p)) {
-			drawStats(ctx, p, rightX, y + 5, col);
+			drawStats(ctx, p, rightX, y + 6, col);
 		}
 
 		int off = actionOffset();
 
 		if (off > 0) {
-			drawGearButton(ctx, "gear:" + p.id, rightX, y + 30, GEAR_W, 14, p, null, mx, my);
+			drawGearButton(ctx, "gear:" + p.id, rightX, y + BTN_Y, GEAR_W, 14, p, null, mx, my);
 		}
 
-		drawActionButton(ctx, "act:" + p.id, p, rightX + off, y + 30, col - off, 14, mx, my);
+		drawActionButton(ctx, "act:" + p.id, p, rightX + off, y + BTN_Y, col - off, 14, mx, my);
+	}
+
+	private static float clamp(float v) {
+		return Math.max(-1F, Math.min(1F, v));
 	}
 
 	/** Статус установленного мода: «Активен» (мод уже загружен в игру) или «После перезапуска». Возвращает занятую ширину. */
@@ -1344,7 +1541,7 @@ public final class CatalogScreen extends class_437 {
 			return 0;
 		}
 
-		ctx.method_25294(x, y, x + chipW, y + 11, C_CHIP);
+		chip(ctx, x, y, chipW, 11);
 		text(ctx, label, x + 4, y + 2, active ? C_OK : C_WARN);
 
 		return chipW + 4;
@@ -1379,10 +1576,14 @@ public final class CatalogScreen extends class_437 {
 
 		if (this.tab == Tab.INSTALLED) {
 			button(ctx, key, x, y, w, h, busy ? "Удаляю" : "Удалить", null, busy, busy ? C_DISABLED : C_SECONDARY, C_SECONDARY_HOVER, hovered && !busy, busy ? C_GRAY : C_WHITE);
-		} else if (this.installedFiles.containsKey(p.id)) {
+		} else if (this.installedFiles.containsKey(p.id) && !busy) {
 			button(ctx, key, x, y, w, h, "Установлен", null, false, C_DISABLED, C_DISABLED, false, C_GRAY);
 		} else if (busy) {
-			button(ctx, key, x, y, w, h, "Установка", null, true, C_DISABLED, C_DISABLED, false, C_GRAY);
+			Float target = this.progressById.get(p.id);
+			float fl = target == null ? -1F : target;
+			float shown = approach(this.btnHover.getOrDefault("pf:" + p.id, 0F), Math.max(0F, fl), this.dt, 10);
+			this.btnHover.put("pf:" + p.id, shown);
+			buttonFill(ctx, key, x, y, w, h, fl >= 0F ? Math.round(shown * 100) + "%" : "Установка", null, true, C_DISABLED, C_DISABLED, false, C_WHITE, fl >= 0F ? shown : -1F);
 		} else {
 			button(ctx, key, x, y, w, h, "Установить", null, false, C_ACCENT, C_ACCENT_HOVER, hovered, C_ACCENT_TEXT);
 		}
@@ -1399,6 +1600,10 @@ public final class CatalogScreen extends class_437 {
 	}
 
 	private void drawIcon(class_332 ctx, ModrinthProject p, int x, int y, int size) {
+		drawIcon(ctx, p, x, y, size, 0F, 0F);
+	}
+
+	private void drawIcon(class_332 ctx, ModrinthProject p, int x, int y, int size, float ay, float bx) {
 		IconCache.Icon icon = this.icons.get(p);
 
 		if (icon.texture == null) {
@@ -1416,6 +1621,14 @@ public final class CatalogScreen extends class_437 {
 
 		// иконка плавно проявляется
 		float alpha = Math.min(1F, (System.nanoTime() - icon.shownAtNanos) / 200_000_000F);
+
+		if (Math.abs(ay) > 0.004F || Math.abs(bx) > 0.004F) {
+			Icon3D.draw(ctx, icon.texture, x, y, size, ay, bx, alpha);
+			RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+
+			return;
+		}
+
 		RenderSystem.enableBlend();
 		RenderSystem.defaultBlendFunc();
 		RenderSystem.setShaderColor(1F, 1F, 1F, alpha);
@@ -1438,12 +1651,15 @@ public final class CatalogScreen extends class_437 {
 		int innerX = px + 8;
 		int innerW = PANEL_W - 16;
 
-		ctx.method_25294(px, py, px + PANEL_W, py + ph, C_HEADER);
-		border(ctx, px, py, PANEL_W, ph, C_BORDER);
-		ctx.method_25294(px, py, px + PANEL_W, py + 1, C_ACCENT); // акцентная кромка сверху
+		frame(ctx, px, py, PANEL_W, ph, C_HEADER, lighter(C_HEADER, 0.09F), darker(C_HEADER, 0.35F), false);
+		ctx.method_25294(px + 1, py + 1, px + PANEL_W - 1, py + 2, C_ACCENT); // акцентная кромка сверху
 
-		// шапка: иконка, название, автор, крестик
-		drawIcon(ctx, p, innerX, py + 8, 28);
+		// шапка: иконка (разворачивается к курсору), название, автор, крестик
+		boolean overIcon = inside(mx, my, innerX - 6, py + 2, 44, 40);
+		float[] pt = this.tilt.computeIfAbsent("panel", k -> new float[2]);
+		pt[0] = approach(pt[0], overIcon ? clamp((mx - (innerX + 14)) / 40F) * TILT_MAX : 0F, this.dt, 14);
+		pt[1] = approach(pt[1], overIcon ? clamp((my - (py + 22)) / 28F) * TILT_MAX : 0F, this.dt, 14);
+		drawIcon(ctx, p, innerX, py + 8, 28, pt[0], pt[1]);
 		int titleX = innerX + 28 + 6;
 		int titleW = innerW - 28 - 6 - 16;
 		text(ctx, fit(p.title, titleW), titleX, py + 9, C_WHITE);
@@ -1473,7 +1689,7 @@ public final class CatalogScreen extends class_437 {
 				y += 13;
 			}
 
-			ctx.method_25294(chipX, y, chipX + chipW, y + 11, C_CHIP);
+			chip(ctx, chipX, y, chipW, 11);
 			text(ctx, tag, chipX + 4, y + 2, C_GRAY);
 			chipX += chipW + 4;
 		}
@@ -1541,8 +1757,8 @@ public final class CatalogScreen extends class_437 {
 			int thumbH = Math.max(10, (int) (trackH * (trackH / (float) contentH)));
 			int thumbY = textTop + (int) ((trackH - thumbH) * (this.detailScroll / maxDetailScroll));
 			int sx = innerX + innerW - SCROLLBAR_W;
-			ctx.method_25294(sx, textTop, sx + SCROLLBAR_W, textBottom, C_FIELD);
-			ctx.method_25294(sx, thumbY, sx + SCROLLBAR_W, thumbY + thumbH, 0xFF6A6A76);
+			ctx.method_25294(sx, textTop, sx + SCROLLBAR_W, textBottom, C_BLACK);
+			ctx.method_25294(sx + 1, thumbY + 1, sx + SCROLLBAR_W - 1, thumbY + thumbH - 1, C_SECONDARY_HOVER);
 		}
 	}
 
@@ -1585,12 +1801,13 @@ public final class CatalogScreen extends class_437 {
 	private void drawStatusBar(class_332 ctx, int mx, int my, int w, int h) {
 		int top = h - STATUS_H;
 		ctx.method_25294(0, top, w, h, C_HEADER);
-		ctx.method_25294(0, top, w, top + 1, C_BORDER);
+		ctx.method_25294(0, top, w, top + 1, C_BLACK);
 
 		int backW = 52;
 		int rightEdge = w - PAD - backW - 4;
+		int by = top + 3;
 
-		// блок «Подготовка клиента» / «Применить» слева от «Назад»
+		// «Подготовка модов» / «Применить» слева от «Назад»; во время подготовки это полоса прогресса
 		Handoff.State hs = Handoff.state();
 		this.applyW = 0;
 
@@ -1601,11 +1818,14 @@ public final class CatalogScreen extends class_437 {
 			int base = C_DISABLED;
 			int hover = C_DISABLED;
 			int textColor = C_GRAY;
+			float fill = -1F;
 
 			switch (hs) {
 			case PREPARING:
-				label = "Подготовка клиента " + Handoff.elapsedMs() / 1000 + " с";
+				label = "Подготовка модов " + Math.round(this.prepShown * 100) + "%";
 				spin = true;
+				fill = this.prepShown;
+				textColor = C_WHITE;
 				break;
 			case READY:
 				label = "Применить моды";
@@ -1626,12 +1846,27 @@ public final class CatalogScreen extends class_437 {
 				textColor = C_WARN;
 			}
 
-			int bw = Math.min(170, textWidth(label) + (spin ? 11 + 4 : 0) + 16);
+			int bw = Math.max(110, Math.min(170, textWidth(label) + (spin ? 11 + 4 : 0) + 18));
 			this.applyW = bw;
 			this.applyX = rightEdge - bw;
-			boolean hovered = clickable && inside(mx, my, this.applyX, top + 3, bw, 14);
-			button(ctx, "apply", this.applyX, top + 3, bw, 14, label, null, spin, base, hover, hovered, textColor);
+			boolean hovered = clickable && inside(mx, my, this.applyX, by, bw, 14);
+			buttonFill(ctx, "apply", this.applyX, by, bw, 14, label, null, spin, base, hover, hovered, textColor, fill);
 			rightEdge = this.applyX - 6;
+		}
+
+		// ход установки мода: полоса и проценты
+		if (this.installFraction > -1.5F) {
+			int barW = w < 400 ? 56 : 90;
+			String percent = this.installFraction >= 0F ? Math.round(this.installShown * 100) + "%" : "";
+			int percentW = Math.max(textWidth("100%"), textWidth(percent));
+			int barX = rightEdge - percentW - 6 - barW;
+			progressBar(ctx, barX, top + 6, barW, 8, this.installFraction >= 0F ? this.installShown : -1F);
+
+			if (!percent.isEmpty()) {
+				text(ctx, percent, rightEdge - percentW, top + 6, C_TEXT);
+			}
+
+			rightEdge = barX - 8;
 		}
 
 		int textX = PAD;
@@ -1644,12 +1879,12 @@ public final class CatalogScreen extends class_437 {
 		String status = this.status;
 
 		if (hs == Handoff.State.FAILED && status.isEmpty()) {
-			status = "Клиент не подготовлен: " + Handoff.failure();
+			status = "Моды не подготовлены: " + Handoff.failure();
 		}
 
 		text(ctx, fit(status, rightEdge - textX - 4), textX, top + 6, this.statusColor);
 
-		boolean backHover = inside(mx, my, w - PAD - backW, top + 3, backW, 14);
-		button(ctx, "back", w - PAD - backW, top + 3, backW, 14, "Назад", null, false, C_FIELD, C_PANEL_HOVER, backHover, C_TEXT);
+		boolean backHover = inside(mx, my, w - PAD - backW, by, backW, 14);
+		button(ctx, "back", w - PAD - backW, by, backW, 14, "Назад", null, false, C_SECONDARY, C_SECONDARY_HOVER, backHover, C_TEXT);
 	}
 }

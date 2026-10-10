@@ -80,6 +80,72 @@ public final class Handoff {
 		return failure;
 	}
 
+	private static volatile float shownProgress;
+	private static long progressReadAt;
+	private static long lastReportAt;
+
+	/**
+	 * Ход подготовки копии, 0..1: сначала по времени (запуск JVM и загрузка модов — до 35 %), потом по настоящему
+	 * ходу загрузки ресурсов, который копия пишет в файл {@code progress}.
+	 */
+	public static float progress() {
+		State st = state;
+
+		if (st == State.READY || st == State.SWAPPING) {
+			return 1F;
+		}
+
+		if (st != State.PREPARING) {
+			return 0F;
+		}
+
+		long now = System.currentTimeMillis();
+
+		if (now - progressReadAt > 300) {
+			progressReadAt = now;
+			float value = Math.min(0.35F, (now - startedAt) / 9000F * 0.35F);
+			Path dir = controlDir;
+
+			if (dir != null) {
+				try {
+					Path file = dir.resolve("progress");
+
+					if (Files.exists(file)) {
+						float p = Float.parseFloat(new String(Files.readAllBytes(file), java.nio.charset.StandardCharsets.UTF_8).trim());
+						value = 0.35F + 0.6F * Math.max(0F, Math.min(1F, p));
+					}
+				} catch (IOException | NumberFormatException ignored) {
+					// файл мог быть записан не до конца — возьмём значение в следующий раз
+				}
+			}
+
+			shownProgress = Math.max(shownProgress, value);
+		}
+
+		return shownProgress;
+	}
+
+	/** Скрытая копия: сообщаем ход загрузки ресурсов (не чаще пяти раз в секунду). */
+	public static void childReportProgress(float progress, boolean complete) {
+		if (!isHiddenChild()) {
+			return;
+		}
+
+		long now = System.currentTimeMillis();
+
+		if (!complete && now - lastReportAt < 200) {
+			return;
+		}
+
+		lastReportAt = now;
+
+		try {
+			Files.write(Paths.get(CHILD_DIR).resolve("progress"), Float.toString(complete ? 1F : progress).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		} catch (IOException ignored) {
+			// неважно
+		}
+	}
+
 	public static long elapsedMs() {
 		return state == State.PREPARING ? System.currentTimeMillis() - startedAt : 0;
 	}
@@ -107,6 +173,7 @@ public final class Handoff {
 			state = State.PREPARING;
 			startedAt = System.currentTimeMillis();
 			failure = "";
+			shownProgress = 0F;
 		}
 
 		TIMER.schedule(() -> startChild(mine), DEBOUNCE_MS, TimeUnit.MILLISECONDS);
@@ -122,6 +189,7 @@ public final class Handoff {
 			}
 
 			killChildLocked();
+			shownProgress = 0F;
 
 			try {
 				Path root = FabricLoader.getInstance().getGameDir().resolve(".argentum").resolve("handoff");

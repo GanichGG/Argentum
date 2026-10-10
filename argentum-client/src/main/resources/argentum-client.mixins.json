@@ -4,7 +4,8 @@
   "package": "com.ganichgg.argentum.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "SplashOverlayMixin"
+    "SplashOverlayMixin",
+    "TitleScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

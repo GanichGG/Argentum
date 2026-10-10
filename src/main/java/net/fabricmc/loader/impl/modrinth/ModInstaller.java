@@ -69,7 +69,7 @@ public final class ModInstaller {
 			Path target = modsDir.resolve(file.filename);
 
 			Log.info(LogCategory.MODRINTH, "Скачиваю %s (%s)...", file.filename, version.name);
-			downloadAndVerify(file, target);
+			downloadWithRetries(file, target);
 
 			index.put(version.projectId, version.id, file.filename);
 			installedNames.add(version.name != null ? version.name : file.filename);
@@ -84,13 +84,40 @@ public final class ModInstaller {
 		return new InstallResult(installedNames, modsDir);
 	}
 
+	/** Канал до CDN бывает медленным и рвётся — пробуем несколько раз, а не сдаёмся на первой ошибке. */
+	private static void downloadWithRetries(ModrinthFile file, Path target) throws ModrinthApiException {
+		final int attempts = 3;
+
+		for (int attempt = 1; ; attempt++) {
+			try {
+				downloadAndVerify(file, target);
+				return;
+			} catch (ModrinthApiException e) {
+				Log.warn(LogCategory.MODRINTH, "Попытка %d/%d скачать %s не удалась: %s", attempt, attempts, file.filename, describe(e));
+
+				if (attempt >= attempts) throw e;
+			}
+		}
+	}
+
+	private static String describe(Throwable t) {
+		StringBuilder sb = new StringBuilder();
+
+		for (Throwable cur = t; cur != null; cur = cur.getCause()) {
+			if (sb.length() > 0) sb.append(" <- ");
+			sb.append(cur.getClass().getSimpleName()).append(": ").append(cur.getMessage());
+		}
+
+		return sb.toString();
+	}
+
 	private static void downloadAndVerify(ModrinthFile file, Path target) throws ModrinthApiException {
 		Path tmp = target.resolveSibling(target.getFileName() + ".tmp");
 
 		try {
 			HttpURLConnection connection = (HttpURLConnection) new URL(file.url).openConnection();
-			connection.setConnectTimeout(10_000);
-			connection.setReadTimeout(30_000);
+			connection.setConnectTimeout(30_000);
+			connection.setReadTimeout(60_000);
 
 			int status = connection.getResponseCode();
 

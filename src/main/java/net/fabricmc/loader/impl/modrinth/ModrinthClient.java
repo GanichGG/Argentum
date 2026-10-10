@@ -44,7 +44,9 @@ public final class ModrinthClient {
 
 	public static List<ModrinthProject> search(String query, String loader, String gameVersion) throws ModrinthApiException {
 		String facets = "[[\"project_type:mod\"],[\"categories:" + loader + "\"],[\"versions:" + gameVersion + "\"]]";
-		String url = API_BASE + "/search?query=" + urlEncode(query) + "&facets=" + urlEncode(facets) + "&limit=20";
+		// пустой запрос — витрина самых популярных; иначе обычная релевантность
+		String index = query.trim().isEmpty() ? "downloads" : "relevance";
+		String url = API_BASE + "/search?query=" + urlEncode(query) + "&index=" + index + "&facets=" + urlEncode(facets) + "&limit=30";
 
 		try (JsonReader reader = openJsonReader(url)) {
 			List<ModrinthProject> ret = new ArrayList<>();
@@ -60,7 +62,7 @@ public final class ModrinthClient {
 				reader.beginArray();
 
 				while (reader.hasNext()) {
-					ret.add(parseSearchHit(reader));
+					ret.add(parseProject(reader));
 				}
 
 				reader.endArray();
@@ -81,6 +83,36 @@ public final class ModrinthClient {
 			return parseProject(reader);
 		} catch (IOException e) {
 			throw new ModrinthApiException("Не удалось получить с Modrinth информацию о моде \"" + projectIdOrSlug + "\"", e);
+		}
+	}
+
+	/** Несколько проектов одним запросом ({@code GET /v2/projects?ids=[...]}). */
+	public static List<ModrinthProject> getProjects(List<String> ids) throws ModrinthApiException {
+		if (ids.isEmpty()) return new ArrayList<>();
+
+		StringBuilder json = new StringBuilder("[");
+
+		for (int i = 0; i < ids.size(); i++) {
+			if (i > 0) json.append(',');
+			json.append('"').append(ids.get(i)).append('"');
+		}
+
+		String url = API_BASE + "/projects?ids=" + urlEncode(json.append(']').toString());
+
+		try (JsonReader reader = openJsonReader(url)) {
+			List<ModrinthProject> ret = new ArrayList<>();
+
+			reader.beginArray();
+
+			while (reader.hasNext()) {
+				ret.add(parseProject(reader));
+			}
+
+			reader.endArray();
+
+			return ret;
+		} catch (IOException e) {
+			throw new ModrinthApiException("Не удалось получить с Modrinth сведения об установленных модах", e);
 		}
 	}
 
@@ -149,36 +181,26 @@ public final class ModrinthClient {
 		}
 	}
 
-	private static ModrinthProject parseSearchHit(JsonReader reader) throws IOException {
-		String id = null;
-		String slug = null;
-		String title = null;
-		String description = null;
-
-		reader.beginObject();
-
-		while (reader.hasNext()) {
-			String key = reader.nextName();
-
-			switch (key) {
-			case "project_id": id = readStringOrNull(reader); break;
-			case "slug": slug = readStringOrNull(reader); break;
-			case "title": title = readStringOrNull(reader); break;
-			case "description": description = readStringOrNull(reader); break;
-			default: reader.skipValue();
-			}
-		}
-
-		reader.endObject();
-
-		return new ModrinthProject(id, slug, title, description);
-	}
-
+	/**
+	 * Разбор проекта — один и для поиска, и для {@code /project/{id}}: у них одни и те же данные под
+	 * чуть разными именами ({@code project_id}/{@code id}, {@code follows}/{@code followers},
+	 * {@code date_modified}/{@code updated}).
+	 */
 	private static ModrinthProject parseProject(JsonReader reader) throws IOException {
 		String id = null;
 		String slug = null;
 		String title = null;
 		String description = null;
+		String author = null;
+		long downloads = 0;
+		long follows = 0;
+		String iconUrl = null;
+		String dateModified = null;
+		List<String> categories = new ArrayList<>();
+		List<String> displayCategories = new ArrayList<>();
+		String clientSide = null;
+		String serverSide = null;
+		int color = 0;
 
 		reader.beginObject();
 
@@ -186,17 +208,31 @@ public final class ModrinthClient {
 			String key = reader.nextName();
 
 			switch (key) {
+			case "project_id":
 			case "id": id = readStringOrNull(reader); break;
 			case "slug": slug = readStringOrNull(reader); break;
 			case "title": title = readStringOrNull(reader); break;
 			case "description": description = readStringOrNull(reader); break;
+			case "author": author = readStringOrNull(reader); break;
+			case "downloads": downloads = readLongOrZero(reader); break;
+			case "follows":
+			case "followers": follows = readLongOrZero(reader); break;
+			case "icon_url": iconUrl = readStringOrNull(reader); break;
+			case "date_modified":
+			case "updated": dateModified = readStringOrNull(reader); break;
+			case "categories": readStringArray(reader, categories); break;
+			case "display_categories": readStringArray(reader, displayCategories); break;
+			case "client_side": clientSide = readStringOrNull(reader); break;
+			case "server_side": serverSide = readStringOrNull(reader); break;
+			case "color": color = (int) readLongOrZero(reader); break;
 			default: reader.skipValue();
 			}
 		}
 
 		reader.endObject();
 
-		return new ModrinthProject(id, slug, title, description);
+		return new ModrinthProject(id, slug, title, description, author, downloads, follows, iconUrl, dateModified,
+				displayCategories.isEmpty() ? categories : displayCategories, clientSide, serverSide, color);
 	}
 
 	private static ModrinthVersion parseVersion(JsonReader reader) throws IOException {
@@ -320,6 +356,15 @@ public final class ModrinthClient {
 		}
 
 		reader.endArray();
+	}
+
+	private static long readLongOrZero(JsonReader reader) throws IOException {
+		if (reader.peek() == JsonToken.NULL) {
+			reader.nextNull();
+			return 0;
+		}
+
+		return reader.nextLong();
 	}
 
 	private static String readStringOrNull(JsonReader reader) throws IOException {

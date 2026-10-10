@@ -17,10 +17,8 @@
 package net.fabricmc.loader.impl.modrinth;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -29,6 +27,8 @@ import java.util.List;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 import net.fabricmc.loader.impl.lib.gson.JsonToken;
+import net.fabricmc.loader.impl.util.log.Log;
+import net.fabricmc.loader.impl.util.log.LogCategory;
 
 /**
  * Минимальный клиент к публичному API Modrinth (api.modrinth.com/v2) — без ключа, без
@@ -199,28 +199,48 @@ public final class ModrinthClient {
 		}
 	}
 
+	/**
+	 * Открывает JSON-ответ API. Сеть до Modrinth бывает нестабильной (таймауты подключения, 429/5xx), поэтому
+	 * временные сбои повторяются три раза с нарастающей паузой; осмысленные ответы (404 и т.п.) — сразу ошибкой.
+	 */
 	private static JsonReader openJsonReader(String url) throws ModrinthApiException {
-		try {
-			HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-			connection.setRequestProperty("User-Agent", USER_AGENT);
-			connection.setRequestProperty("Accept", "application/json");
-			connection.setConnectTimeout(10_000);
-			connection.setReadTimeout(15_000);
+		final int attempts = 3;
+		IOException last = null;
 
-			int status = connection.getResponseCode();
+		for (int attempt = 1; attempt <= attempts; attempt++) {
+			try {
+				HttpURLConnection connection = ModrinthNet.open(url, 20_000, 30_000);
+				connection.setRequestProperty("User-Agent", USER_AGENT);
+				connection.setRequestProperty("Accept", "application/json");
 
-			if (status == 404) {
-				throw new ModrinthApiException("Modrinth не нашёл запрошенный мод/версию (404) — возможно, он был удалён или переименован");
-			} else if (status != 200) {
-				throw new ModrinthApiException("Modrinth ответил с ошибкой: HTTP " + status);
+				int status = connection.getResponseCode();
+
+				if (status == 404) {
+					throw new ModrinthApiException("Modrinth не нашёл запрошенный мод/версию (404) — возможно, он был удалён или переименован");
+				} else if (status == 429 || status >= 500) {
+					last = new IOException("HTTP " + status);
+				} else if (status != 200) {
+					throw new ModrinthApiException("Modrinth ответил с ошибкой: HTTP " + status);
+				} else {
+					return new JsonReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
+				}
+			} catch (IOException e) {
+				last = e;
 			}
 
-			InputStream is = connection.getInputStream();
+			Log.warn(LogCategory.MODRINTH, "Запрос к Modrinth не удался (попытка %d из %d): %s", attempt, attempts, last);
 
-			return new JsonReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-		} catch (IOException e) {
-			throw new ModrinthApiException("Не удалось подключиться к Modrinth — проверь соединение с интернетом", e);
+			if (attempt < attempts) {
+				try {
+					Thread.sleep(800L * attempt);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					break;
+				}
+			}
 		}
+
+		throw new ModrinthApiException("Не удалось подключиться к Modrinth — проверь интернет или VPN/прокси. Попробуй ещё раз.", last);
 	}
 
 	private static String urlEncode(String s) {

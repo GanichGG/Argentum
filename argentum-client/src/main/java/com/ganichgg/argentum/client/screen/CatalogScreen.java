@@ -25,6 +25,7 @@ import com.ganichgg.argentum.client.ui.PixelIcons;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.impl.hotload.HotLoadReport;
 import net.fabricmc.loader.impl.hotload.HotLoader;
+import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.modrinth.DependencyResolver;
 import net.fabricmc.loader.impl.modrinth.InstalledModsIndex;
 import net.fabricmc.loader.impl.modrinth.ModInstaller;
@@ -551,13 +552,20 @@ public final class CatalogScreen extends class_437 {
 			return;
 		}
 
+		boolean deferred = false;
+
 		try {
 			Files.deleteIfExists(modsDir().resolve(fileName));
 		} catch (IOException e) {
-			// Windows не даёт удалить jar, который игра сейчас держит открытым
-			setStatus("Не удалось удалить " + fileName + " — файл занят игрой. Закрой игру и удали его вручную.", C_RED);
-			this.busyIds.remove(p.id);
-			return;
+			// Windows не даёт удалить jar, который игра сейчас держит открытым — удалим его при следующем запуске
+			try {
+				PendingRemovals.schedule(modsDir(), fileName);
+				deferred = true;
+			} catch (IOException e2) {
+				setStatus("Не удалось удалить " + fileName + ": " + e2.getMessage(), C_RED);
+				this.busyIds.remove(p.id);
+				return;
+			}
 		}
 
 		try {
@@ -580,7 +588,8 @@ public final class CatalogScreen extends class_437 {
 			closeDetail();
 		}
 
-		setStatus("Удалено: " + fileName, C_OK);
+		setStatus(deferred ? "«" + p.title + "» перестанет работать после перезапуска: сейчас файл занят игрой, он удалится при следующем запуске"
+				: "Удалено: " + fileName, deferred ? C_WARN : C_OK);
 	}
 
 	/** Действие кнопки карточки/панели: поставить, либо удалить на вкладке установленных. */

@@ -1,0 +1,280 @@
+plugins {
+	id 'java'
+	id 'org.graalvm.buildtools.native' version '0.10.3'
+}
+
+// Якорь — отдельный автономный инструмент (не грузится в игру), поэтому в отличие от
+// самого loader'а его ничто не обязывает к совместимости с Java 8.
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+		vendor = JvmVendorSpec.matching('GraalVM Community')
+	}
+}
+
+// @TargetClass/@Substitute (см. Target_sun_awt_Win32FontManager) живут во внутреннем
+// svm.jar сборщика native-image, а не в публичном org.graalvm.sdk — берём его прямо из
+// уже скачанного GraalVM, отдельного maven-координата для него в Community-редакции нет.
+dependencies {
+	def graalvm = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(21)
+		vendor = JvmVendorSpec.matching('GraalVM Community')
+	}.get()
+
+	compileOnly files(graalvm.metadata.installationPath.file('lib/svm/builder/svm.jar'))
+}
+
+def generatedResources = layout.buildDirectory.dir('generated/resources')
+
+// Собственный jar лоадера не опубликован на публичном maven, поэтому якорь
+// кладёт его на диск сам; сторонние библиотеки (Mixin, ASM) остаются на
+// maven.fabricmc.net и их штатно скачивает лаунчер.
+tasks.register('copyLoaderJar', Copy) {
+	dependsOn rootProject.tasks.named('finalJar')
+	from rootProject.tasks.named('finalJar').get().archiveFile
+	into generatedResources
+	rename { 'argentumloader.jar' }
+}
+
+// Под native-image свойство java.home не указывает на настоящую установку JDK, поэтому
+// штатный поиск конфигурации шрифтов (<java.home>/lib/fontconfig.properties) ничего не
+// находит и AWT падает при первом обращении к шрифту. Берём готовый файл из GraalVM и
+// кладём как ресурс — в рантайме извлекаем и указываем на него через sun.awt.fontconfig.
+tasks.register('copyFontConfig', Copy) {
+	def graalvm = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(21)
+		vendor = JvmVendorSpec.matching('GraalVM Community')
+	}.get()
+
+	from(graalvm.metadata.installationPath.file('lib/fontconfig.properties.src'))
+	into generatedResources
+	rename { 'fontconfig.properties' }
+}
+
+tasks.register('generateAnchorLibraries') {
+	def installerConfig = rootProject.configurations.getByName('installer')
+	dependsOn installerConfig
+
+	def outFile = generatedResources.map { it.file('anchor-libraries.properties') }
+	outputs.file(outFile)
+	outputs.upToDateWhen { false }
+
+	doLast {
+		def sb = new StringBuilder()
+		sb << "# сгенерировано автоматически задачей generateAnchorLibraries, не редактировать\n"
+
+		def artifacts = installerConfig.resolvedConfiguration.resolvedArtifacts
+		int i = 0
+
+		for (artifact in artifacts) {
+			sb << "lib.${i}.name=${artifact.moduleVersion}\n"
+			sb << "lib.${i}.url=https://maven.fabricmc.net/\n"
+			i++
+		}
+
+		sb << "count=${i}\n"
+		sb << "mainClass=net.fabricmc.loader.impl.launch.knot.KnotClient\n"
+		sb << "loader.group=${rootProject.group}\n"
+		sb << "loader.artifact=argentum-loader\n"
+		sb << "loader.version=${rootProject.version}\n"
+
+		outFile.get().asFile.text = sb.toString()
+	}
+}
+
+// GraalVM native-image не умеет полностью встраивать java.desktop/AWT — эти маленькие
+// нативные библиотеки берутся из самого GraalVM и обычно кладутся РЯДОМ с .exe. Вместо
+// этого встраиваем их как ресурсы внутрь exe и распаковываем сами при первом запуске
+// (см. AnchorMain.extractNativeLibsIfNeeded) — так якорь остаётся одним файлом для скачивания.
+def nativeLibNames = ['awt.dll', 'fontmanager.dll', 'freetype.dll', 'java.dll',
+		'javaaccessbridge.dll', 'javajpeg.dll', 'jawt.dll', 'jvm.dll', 'lcms.dll']
+
+// Переименование в .bin (не .dll/.exe) — потому что реальный корень проблемы был не в
+// содержимом файла, а в том, что путь к ресурсу в AnchorMain должен быть виден статическому
+// анализатору native-image как строковый литерал (см. комментарий у extractNativeLibsIfNeeded);
+// расширение тут значения не имеет, оставлено просто для ясности что это временный формат.
+// Сдвиг байтов на 4 — подстраховка с ранней стадии отладки этой проблемы, реальной пользы
+// сейчас не несёт, но и не мешает; оставлен как есть, чтобы не гонять сборку заново.
+tasks.register('copyNativeLibs') {
+	def graalvm = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(21)
+		vendor = JvmVendorSpec.matching('GraalVM Community')
+	}.get()
+	def binDir = graalvm.metadata.installationPath.dir('bin').asFile
+
+	inputs.property('libNames', nativeLibNames)
+	def outFiles = nativeLibNames.collect { generatedResources.map { dir -> dir.file(it + '.bin') } }
+	outputs.files(outFiles)
+
+	doLast {
+		nativeLibNames.eachWithIndex { name, i ->
+			def src = new File(binDir, name)
+			if (!src.exists()) {
+				// jvm.dll в GraalVM лежит в bin/server, не прямо в bin
+				src = new File(binDir, "server/${name}")
+			}
+			def bytes = src.bytes
+			def shifted = new byte[bytes.length + 4]
+			System.arraycopy(bytes, 0, shifted, 4, bytes.length)
+			outFiles[i].get().asFile.bytes = shifted
+		}
+	}
+}
+
+// Клиентский мод (надпись на экране загрузки) — отдельная сборка argentum-client; кладём её jar в якорь,
+// если она уже собрана (см. argentum-client/build.gradle), иначе якорь ставит один лоадер.
+// Собирает argentum-client отдельным вызовом Gradle (у него своя независимая сборка). Ему нужен
+// client-intermediary.jar от уже запускавшейся игры; если его нет или сборка упала — не ломаем сборку
+// якоря, он просто поставит один лоадер (copyClientMod копирует то, что есть).
+tasks.register('buildClientMod', Exec) {
+	workingDir rootProject.file('argentum-client')
+	def wrapper = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'gradlew.bat' : 'gradlew'
+	commandLine rootProject.file(wrapper).absolutePath, 'build', '--console=plain', '-q'
+	ignoreExitValue = true
+	outputs.upToDateWhen { false }
+}
+
+tasks.register('copyClientMod', Copy) {
+	dependsOn 'buildClientMod'
+	from(rootProject.file('argentum-client/build/libs')) {
+		include 'argentum-client-*.jar'
+		exclude '*-sources.jar'
+	}
+	into generatedResources
+	rename { 'argentum-client.jar' }
+}
+
+sourceSets.main.resources.srcDir generatedResources
+processResources.dependsOn copyLoaderJar, generateAnchorLibraries, copyNativeLibs, copyFontConfig, copyClientMod
+
+jar {
+	archiveBaseName = 'argentum-anchor'
+	manifest {
+		attributes 'Main-Class': 'net.fabricmc.installer.anchor.AnchorMain'
+	}
+}
+
+// Настоящий один .exe без отдельной папки с рантаймом рядом — GraalVM native-image
+// компилирует якорь в нативный бинарник. Собирается: ./gradlew :installer:nativeCompile
+// Результат: installer/build/native/nativeCompile/ArgentumAnchor.exe
+graalvmNative {
+	toolchainDetection = true
+	binaries {
+		main {
+			imageName = 'ArgentumAnchor'
+			mainClass = 'net.fabricmc.installer.anchor.AnchorMain'
+			sharedLibrary = false
+			buildArgs.add('--no-fallback')
+			// На системах с не-английской локалью cl.exe иногда ошибочно детектит BOM в
+			// заголовках Windows SDK (ucrt\memory.h и т.п.) и валит сборку с C2220 из-за /WX.
+			// Явно просим UTF-8 у компилятора вместо угадывания по системной локали.
+			buildArgs.add('-H:CCompilerOption=/utf-8')
+			// Иконку -H:WindowsIconPath в GraalVM Community не поддерживает — дописываем её
+			// в уже готовый .exe отдельным шагом (см. setIcon ниже, scripts/set_icon.py).
+			// По умолчанию GraalVM инициализирует классы на этапе СБОРКИ ради скорости — но
+			// шрифты/кодировки/AWT-тулкит должны инициализироваться на целевой машине в
+			// рантайме, а не "заморозиться" в состоянии машины сборки. Без этого всплывают
+			// разрозненные ошибки (fontconfig, platform encoding и т.п.) одна за другой.
+			buildArgs.add('--initialize-at-run-time=java.desktop')
+		}
+	}
+}
+
+// native-build-tools по умолчанию кладёт рядом с exe те же AWT-библиотеки, что мы уже
+// зашили внутрь него (см. copyNativeLibs) — теперь они там не нужны, ArgentumAnchor.exe
+// самодостаточен. Чистим их и служебные файлы сборки (.args), чтобы в папке оставался
+// только сам exe.
+tasks.named('nativeCompile') {
+	doLast {
+		def outDir = layout.buildDirectory.dir('native/nativeCompile').get().asFile
+		nativeLibNames.each { name -> new File(outDir, name).delete() }
+		outDir.listFiles()?.findAll { it.name.endsWith('.args') }?.each { it.delete() }
+	}
+	finalizedBy 'setIcon', 'setSubsystem'
+}
+
+// GraalVM Community не умеет проставить иконку .exe на этапе сборки (-H:WindowsIconPath
+// недоступна) — дописываем её в уже собранный файл через win32-API (требует `pip install
+// pywin32` на машине сборки; тот же приём использует, например, утилита rcedit).
+tasks.register('setIcon', Exec) {
+	def exeFile = layout.buildDirectory.file('native/nativeCompile/ArgentumAnchor.exe')
+	def iconFile = project.file('src/main/resources/icon/argentum.ico')
+	def script = project.file('scripts/set_icon.py')
+
+	inputs.file(iconFile)
+	inputs.file(script)
+	outputs.file(exeFile)
+	outputs.upToDateWhen { false } // meняет уже собранный exe, а не создаёт новый — пусть перезапускается всегда
+
+	commandLine('python', script.absolutePath, exeFile.get().asFile.absolutePath, iconFile.absolutePath)
+}
+
+// native-image по умолчанию собирает .exe с консольным (CUI) subsystem — при запуске якоря
+// двойным щелчком рядом с ним мелькает чёрное окно консоли. Меняем subsystem на GUI прямо в
+// PE-заголовке уже собранного файла — тот же приём, которым javaw.exe отличается от java.exe.
+// AWT/Swing от этого не страдают: диалоги якоря не используют консольный ввод-вывод.
+tasks.register('setSubsystem', Exec) {
+	mustRunAfter 'setIcon' // оба правят один и тот же уже собранный exe — не должны гоняться параллельно
+	def exeFile = layout.buildDirectory.file('native/nativeCompile/ArgentumAnchor.exe')
+	def script = project.file('scripts/set_subsystem.py')
+
+	inputs.file(script)
+	outputs.file(exeFile)
+	outputs.upToDateWhen { false }
+
+	commandLine('python', script.absolutePath, exeFile.get().asFile.absolutePath)
+}
+
+// Портативный .exe со встроенной Java — чтобы якорь работал даже у игроков без
+// отдельно установленной Java. app-image (не msi/exe-инсталлятор), поэтому не
+// требует WiX на машине сборки: просто папка с .exe и рантаймом внутри, которую
+// можно скопировать/заzip'ить и раздать как есть.
+tasks.register('jpackageAnchor', Exec) {
+	dependsOn jar
+	group = 'distribution'
+	description = 'Собирает портативный ArgentumAnchor.exe со встроенной Java (jpackage)'
+
+	def jdk21 = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(21)
+	}.get()
+	def jpackageBin = jdk21.metadata.installationPath.file('bin/jpackage.exe')
+
+	def inputDir = layout.buildDirectory.dir('jpackage-input').get().asFile
+	def outputDir = layout.buildDirectory.dir('jpackage').get().asFile
+	def jarFile = tasks.named('jar').get().archiveFile.get().asFile
+	def iconFile = project.file('src/main/resources/icon/argentum.ico')
+
+	// jpackage требует чисто числовую версию (major[.minor[.patch]]), а на Windows major не
+	// может быть 0 — отбрасываем "+local" и поднимаем major до 1, если он нулевой.
+	def versionParts = project.version.toString().split('\\+')[0].split('\\.')
+	if (versionParts.length > 0 && versionParts[0] == '0') {
+		versionParts[0] = '1'
+	}
+	def appVersion = versionParts.join('.')
+
+	inputs.file(jarFile)
+	inputs.file(iconFile)
+	outputs.dir(outputDir)
+
+	doFirst {
+		delete inputDir
+		inputDir.mkdirs()
+		copy {
+			from jarFile
+			into inputDir
+		}
+		delete outputDir
+	}
+
+	commandLine(
+			jpackageBin.asFile.absolutePath,
+			'--type', 'app-image',
+			'--input', inputDir.absolutePath,
+			'--main-jar', jarFile.name,
+			'--main-class', 'net.fabricmc.installer.anchor.AnchorMain',
+			'--name', 'ArgentumAnchor',
+			'--app-version', appVersion,
+			'--icon', iconFile.absolutePath,
+			'--dest', outputDir.absolutePath
+	)
+}

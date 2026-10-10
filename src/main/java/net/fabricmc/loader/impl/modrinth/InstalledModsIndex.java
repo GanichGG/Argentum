@@ -106,6 +106,20 @@ public final class InstalledModsIndex {
 		entries.put(projectId, new Entry(versionId, fileName));
 	}
 
+	public void remove(String projectId) {
+		entries.remove(projectId);
+	}
+
+	/** Все записи (projectId -> запись), в порядке установки; только для чтения. */
+	public Map<String, Entry> entries() {
+		return java.util.Collections.unmodifiableMap(entries);
+	}
+
+	/** Папка mods, в которой лежит этот реестр. */
+	public Path modsDir() {
+		return file.getParent();
+	}
+
 	public void save() throws IOException {
 		Files.createDirectories(file.getParent());
 

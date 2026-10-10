@@ -17,8 +17,8 @@ import net.minecraft.class_757;
  * Иконка мода как плоскость в пространстве: при наведении она разворачивается к курсору и следит за ним.
  *
  * <p>Это настоящая перспективная проекция: сетка из N×N ячеек поворачивается вокруг двух осей и проецируется на
- * экран, поэтому край, уходящий вдаль, становится меньше (текстура по ячейкам, а не одна аффинная). Тень и боковая
- * освещённость усиливают объём. Масштаб в целом не меняется.
+ * экран, поэтому край, уходящий вдаль, становится меньше (текстура по ячейкам, а не одна аффинная). Боковая
+ * освещённость усиливает объём; никакой подложки или тени — только сама иконка. Масштаб в целом не меняется.
  *
  * <p>class_289 = Tessellator, class_287 = BufferBuilder, class_286 = BufferRenderer, class_290 = VertexFormats
  * (field_1575 = POSITION_TEXTURE_COLOR, field_1576 = POSITION_COLOR), class_293$class_5596.field_27382 = QUADS,
@@ -78,20 +78,6 @@ public final class Icon3D {
 
 		RenderSystem.enableBlend();
 		RenderSystem.defaultBlendFunc();
-
-		// тень под иконкой: тот же четырёхугольник, смещённый вниз-вправо
-		RenderSystem.setShader(class_757::method_34540);
-		class_287 shadow = class_289.method_1348().method_60827(class_293.class_5596.field_27382, class_290.field_1576);
-		int s = Math.round(alpha * 90);
-		int i00 = 0;
-		int i10 = N;
-		int i11 = (N + 1) * (N + 1) - 1;
-		int i01 = N * (N + 1);
-		shadow.method_22918(m, px[i00] + 2, py[i00] + 3, 0F).method_1336(0, 0, 0, s);
-		shadow.method_22918(m, px[i01] + 2, py[i01] + 3, 0F).method_1336(0, 0, 0, s);
-		shadow.method_22918(m, px[i11] + 2, py[i11] + 3, 0F).method_1336(0, 0, 0, s);
-		shadow.method_22918(m, px[i10] + 2, py[i10] + 3, 0F).method_1336(0, 0, 0, s);
-		class_286.method_43433(shadow.method_60794());
 
 		// сама иконка
 		RenderSystem.setShader(class_757::method_34543);

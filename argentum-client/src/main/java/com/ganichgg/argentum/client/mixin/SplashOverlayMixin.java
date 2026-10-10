@@ -78,11 +78,39 @@ public abstract class SplashOverlayMixin {
 		drawLine(context, line, (width - line.width) / 2, logoTop - line.height - 8, alpha);
 
 		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+		argentum$devSplashShot();
 	}
 
 	private static void drawLine(class_332 context, EarlyText.Line line, int x, int y, float alpha) {
 		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
 		// DrawContext.drawTexture(Identifier, x, y, u, v, w, h, textureW, textureH)
 		context.method_25290(line.texture, x, y, 0.0F, 0.0F, line.width, line.height, line.width, line.height);
+	}
+
+	private static long devSplashStart;
+
+	// Dev: если в папке игры лежит .argentum-splash-shot, сохраняем кадр экрана загрузки (без участия окна ОС)
+	private void argentum$devSplashShot() {
+		java.nio.file.Path dir = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir();
+		java.nio.file.Path flag = dir.resolve(".argentum-splash-shot");
+
+		if (devSplashStart == 0) {
+			devSplashStart = System.currentTimeMillis();
+		}
+
+		if (System.currentTimeMillis() - devSplashStart < 1500 || !java.nio.file.Files.exists(flag)) {
+			return;
+		}
+
+		try {
+			java.nio.file.Files.delete(flag);
+			java.nio.file.Files.createDirectories(dir.resolve(".argentum"));
+
+			try (net.minecraft.class_1011 image = net.minecraft.class_318.method_1663(this.field_18217.method_1522())) {
+				image.method_4314(dir.resolve(".argentum").resolve("splash.png"));
+			}
+		} catch (java.io.IOException | RuntimeException ignored) {
+			// неважно
+		}
 	}
 }

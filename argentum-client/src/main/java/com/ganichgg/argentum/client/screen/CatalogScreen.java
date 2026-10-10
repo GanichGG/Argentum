@@ -89,19 +89,20 @@ public final class CatalogScreen extends class_437 {
 	private static final int C_SECONDARY_HOVER = 0xFF47484A;
 	private static final int C_DISABLED = 0xFF2E2F30;
 	private static final int C_RED = 0xFFFF8A8A;
-	private static final int GEAR_W = 14;
-	private static final int BTN_Y = 31; // кнопки в карточке: отступ сверху
+	private static final int GEAR_W = 18;
+	private static final int BTN_H = 18; // высота кнопок в карточке и строке состояния
+	private static final int BTN_Y = 32; // кнопки в карточке: отступ сверху
 	private static final float TILT_MAX = 0.42F; // наклон иконки к курсору, радианы (~24°)
 
 	// Раскладка (в единицах GUI)
 	private static final int PAD = 8;
 	private static final int SEARCH_Y = 8;
-	private static final int FIELD_H = 20;
-	private static final int TABS_Y = 34;
+	private static final int FIELD_H = 24;
+	private static final int TABS_Y = 37;
 	private static final int TABS_H = 16;
-	private static final int LIST_TOP = 54;
-	private static final int STATUS_H = 20;
-	private static final int CARD_H = 50;
+	private static final int LIST_TOP = 58;
+	private static final int STATUS_H = 24;
+	private static final int CARD_H = 56;
 	private static final int GAP = 4;
 	private static final int ICON = 40;
 	private static final int RIGHT_COL = 112;
@@ -156,6 +157,12 @@ public final class CatalogScreen extends class_437 {
 	private volatile float installFraction = -2F;
 	private final Map<String, Float> progressById = new ConcurrentHashMap<>();
 	private float installShown;
+	/** Карточки, которые сейчас уходят из списка после удаления: id -> ход анимации 0..1. */
+	private final Map<String, Float> leaving = new HashMap<>();
+	private float[] rowTop = new float[1];
+	private List<ModrinthProject> layoutList;
+	private int layoutVersion;
+	private int layoutBuiltVersion = -1;
 	private float prepShown;
 	private volatile Map<String, ConfigInfo> configInfo = Collections.emptyMap();
 	private long lastFrameNanos;
@@ -175,6 +182,7 @@ public final class CatalogScreen extends class_437 {
 	private boolean devTimeline;
 	private String initialStatus;
 	private boolean devFake;
+	private boolean devLeaveDone;
 	private int[] devMouse;
 	private long devNextShot;
 	private long devStart;
@@ -244,6 +252,13 @@ public final class CatalogScreen extends class_437 {
 			this.devMouse = null;
 		}
 
+		// имитация удаления первой установленной карточки (без удаления файлов), замедленная для снимков
+		if (!this.devLeaveDone && this.tab == Tab.INSTALLED && t > 14300 && this.installedRows.size() > 1) {
+			this.leaving.put(this.installedRows.get(0).id, 0F);
+			this.layoutVersion++;
+			this.devLeaveDone = true;
+		}
+
 		// имитация установки для скриншотов: полоса растёт от 0 до 100 % (без сети)
 		if (t > 19000 && t < 27000 && !this.catalogRows.isEmpty()) {
 			String id = this.catalogRows.get(0).id;
@@ -291,7 +306,7 @@ public final class CatalogScreen extends class_437 {
 	protected void method_25426() {
 		int w = this.field_22789;
 
-		this.searchField = new class_342(this.field_22793, PAD + 5, SEARCH_Y + 6, w - PAD * 2 - FIELD_H - 4 - 10, 10, text(""));
+		this.searchField = new class_342(this.field_22793, PAD + 5, SEARCH_Y + 7, w - PAD * 2 - FIELD_H - 4 - 10, 10, text(""));
 		this.searchField.method_1858(false); // свой фон рисуем сами
 		this.searchField.method_1880(80);
 		this.searchField.method_47404(text("Поиск модов на Modrinth"));
@@ -655,9 +670,8 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		refreshInstalledIndex();
-		List<ModrinthProject> left = new ArrayList<>(this.installedRows);
-		left.removeIf(x -> x.id.equals(p.id));
-		this.installedRows = left;
+		this.leaving.put(p.id, 0F); // карточка плавно уходит; из списка её уберёт цикл анимации
+		this.layoutVersion++;
 		this.busyIds.remove(p.id);
 
 		if (this.detail != null && this.detail.id.equals(p.id)) {
@@ -801,10 +815,57 @@ public final class CatalogScreen extends class_437 {
 		return this.field_22790 - STATUS_H;
 	}
 
+	/** Плавность ухода карточки: быстро в начале, мягко в конце. */
+	private static float easeOut(float t) {
+		float u = 1F - Math.max(0F, Math.min(1F, t));
+
+		return 1F - u * u;
+	}
+
+	/**
+	 * Раскладка строк: верх каждой карточки относительно начала списка. Карточка, которую удаляют, постепенно
+	 * «схлопывается», и все ниже плавно поднимаются.
+	 */
+	private void ensureLayout() {
+		List<ModrinthProject> list = rows();
+
+		if (list == this.layoutList && this.layoutVersion == this.layoutBuiltVersion && this.rowTop.length == list.size() + 1) {
+			return;
+		}
+
+		float[] top = new float[list.size() + 1];
+		float cum = 0F;
+
+		for (int i = 0; i < list.size(); i++) {
+			top[i] = cum;
+			Float f = this.leaving.get(list.get(i).id);
+			cum += (CARD_H + GAP) * (f == null ? 1F : 1F - easeOut(f));
+		}
+
+		top[list.size()] = cum;
+		this.rowTop = top;
+		this.layoutList = list;
+		this.layoutBuiltVersion = this.layoutVersion;
+	}
+
+	/** Индекс строки, в которую попадает вертикальная координата внутри списка (с учётом прокрутки); -1 — нет. */
+	private int rowAt(float yInList) {
+		ensureLayout();
+
+		for (int i = 0; i + 1 < this.rowTop.length; i++) {
+			if (yInList >= this.rowTop[i] && yInList < this.rowTop[i + 1]) {
+				return i;
+			}
+		}
+
+		return -1;
+	}
+
 	private float contentHeight() {
+		ensureLayout();
 		int n = rows().size();
 
-		return n == 0 ? 0 : n * (CARD_H + GAP) - GAP;
+		return n == 0 ? 0 : Math.max(0F, this.rowTop[n] - GAP);
 	}
 
 	private float maxScroll() {
@@ -846,7 +907,7 @@ public final class CatalogScreen extends class_437 {
 		if (overPanel(mx, my)) {
 			int px = panelX(w);
 
-			if (inside(mx, my, px + PANEL_W - 8 - 14, LIST_TOP + 4 + 5, 14, 14)) {
+			if (inside(mx, my, px + PANEL_W - 8 - 16, LIST_TOP + 4 + 5, 16, 16)) {
 				press("close");
 				closeDetail();
 			} else if (this.detail != null && inside(mx, my, this.btnX, this.btnY, this.btnW, this.btnH)) {
@@ -879,7 +940,7 @@ public final class CatalogScreen extends class_437 {
 			}
 		}
 
-		if (this.applyW > 0 && inside(mx, my, this.applyX, h - STATUS_H + 3, this.applyW, 14)) {
+		if (this.applyW > 0 && inside(mx, my, this.applyX, h - STATUS_H + 3, this.applyW, BTN_H)) {
 			Handoff.State hs = Handoff.state();
 
 			if (hs == Handoff.State.READY) {
@@ -893,19 +954,24 @@ public final class CatalogScreen extends class_437 {
 			return true;
 		}
 
-		if (inside(mx, my, w - PAD - 52, h - STATUS_H + 3, 52, 14)) {
+		if (inside(mx, my, w - PAD - 52, h - STATUS_H + 3, 52, BTN_H)) {
 			press("back");
 			this.method_25419();
 			return true;
 		}
 
 		if (my >= LIST_TOP && my < listBottom()) {
-			int index = (int) ((my - LIST_TOP + this.scroll) / (CARD_H + GAP));
+			int index = rowAt((float) (my - LIST_TOP + this.scroll));
 			List<ModrinthProject> current = rows();
 
 			if (index >= 0 && index < current.size()) {
-				int cardY = (int) (LIST_TOP + index * (CARD_H + GAP) - this.scroll);
+				int cardY = (int) (LIST_TOP + this.rowTop[index] - this.scroll);
 				ModrinthProject p = current.get(index);
+
+				if (this.leaving.containsKey(p.id)) {
+					return true; // карточка уже уходит
+				}
+
 				int cw = cardWidth();
 
 				if (mx < PAD || mx >= PAD + cw) {
@@ -916,10 +982,10 @@ public final class CatalogScreen extends class_437 {
 				int colX = PAD + cw - col - 5;
 				int off = actionOffset();
 
-				if (off > 0 && inside(mx, my, colX, cardY + BTN_Y, GEAR_W, 14)) {
+				if (off > 0 && inside(mx, my, colX, cardY + BTN_Y, GEAR_W, BTN_H)) {
 					press("gear:" + p.id);
 					openConfig(p);
-				} else if (inside(mx, my, colX + off, cardY + BTN_Y, col - off, 14)) {
+				} else if (inside(mx, my, colX + off, cardY + BTN_Y, col - off, BTN_H)) {
 					press("act:" + p.id);
 					act(p);
 				} else {
@@ -1256,6 +1322,24 @@ public final class CatalogScreen extends class_437 {
 		this.detailScroll = approach(this.detailScroll, this.detailScrollTarget, dt, 16);
 		this.focusAnim = approach(this.focusAnim, this.searchField.method_25370() ? 1F : 0F, dt, 12);
 		this.loadAnim = approach(this.loadAnim, busyNow() ? 1F : 0F, dt, 8);
+		if (!this.leaving.isEmpty()) {
+			boolean finished = false;
+
+			for (Map.Entry<String, Float> e : this.leaving.entrySet()) {
+				e.setValue(Math.min(1F, e.getValue() + dt * (this.devTimeline ? 0.8F : 3.2F)));
+				finished |= e.getValue() >= 1F;
+			}
+
+			this.layoutVersion++;
+
+			if (finished) {
+				List<ModrinthProject> left = new ArrayList<>(this.installedRows);
+				left.removeIf(x -> this.leaving.getOrDefault(x.id, 0F) >= 1F);
+				this.installedRows = left;
+				this.leaving.values().removeIf(v -> v >= 1F);
+			}
+		}
+
 		this.installShown = this.installFraction >= 0F ? approach(this.installShown, this.installFraction, dt, 10) : 0F;
 		this.prepShown = Handoff.state() == Handoff.State.PREPARING ? approach(this.prepShown, Handoff.progress(), dt, 8) : 0F;
 
@@ -1313,7 +1397,7 @@ public final class CatalogScreen extends class_437 {
 
 		// поле поиска (текст рисует виджет поверх): обводка плавно становится акцентной при фокусе
 		int fieldW = w - PAD * 2 - FIELD_H - 4;
-		frame(ctx, PAD, SEARCH_Y, fieldW, FIELD_H, C_FIELD, lerpColor(lighter(C_FIELD, 0.14F), C_ACCENT, this.focusAnim), darker(C_FIELD, 0.4F), false);
+		frame(ctx, PAD, SEARCH_Y, fieldW, FIELD_H, C_FIELD, lerpColor(lighter(C_FIELD, 0.14F), 0xFF6A6B6D, this.focusAnim), darker(C_FIELD, 0.4F), false);
 
 		// кнопка-лупа
 		int lx = w - PAD - FIELD_H;
@@ -1355,17 +1439,34 @@ public final class CatalogScreen extends class_437 {
 
 		ctx.method_44379(0, LIST_TOP, right, bottom); // enableScissor
 
-		int first = Math.max(0, (int) (this.scroll / (CARD_H + GAP)));
+		ensureLayout();
+		int first = Math.max(0, rowAt(this.scroll));
 		int fresh = 0;
 
 		for (int i = first; i < current.size(); i++) {
-			int y = (int) (LIST_TOP + i * (CARD_H + GAP) - this.scroll);
+			int y = (int) (LIST_TOP + this.rowTop[i] - this.scroll);
 
 			if (y >= bottom) {
 				break;
 			}
 
 			ModrinthProject p = current.get(i);
+			Float leave = this.leaving.get(p.id);
+
+			if (leave != null) {
+				// уходящая карточка: обрезается снизу и растворяется в фон
+				float e = easeOut(leave);
+				int visibleH = Math.max(0, (int) (CARD_H * (1F - e)));
+
+				if (visibleH > 0) {
+					ctx.method_44379(0, Math.max(y, LIST_TOP), right, Math.min(y + visibleH, bottom));
+					drawCard(ctx, p, PAD, y, cardW, -1000, -1000, dt);
+					ctx.method_25294(0, y - 1, right, y + CARD_H + 1, (((int) (e * 255)) << 24) | (C_BG & 0x00FFFFFF));
+					ctx.method_44380();
+				}
+
+				continue;
+			}
 
 			// появление: прозрачность + лёгкий сдвиг снизу, карточки идут друг за другом с небольшой задержкой
 			Float known = this.appear.get(p.id);
@@ -1394,7 +1495,7 @@ public final class CatalogScreen extends class_437 {
 
 		// индикатор подгрузки внизу списка
 		if (this.loadingMore) {
-			int y = (int) (LIST_TOP + current.size() * (CARD_H + GAP) - this.scroll);
+			int y = (int) (LIST_TOP + this.rowTop[current.size()] - this.scroll);
 
 			if (y < bottom) {
 				String more = "Загружаю ещё";
@@ -1442,13 +1543,13 @@ public final class CatalogScreen extends class_437 {
 			int textEnd = rightX - 6;
 
 			frame(ctx, x, y, cardW, CARD_H, C_PANEL, lighter(C_PANEL, 0.07F), darker(C_PANEL, 0.3F), false);
-			ctx.method_25294(x + 5, y + 5, x + 5 + ICON, y + 5 + ICON, bar);
-			ctx.method_25294(textX, y + 6, Math.min(textEnd, textX + 90 + (i % 3) * 28), y + 14, bar);
-			ctx.method_25294(textX, y + 19, Math.min(textEnd, textX + 150 + (i % 4) * 22), y + 27, bar);
-			ctx.method_25294(textX, y + 31, Math.min(textEnd, textX + 38), y + 42, bar);
-			ctx.method_25294(Math.min(textEnd, textX + 42), y + 31, Math.min(textEnd, textX + 90), y + 42, bar);
-			ctx.method_25294(rightX, y + 6, rightX + col * 2 / 3, y + 13, bar);
-			ctx.method_25294(rightX, y + 30, rightX + col, y + 44, bar);
+			ctx.method_25294(x + 5, y + 8, x + 5 + ICON, y + 8 + ICON, bar);
+			ctx.method_25294(textX, y + 8, Math.min(textEnd, textX + 90 + (i % 3) * 28), y + 16, bar);
+			ctx.method_25294(textX, y + 21, Math.min(textEnd, textX + 150 + (i % 4) * 22), y + 29, bar);
+			ctx.method_25294(textX, y + 35, Math.min(textEnd, textX + 38), y + 46, bar);
+			ctx.method_25294(Math.min(textEnd, textX + 42), y + 35, Math.min(textEnd, textX + 90), y + 46, bar);
+			ctx.method_25294(rightX, y + 8, rightX + col * 2 / 3, y + 15, bar);
+			ctx.method_25294(rightX, y + BTN_Y, rightX + col, y + BTN_Y + BTN_H, bar);
 		}
 	}
 
@@ -1470,12 +1571,12 @@ public final class CatalogScreen extends class_437 {
 
 		if (hovered) {
 			targetY = clamp((mx - (x + 5 + ICON / 2F)) / 90F) * TILT_MAX;
-			targetX = clamp((my - (y + 5 + ICON / 2F)) / 40F) * TILT_MAX;
+			targetX = clamp((my - (y + 8 + ICON / 2F)) / 40F) * TILT_MAX;
 		}
 
 		t[0] = approach(t[0], targetY, dt, 14);
 		t[1] = approach(t[1], targetX, dt, 14);
-		drawIcon(ctx, p, x + 5, y + 5, ICON, t[0], t[1]);
+		drawIcon(ctx, p, x + 5, y + 8, ICON, t[0], t[1]);
 
 		int col = rightCol(w);
 		int textX = x + 5 + ICON + 8;
@@ -1484,17 +1585,17 @@ public final class CatalogScreen extends class_437 {
 
 		// название + «by автор»
 		String title = fit(p.title, textW);
-		text(ctx, title, textX, y + 6, C_WHITE);
+		text(ctx, title, textX, y + 8, C_WHITE);
 
 		if (p.author != null) {
-			text(ctx, fit("by " + p.author, textW - textWidth(title) - 4), textX + textWidth(title) + 4, y + 6, C_GRAY);
+			text(ctx, fit("by " + p.author, textW - textWidth(title) - 4), textX + textWidth(title) + 4, y + 8, C_GRAY);
 		}
 
 		// описание — как на Modrinth, одной строкой с многоточием
-		text(ctx, fit(p.description, textW), textX, y + 18, C_TEXT);
+		text(ctx, fit(p.description, textW), textX, y + 20, C_TEXT);
 
 		// теги (на вкладке установленных первым идёт статус: работает сейчас или после перезапуска)
-		int chipX = textX + drawBadge(ctx, p, textX, y + 32, textW);
+		int chipX = textX + drawBadge(ctx, p, textX, y + 35, textW);
 
 		for (String tag : Fmt.tags(p)) {
 			int chipW = textWidth(tag) + 8;
@@ -1503,23 +1604,23 @@ public final class CatalogScreen extends class_437 {
 				break;
 			}
 
-			chip(ctx, chipX, y + 32, chipW, 11);
-			text(ctx, tag, chipX + 4, y + 34, C_GRAY);
+			chip(ctx, chipX, y + 35, chipW, 11);
+			text(ctx, tag, chipX + 4, y + 37, C_GRAY);
 			chipX += chipW + 4;
 		}
 
 		// правая колонка: скачивания, лайки, обновление, кнопки
 		if (!noStats(p)) {
-			drawStats(ctx, p, rightX, y + 6, col);
+			drawStats(ctx, p, rightX, y + 8, col);
 		}
 
 		int off = actionOffset();
 
 		if (off > 0) {
-			drawGearButton(ctx, "gear:" + p.id, rightX, y + BTN_Y, GEAR_W, 14, p, null, mx, my);
+			drawGearButton(ctx, "gear:" + p.id, rightX, y + BTN_Y, GEAR_W, BTN_H, p, null, mx, my);
 		}
 
-		drawActionButton(ctx, "act:" + p.id, p, rightX + off, y + BTN_Y, col - off, 14, mx, my);
+		drawActionButton(ctx, "act:" + p.id, p, rightX + off, y + BTN_Y, col - off, BTN_H, mx, my);
 	}
 
 	private static float clamp(float v) {
@@ -1661,15 +1762,15 @@ public final class CatalogScreen extends class_437 {
 		pt[1] = approach(pt[1], overIcon ? clamp((my - (py + 22)) / 28F) * TILT_MAX : 0F, this.dt, 14);
 		drawIcon(ctx, p, innerX, py + 8, 28, pt[0], pt[1]);
 		int titleX = innerX + 28 + 6;
-		int titleW = innerW - 28 - 6 - 16;
+		int titleW = innerW - 28 - 6 - 18;
 		text(ctx, fit(p.title, titleW), titleX, py + 9, C_WHITE);
 
 		if (p.author != null) {
 			text(ctx, fit("by " + p.author, titleW), titleX, py + 21, C_GRAY);
 		}
 
-		int cx = px + PANEL_W - 8 - 14;
-		button(ctx, "close", cx, py + 5, 14, 14, null, PixelIcons.CLOSE, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, cx, py + 5, 14, 14), C_WHITE);
+		int cx = px + PANEL_W - 8 - 16;
+		button(ctx, "close", cx, py + 5, 16, 16, null, PixelIcons.CLOSE, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, cx, py + 5, 16, 16), C_WHITE);
 
 		int y = py + 42;
 
@@ -1698,7 +1799,7 @@ public final class CatalogScreen extends class_437 {
 
 		// кнопки (прямоугольники запоминаем для обработки клика): на вкладке установленных — «Настройки» и «Удалить» в ряд
 		this.btnY = y;
-		this.btnH = 16;
+		this.btnH = 20;
 
 		if (this.tab == Tab.INSTALLED) {
 			this.gearX = innerX;
@@ -1849,8 +1950,8 @@ public final class CatalogScreen extends class_437 {
 			int bw = Math.max(110, Math.min(170, textWidth(label) + (spin ? 11 + 4 : 0) + 18));
 			this.applyW = bw;
 			this.applyX = rightEdge - bw;
-			boolean hovered = clickable && inside(mx, my, this.applyX, by, bw, 14);
-			buttonFill(ctx, "apply", this.applyX, by, bw, 14, label, null, spin, base, hover, hovered, textColor, fill);
+			boolean hovered = clickable && inside(mx, my, this.applyX, by, bw, BTN_H);
+			buttonFill(ctx, "apply", this.applyX, by, bw, BTN_H, label, null, spin, base, hover, hovered, textColor, fill);
 			rightEdge = this.applyX - 6;
 		}
 
@@ -1860,10 +1961,10 @@ public final class CatalogScreen extends class_437 {
 			String percent = this.installFraction >= 0F ? Math.round(this.installShown * 100) + "%" : "";
 			int percentW = Math.max(textWidth("100%"), textWidth(percent));
 			int barX = rightEdge - percentW - 6 - barW;
-			progressBar(ctx, barX, top + 6, barW, 8, this.installFraction >= 0F ? this.installShown : -1F);
+			progressBar(ctx, barX, top + 8, barW, 8, this.installFraction >= 0F ? this.installShown : -1F);
 
 			if (!percent.isEmpty()) {
-				text(ctx, percent, rightEdge - percentW, top + 6, C_TEXT);
+				text(ctx, percent, rightEdge - percentW, top + 8, C_TEXT);
 			}
 
 			rightEdge = barX - 8;
@@ -1872,7 +1973,7 @@ public final class CatalogScreen extends class_437 {
 		int textX = PAD;
 
 		if (busyNow()) {
-			PixelIcons.spinner(ctx, PAD, top + (STATUS_H - 11) / 2 + 1, C_ACCENT);
+			PixelIcons.spinner(ctx, PAD, top + (STATUS_H - 11) / 2, C_ACCENT);
 			textX = PAD + 17;
 		}
 
@@ -1882,9 +1983,9 @@ public final class CatalogScreen extends class_437 {
 			status = "Моды не подготовлены: " + Handoff.failure();
 		}
 
-		text(ctx, fit(status, rightEdge - textX - 4), textX, top + 6, this.statusColor);
+		text(ctx, fit(status, rightEdge - textX - 4), textX, top + 8, this.statusColor);
 
-		boolean backHover = inside(mx, my, w - PAD - backW, by, backW, 14);
-		button(ctx, "back", w - PAD - backW, by, backW, 14, "Назад", null, false, C_SECONDARY, C_SECONDARY_HOVER, backHover, C_TEXT);
+		boolean backHover = inside(mx, my, w - PAD - backW, by, backW, BTN_H);
+		button(ctx, "back", w - PAD - backW, by, backW, BTN_H, "Назад", null, false, C_SECONDARY, C_SECONDARY_HOVER, backHover, C_TEXT);
 	}
 }

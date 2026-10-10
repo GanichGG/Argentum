@@ -45,6 +45,16 @@ public final class PixelIcons {
 			"..###..",
 	};
 
+	public static final String[] CLOSE = {
+			"#.....#",
+			".#...#.",
+			"..#.#..",
+			"...#...",
+			"..#.#..",
+			".#...#.",
+			"#.....#",
+	};
+
 	private PixelIcons() { }
 
 	public static int width(String[] icon) {

@@ -21,6 +21,7 @@ import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
+import net.fabricmc.loader.impl.modrinth.ModrinthCache;
 import net.fabricmc.loader.impl.modrinth.ModrinthProject;
 import net.minecraft.class_1011;
 import net.minecraft.class_1043;
@@ -68,9 +69,16 @@ public final class IconCache {
 		}
 	}
 
+	private static final long ICON_TTL_MS = 7L * 24 * 60 * 60 * 1000; // неделя
+
+	private final ModrinthCache cache;
 	private final Map<String, Icon> icons = new ConcurrentHashMap<>();
 	private final Queue<Decoded> ready = new ConcurrentLinkedQueue<>();
 	private int counter;
+
+	public IconCache(ModrinthCache cache) {
+		this.cache = cache;
+	}
 
 	public Icon get(ModrinthProject project) {
 		return icons.computeIfAbsent(project.id, id -> {
@@ -111,6 +119,12 @@ public final class IconCache {
 	}
 
 	private void load(ModrinthProject project, Icon icon) {
+		// 1) свежая копия с диска — без сети
+		if (tryDecode(icon, cache.icon(project.id, ICON_TTL_MS))) {
+			return;
+		}
+
+		// 2) скачиваем
 		List<String> candidates = new ArrayList<>();
 		String url = project.iconUrl;
 
@@ -129,18 +143,36 @@ public final class IconCache {
 		for (String candidate : candidates) {
 			try {
 				byte[] bytes = download(candidate);
-				Decoded decoded = decode(icon, bytes);
 
-				if (decoded != null) {
-					ready.add(decoded);
+				if (tryDecode(icon, bytes)) {
+					cache.putIcon(project.id, bytes);
 					return;
 				}
 			} catch (Exception ignored) {
-				// пробуем следующий вариант, в конце останется плейсхолдер
+				// пробуем следующий вариант
 			}
 		}
 
-		icon.failed = true;
+		// 3) сети нет или не помогла — лучше устаревшая иконка, чем плейсхолдер
+		if (!tryDecode(icon, cache.icon(project.id, Long.MAX_VALUE))) {
+			icon.failed = true;
+		}
+	}
+
+	private boolean tryDecode(Icon icon, byte[] bytes) {
+		if (bytes == null) {
+			return false;
+		}
+
+		Decoded decoded = decode(icon, bytes);
+
+		if (decoded == null) {
+			return false;
+		}
+
+		ready.add(decoded);
+
+		return true;
 	}
 
 	private static byte[] download(String url) throws Exception {

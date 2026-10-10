@@ -30,6 +30,22 @@ public final class Fmt {
 
 	private Fmt() { }
 
+	/** Грубо превращает markdown-описание Modrinth в читаемый текст: без картинок, ссылок, html и разметки. */
+	public static String stripMarkdown(String md) {
+		String s = md.replace("\r", "");
+		s = s.replaceAll("(?s)<!--.*?-->", "");
+		s = s.replaceAll("!\\[[^\\]]*\\]\\([^)]*\\)", ""); // картинки
+		s = s.replaceAll("\\[([^\\]]*)\\]\\([^)]*\\)", "$1"); // ссылки -> текст
+		s = s.replaceAll("<[^>]+>", ""); // html-теги
+		s = s.replaceAll("(?m)^\\s{0,3}#{1,6}\\s*", ""); // заголовки
+		s = s.replaceAll("(?m)^\\s*[-*+]\\s+", "- "); // маркеры списков
+		s = s.replaceAll("(\\*\\*|\\*|`|~~)", ""); // выделение
+		s = s.replaceAll("[ \\t]+\n", "\n");
+		s = s.replaceAll("\n{3,}", "\n\n");
+
+		return s.trim();
+	}
+
 	/** 36743 -> "36.7K", 272714633 -> "272.71M" (как на сайте Modrinth). */
 	public static String compact(long n) {
 		if (n < 1_000) return Long.toString(n);

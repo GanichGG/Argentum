@@ -8,6 +8,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.ganichgg.argentum.client.screen.CatalogScreen;
 
 import net.minecraft.class_2561;
+import net.minecraft.class_364;
+import net.minecraft.class_8021;
 import net.minecraft.class_4185;
 import net.minecraft.class_437;
 import net.minecraft.class_442;
@@ -26,8 +28,21 @@ public abstract class TitleScreenMixin extends class_437 {
 	// TitleScreen.init()
 	@Inject(method = "method_25426", at = @At("TAIL"))
 	private void argentum$addCatalogButton(CallbackInfo ci) {
+		// Ванильная раскладка: Singleplayer / Multiplayer / Realms идут через 24 от baseY, ниже — ряд Options.
+		int baseY = this.field_22790 / 4 + 48;
+
+		// Освобождаем место, как это делает ModMenu: три верхние кнопки центральной колонки чуть выше
+		// (class_8021 = Widget; method_46427 getY, method_46419 setY, method_25368 getWidth).
+		for (class_364 child : this.method_25396()) {
+			if (child instanceof class_8021 widget && widget.method_25368() == 200
+					&& widget.method_46427() >= baseY && widget.method_46427() <= baseY + 48) {
+				widget.method_46419(widget.method_46427() - 12);
+			}
+		}
+
+		// Наша кнопка — в той же колонке сразу под Realms: baseY + 36 (новый Y Realms) + 24
 		this.method_37063(class_4185.method_46430(class_2561.method_43470("Моды Argentum"),
-				button -> this.field_22787.method_1507(new CatalogScreen(this))).method_46434(6, 6, 100, 20).method_46431());
+				button -> this.field_22787.method_1507(new CatalogScreen(this))).method_46434(this.field_22789 / 2 - 100, baseY + 60, 200, 20).method_46431());
 
 		// Для разработки: файл .argentum-open-catalog в папке игры открывает каталог сразу при старте (и удаляется) —
 		// удобно снимать скриншоты без ввода. Переменная окружения не годится: Prism уже запущен и игре её не передаст.
@@ -40,7 +55,7 @@ public abstract class TitleScreenMixin extends class_437 {
 				// неважно
 			}
 
-			this.field_22787.method_1507(new CatalogScreen(this));
+			this.field_22787.method_1507(new CatalogScreen(this).enableDevTimeline());
 		}
 	}
 }

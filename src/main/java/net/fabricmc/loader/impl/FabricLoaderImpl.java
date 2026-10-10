@@ -59,6 +59,7 @@ import net.fabricmc.loader.impl.discovery.ModResolver;
 import net.fabricmc.loader.impl.discovery.RuntimeModRemapper;
 import net.fabricmc.loader.impl.entrypoint.EntrypointStorage;
 import net.fabricmc.loader.impl.game.GameProvider;
+import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.loader.impl.launch.MappingConfiguration;
 import net.fabricmc.loader.impl.launch.knot.Knot;
@@ -238,6 +239,8 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 		boolean remapRegularMods = isDevelopmentEnvironment();
 		VersionOverrides versionOverrides = new VersionOverrides();
 		DependencyOverrides depOverrides = new DependencyOverrides(configDir);
+
+		PendingRemovals.apply(getModsDirectory0()); // ArgentumLoader: моды, отмеченные на удаление в прошлой сессии
 
 		// discover mods
 

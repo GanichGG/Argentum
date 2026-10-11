@@ -27,6 +27,7 @@ import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.MemoryStack;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 import net.minecraft.class_1041;
@@ -213,7 +214,7 @@ public final class Handoff {
 			} catch (Exception e) {
 				Log.warn(LogCategory.GENERAL, "Не удалось запустить фоновую копию игры", e);
 				state = State.FAILED;
-				failure = "не удалось запустить: " + e.getMessage();
+				failure = Lang.tr("не удалось запустить: ") + e.getMessage();
 				return;
 			}
 
@@ -257,17 +258,17 @@ public final class Handoff {
 						}
 					}
 
-					fail(process, "фоновая копия неожиданно закрылась");
+					fail(process, Lang.tr("фоновая копия неожиданно закрылась"));
 					return;
 				}
 
 				if (!process.isAlive()) {
-					fail(process, "фоновая копия не запустилась (код " + process.exitValue() + ")");
+					fail(process, Lang.tr("фоновая копия не запустилась (код ") + process.exitValue() + ")");
 					return;
 				}
 
 				if (System.currentTimeMillis() > deadline) {
-					fail(process, "фоновая копия слишком долго запускается");
+					fail(process, Lang.tr("фоновая копия слишком долго запускается"));
 					process.destroyForcibly();
 					return;
 				}
@@ -338,7 +339,7 @@ public final class Handoff {
 		} catch (IOException e) {
 			synchronized (LOCK) {
 				state = State.FAILED;
-				failure = "не удалось передать команду: " + e.getMessage();
+				failure = Lang.tr("не удалось передать команду: ") + e.getMessage();
 			}
 
 			return false;
@@ -381,7 +382,7 @@ public final class Handoff {
 
 		synchronized (LOCK) {
 			state = State.FAILED;
-			failure = "новая копия не отозвалась, остаёмся в текущей";
+			failure = Lang.tr("новая копия не отозвалась, остаёмся в текущей");
 		}
 	}
 

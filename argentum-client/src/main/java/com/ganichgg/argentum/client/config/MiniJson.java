@@ -14,6 +14,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.fabricmc.loader.impl.i18n.Lang;
+
 /**
  * Крошечный разборщик JSON/JSON5 для редактора настроек: комментарии, одинарные кавычки, ключи без кавычек и запятые
  * в конце не мешают. Числа — {@link Long} или {@link Double}, объекты — {@link LinkedHashMap} (порядок сохраняется).
@@ -35,7 +37,7 @@ final class MiniJson {
 		p.skip();
 
 		if (p.pos < text.length()) {
-			throw new IOException("лишние данные после JSON в позиции " + p.pos);
+			throw new IOException(Lang.tr("лишние данные после JSON в позиции ") + p.pos);
 		}
 
 		if (sawComment != null) {
@@ -62,7 +64,7 @@ final class MiniJson {
 				int end = s.indexOf("*/", pos + 2);
 
 				if (end < 0) {
-					throw new IOException("не закрыт комментарий");
+					throw new IOException(Lang.tr("не закрыт комментарий"));
 				}
 
 				pos = end + 2;
@@ -80,7 +82,7 @@ final class MiniJson {
 
 	private Object value() throws IOException {
 		if (pos >= s.length()) {
-			throw new IOException("неожиданный конец JSON");
+			throw new IOException(Lang.tr("неожиданный конец JSON"));
 		}
 
 		char c = s.charAt(pos);
@@ -123,7 +125,7 @@ final class MiniJson {
 
 			return Double.parseDouble(token);
 		} catch (NumberFormatException e) {
-			throw new IOException("не значение JSON: " + token);
+			throw new IOException(Lang.tr("не значение JSON: ") + token);
 		}
 	}
 
@@ -150,7 +152,7 @@ final class MiniJson {
 			skip();
 
 			if (pos >= s.length() || s.charAt(pos) != ':') {
-				throw new IOException("ожидалось ':' после ключа " + key);
+				throw new IOException(Lang.tr("ожидалось ':' после ключа ") + key);
 			}
 
 			pos++;
@@ -165,7 +167,7 @@ final class MiniJson {
 		}
 
 		if (pos >= s.length()) {
-			throw new IOException("не закрыт объект");
+			throw new IOException(Lang.tr("не закрыт объект"));
 		}
 
 		pos++; // }
@@ -189,7 +191,7 @@ final class MiniJson {
 		}
 
 		if (pos >= s.length()) {
-			throw new IOException("не закрыт массив");
+			throw new IOException(Lang.tr("не закрыт массив"));
 		}
 
 		pos++; // ]
@@ -215,7 +217,7 @@ final class MiniJson {
 				case 'f': sb.append('\f'); break;
 				case 'u':
 					if (pos + 4 > s.length()) {
-						throw new IOException("обрезан \\u-код");
+						throw new IOException(Lang.tr("обрезан \\u-код"));
 					}
 
 					sb.append((char) Integer.parseInt(s.substring(pos, pos + 4), 16));
@@ -229,7 +231,7 @@ final class MiniJson {
 		}
 
 		if (pos >= s.length()) {
-			throw new IOException("не закрыта строка");
+			throw new IOException(Lang.tr("не закрыта строка"));
 		}
 
 		pos++; // закрывающая кавычка

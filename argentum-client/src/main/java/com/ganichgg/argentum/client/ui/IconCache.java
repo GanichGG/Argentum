@@ -31,6 +31,7 @@ import org.lwjgl.system.MemoryUtil;
 
 import com.ganichgg.argentum.client.ui.webp.WebP;
 
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.modrinth.ModrinthCache;
 import net.fabricmc.loader.impl.modrinth.ModrinthNet;
 import net.fabricmc.loader.impl.modrinth.ModrinthProject;
@@ -233,7 +234,7 @@ public final class IconCache {
 				out.write(buf, 0, read);
 
 				if (out.size() > MAX_DOWNLOAD) {
-					throw new java.io.IOException("слишком большая иконка");
+					throw new java.io.IOException(Lang.tr("слишком большая иконка"));
 				}
 			}
 

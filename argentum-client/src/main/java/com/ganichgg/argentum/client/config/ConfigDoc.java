@@ -18,6 +18,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import net.fabricmc.loader.impl.i18n.Lang;
+
 /**
  * Файл настроек мода как плоский список записей «ключ — значение» для встроенного редактора.
  * Поддерживаются JSON/JSON5, TOML и .properties. Перед первой записью рядом кладётся копия {@code <имя>.argentum.bak}.
@@ -148,7 +150,7 @@ public abstract class ConfigDoc {
 			this.lossy = comments[0] || file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json5");
 
 			if (!(this.root instanceof Map)) {
-				throw new IOException("корень файла — не объект");
+				throw new IOException(Lang.tr("корень файла — не объект"));
 			}
 
 			flatten(this.root, new ArrayList<>());

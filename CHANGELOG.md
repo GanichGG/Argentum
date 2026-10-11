@@ -2,6 +2,11 @@
 
 Release notes are taken from the section whose heading matches the version (see `tools/release_notes.py`).
 
+## [0.1B3] - 2026-10-11 (beta)
+
+- Installer: the language now follows the language of the system at run time (the downloaded exe was always English,
+  because the language of the build machine was baked into it).
+
 ## [0.1B2] - 2026-10-11 (beta)
 
 - New installer window in the style of the Fabric installer, with standard Windows controls: it finds Prism Launcher

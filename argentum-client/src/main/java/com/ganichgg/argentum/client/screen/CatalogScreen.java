@@ -41,6 +41,7 @@ import net.fabricmc.loader.impl.discovery.ModResolutionException;
 import net.fabricmc.loader.impl.failsafe.FailSafe;
 import net.fabricmc.loader.impl.discovery.Preflight;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.modrinth.DependencyResolver;
 import net.fabricmc.loader.impl.modrinth.CrashDiagnoser;
 import net.fabricmc.loader.impl.modrinth.InstalledModsIndex;
@@ -338,8 +339,15 @@ public final class CatalogScreen extends class_437 {
 		}
 	}
 
+	/** Язык игры мог смениться с прошлого открытия — перечитываем его до того, как строить любые надписи. */
+	private static class_2561 refreshedTitle() {
+		Lang.refresh();
+
+		return class_2561.method_43470(Lang.tr("Моды Argentum"));
+	}
+
 	public CatalogScreen(class_437 parent) {
-		super(class_2561.method_43470("Моды Argentum"));
+		super(refreshedTitle());
 		this.parent = parent;
 		this.gameVersion = FabricLoader.getInstance().getModContainer("minecraft")
 				.map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("1.21.1");
@@ -349,7 +357,7 @@ public final class CatalogScreen extends class_437 {
 	public CatalogScreen afterApply(String message) {
 		this.tab = Tab.INSTALLED;
 		this.tabPos = 1F;
-		this.initialStatus = message == null || message.isEmpty() ? "Моды применены" : message;
+		this.initialStatus = message == null || message.isEmpty() ? Lang.tr("Моды применены") : message;
 
 		return this;
 	}
@@ -513,7 +521,7 @@ public final class CatalogScreen extends class_437 {
 		this.searchField = new class_342(this.field_22793, PAD + 5, SEARCH_Y + 7, w - PAD * 2 - FIELD_H - 4 - 10, 10, text(""));
 		this.searchField.method_1858(false); // свой фон рисуем сами
 		this.searchField.method_1880(80);
-		this.searchField.method_47404(text("Поиск модов на Modrinth"));
+		this.searchField.method_47404(text(Lang.tr("Поиск модов на Modrinth")));
 		this.searchField.method_1852(this.query);
 		this.searchField.method_1863(s -> {
 			this.query = s;
@@ -555,7 +563,7 @@ public final class CatalogScreen extends class_437 {
 	@Override
 	public void method_25419() {
 		if (ChangeQueue.applying()) {
-			setStatus("Подожди, применяю изменения", C_GRAY);
+			setStatus(Lang.tr("Подожди, применяю изменения"), C_GRAY);
 
 			return;
 		}
@@ -688,12 +696,12 @@ public final class CatalogScreen extends class_437 {
 
 		if (hadSaved && this.cache.list("popular", POPULAR_FRESH_MS) != null) {
 			this.loading = false;
-			setStatus("Популярные моды для " + this.gameVersion, C_GRAY);
+			setStatus(Lang.tr("Популярные моды для ") + this.gameVersion, C_GRAY);
 			return;
 		}
 
 		this.loading = true;
-		setStatus(popular ? "Популярные моды для " + this.gameVersion : q.isEmpty() ? "Применяю фильтры" : "Ищу «" + q + "»", C_GRAY);
+		setStatus(popular ? Lang.tr("Популярные моды для ") + this.gameVersion : q.isEmpty() ? Lang.tr("Применяю фильтры") : Lang.tr("Ищу «") + q + "»", C_GRAY);
 
 		WORKER.submit(() -> {
 			try {
@@ -705,7 +713,7 @@ public final class CatalogScreen extends class_437 {
 					this.scrollTarget = 0;
 					this.scroll = 0;
 					this.listEpoch++;
-					setStatus(page.hits.isEmpty() ? "Ничего не найдено под " + this.gameVersion : (popular ? "Популярные моды для " + this.gameVersion : "Найдено: " + page.totalHits), page.hits.isEmpty() ? C_RED : C_GRAY);
+					setStatus(page.hits.isEmpty() ? Lang.tr("Ничего не найдено под ") + this.gameVersion : (popular ? Lang.tr("Популярные моды для ") + this.gameVersion : Lang.tr("Найдено: ") + page.totalHits), page.hits.isEmpty() ? C_RED : C_GRAY);
 				}
 
 				if (popular) {
@@ -719,7 +727,7 @@ public final class CatalogScreen extends class_437 {
 				Log.warn(LogCategory.MODRINTH, "Поиск «" + q + "» не удался", e);
 
 				if (token == this.requestToken) {
-					setStatus(hadSaved ? "Нет сети — список из кэша" : "Поиск не удался: " + shortError(e), hadSaved ? C_GRAY : C_RED);
+					setStatus(hadSaved ? Lang.tr("Нет сети — список из кэша") : Lang.tr("Поиск не удался: ") + shortError(e), hadSaved ? C_GRAY : C_RED);
 				}
 			} finally {
 				if (token == this.requestToken) {
@@ -772,7 +780,7 @@ public final class CatalogScreen extends class_437 {
 		this.scrollTarget = 0;
 		this.scroll = 0;
 		this.loading = true;
-		setStatus(this.installedRows.isEmpty() ? "Здесь пока пусто" : "Установлено: " + this.installedRows.size(), C_GRAY);
+		setStatus(this.installedRows.isEmpty() ? Lang.tr("Здесь пока пусто") : Lang.tr("Установлено: ") + this.installedRows.size(), C_GRAY);
 
 		WORKER.submit(() -> {
 			try {
@@ -790,7 +798,7 @@ public final class CatalogScreen extends class_437 {
 
 				if (token == this.requestToken) {
 					this.installedRows = buildInstalledRows(ids);
-					setStatus(ids.isEmpty() ? "Здесь пока пусто" : "Установлено: " + ids.size(), C_GRAY);
+					setStatus(ids.isEmpty() ? Lang.tr("Здесь пока пусто") : Lang.tr("Установлено: ") + ids.size(), C_GRAY);
 				}
 
 				List<String> remote = new ArrayList<>();
@@ -812,7 +820,7 @@ public final class CatalogScreen extends class_437 {
 					Log.warn(LogCategory.MODRINTH, "Не удалось обновить список установленных", e);
 
 					if (token == this.requestToken) {
-						setStatus("Нет сети — данные из кэша", C_GRAY);
+						setStatus(Lang.tr("Нет сети — данные из кэша"), C_GRAY);
 					}
 				}
 
@@ -853,7 +861,7 @@ public final class CatalogScreen extends class_437 {
 			this.updates = up;
 
 			if (!up.isEmpty()) {
-				setStatus("Доступно обновлений: " + up.size(), C_OK);
+				setStatus(Lang.tr("Доступно обновлений: ") + up.size(), C_OK);
 			}
 		} catch (Exception e) {
 			Log.warn(LogCategory.MODRINTH, "Не удалось проверить обновления", e);
@@ -888,7 +896,7 @@ public final class CatalogScreen extends class_437 {
 		} else {
 			this.requestToken++; // отменяем незавершённую загрузку списка установленных
 			this.loading = false;
-			setStatus(this.catalogRows.isEmpty() ? "" : "Популярные моды для " + this.gameVersion, C_GRAY);
+			setStatus(this.catalogRows.isEmpty() ? "" : Lang.tr("Популярные моды для ") + this.gameVersion, C_GRAY);
 
 			if (this.catalogRows.isEmpty()) {
 				search(this.query.trim());
@@ -926,7 +934,7 @@ public final class CatalogScreen extends class_437 {
 
 	private void unqueue(ModrinthProject p) {
 		ChangeQueue.remove(p.id);
-		setStatus("Убрано из очереди: «" + p.title + "»", C_GRAY);
+		setStatus(Lang.tr("Убрано из очереди: «") + p.title + "»", C_GRAY);
 	}
 
 	/** Кнопка «Установить»: мод встаёт в очередь (повторное нажатие убирает), скачивается он при «Применить изменения». */
@@ -934,7 +942,7 @@ public final class CatalogScreen extends class_437 {
 		if (ChangeQueue.get(p.id) != null) {
 			unqueue(p);
 		} else {
-			queue(ChangeQueue.Kind.INSTALL, p, null, "В очереди: «" + p.title + "»", C_GRAY);
+			queue(ChangeQueue.Kind.INSTALL, p, null, Lang.tr("В очереди: «") + p.title + "»", C_GRAY);
 		}
 	}
 
@@ -946,7 +954,7 @@ public final class CatalogScreen extends class_437 {
 		if (queuedKind(p, ChangeQueue.Kind.REMOVE)) {
 			unqueue(p);
 		} else {
-			queue(ChangeQueue.Kind.REMOVE, p, null, "Будет удалён: «" + p.title + "»", C_WARN);
+			queue(ChangeQueue.Kind.REMOVE, p, null, Lang.tr("Будет удалён: «") + p.title + "»", C_WARN);
 		}
 	}
 
@@ -970,14 +978,14 @@ public final class CatalogScreen extends class_437 {
 		ChangeQueue.begin();
 		this.popup = null;
 		this.applyMessage = "";
-		setStatus("Применяю изменения", C_GRAY);
+		setStatus(Lang.tr("Применяю изменения"), C_GRAY);
 		WORKER.submit(() -> runApply(todo));
 	}
 
 	private void retryPrepare() {
 		Handoff.requestPrepare();
 		ChangeQueue.beginPrepareOnly();
-		setStatus("Готовлю клиент", C_GRAY);
+		setStatus(Lang.tr("Готовлю клиент"), C_GRAY);
 	}
 
 	private static String applyLabel(ChangeQueue.Change c) {
@@ -985,13 +993,13 @@ public final class CatalogScreen extends class_437 {
 
 		switch (c.kind) {
 		case REMOVE:
-			return "Удаляю " + t;
+			return Lang.tr("Удаляю ") + t;
 		case DISABLE:
-			return "Отключаю " + t;
+			return Lang.tr("Отключаю ") + t;
 		case ENABLE:
-			return "Включаю " + t;
+			return Lang.tr("Включаю ") + t;
 		default:
-			return "Скачиваю " + t;
+			return Lang.tr("Скачиваю ") + t;
 		}
 	}
 
@@ -1037,21 +1045,21 @@ public final class CatalogScreen extends class_437 {
 
 			if (ready.isEmpty() && !ChangeQueue.dirty()) {
 				rollback(added, mods, indexBackup);
-				setStatus("Не удалось применить: " + lastError, C_RED);
+				setStatus(Lang.tr("Не удалось применить: ") + lastError, C_RED);
 				ChangeQueue.end();
 
 				return;
 			}
 
 			// 2. Предпроверка: настоящий разрешитель зависимостей лоадера на том наборе, который получится после применения
-			setStatus("Проверяю совместимость", C_GRAY);
+			setStatus(Lang.tr("Проверяю совместимость"), C_GRAY);
 			ModResolutionException problem = Preflight.check(plannedJars(ready, staged));
 
 			if (problem != null) {
 				Log.warn(LogCategory.MODRINTH, "Предпроверка набора модов не прошла: %s", problem.getMessage());
 				rollback(added, mods, indexBackup);
 				showPreflightError(problem);
-				setStatus("Применение отменено: моды несовместимы", C_RED);
+				setStatus(Lang.tr("Применение отменено: моды несовместимы"), C_RED);
 				ChangeQueue.end();
 
 				return;
@@ -1089,14 +1097,14 @@ public final class CatalogScreen extends class_437 {
 			up.keySet().removeAll(appliedIds);
 			this.updates = up;
 
-			this.applyMessage = failed == 0 ? "Изменения применены: " + done : "Применено " + done + ", с ошибкой " + failed;
-			setStatus(failed == 0 ? "Готовлю клиент" : "С ошибкой: " + failed + " — " + lastError, failed == 0 ? C_GRAY : C_WARN);
+			this.applyMessage = failed == 0 ? Lang.tr("Изменения применены: ") + done : Lang.tr("Применено ") + done + Lang.tr(", с ошибкой ") + failed;
+			setStatus(failed == 0 ? Lang.tr("Готовлю клиент") : Lang.tr("С ошибкой: ") + failed + " — " + lastError, failed == 0 ? C_GRAY : C_WARN);
 			Handoff.requestPrepare(); // сначала запрос (состояние становится PREPARING), потом признак — иначе кадр увидит старое состояние
 			ChangeQueue.filesDone();
 		} catch (Throwable t) {
 			Log.warn(LogCategory.MODRINTH, "Применение изменений оборвалось", t);
 			rollback(added, mods, indexBackup);
-			setStatus("Не удалось применить изменения", C_RED);
+			setStatus(Lang.tr("Не удалось применить изменения"), C_RED);
 			ChangeQueue.end();
 		}
 	}
@@ -1113,7 +1121,7 @@ public final class CatalogScreen extends class_437 {
 			List<ModrinthVersion> plan = DependencyResolver.resolve(p.id, LOADER, this.gameVersion, InstalledModsIndex.load(modsDir()));
 
 			if (plan.isEmpty()) {
-				throw new IOException("нет версии под " + this.gameVersion);
+				throw new IOException(Lang.tr("нет версии под ") + this.gameVersion);
 			}
 
 			added.addAll(ModInstaller.install(modsDir(), plan, progress).installedFiles);
@@ -1204,14 +1212,14 @@ public final class CatalogScreen extends class_437 {
 			break;
 		case DISABLE:
 			if (file == null) {
-				throw new IOException("файл мода не найден");
+				throw new IOException(Lang.tr("файл мода не найден"));
 			}
 
 			LocalMods.disable(modsDir(), file);
 			break;
 		case ENABLE:
 			if (file == null) {
-				throw new IOException("файл мода не найден");
+				throw new IOException(Lang.tr("файл мода не найден"));
 			}
 
 			LocalMods.enable(modsDir(), file);
@@ -1242,7 +1250,7 @@ public final class CatalogScreen extends class_437 {
 
 	/** Из полного отчёта лоадера берём суть: что сделать и первые причины (остальное — «и ещё N» и файл отчёта). */
 	private static String summarize(String full, String fallback) {
-		if (full == null || !full.contains("Подробности")) {
+		if (full == null || !full.contains(Lang.tr("Подробности"))) {
 			return fallback;
 		}
 
@@ -1258,10 +1266,10 @@ public final class CatalogScreen extends class_437 {
 				continue;
 			}
 
-			if (t.startsWith("Подробности")) {
+			if (t.startsWith(Lang.tr("Подробности"))) {
 				details = true;
 				out.add("");
-				out.add("Почему:");
+				out.add(Lang.tr("Почему:"));
 			} else if (!details) {
 				out.add(t);
 			} else if (shownDetails < 4) {
@@ -1273,7 +1281,7 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		if (extra > 0) {
-			out.add("…и ещё " + extra + " (см. полный отчёт)");
+			out.add(Lang.tr("…и ещё ") + extra + Lang.tr(" (см. полный отчёт)"));
 		}
 
 		return String.join("\n", out);
@@ -1281,7 +1289,7 @@ public final class CatalogScreen extends class_437 {
 
 	private void removeMod(ModrinthProject p, String fileName) throws IOException {
 		if (fileName == null) {
-			throw new IOException("файл мода не найден");
+			throw new IOException(Lang.tr("файл мода не найден"));
 		}
 
 		for (String name : new String[] {fileName, fileName + LocalMods.DISABLED_SUFFIX}) {
@@ -1310,11 +1318,11 @@ public final class CatalogScreen extends class_437 {
 			ChangeQueue.end();
 
 			if (!Handoff.swap(this.field_22787, true, this.applyMessage)) {
-				setStatus("Не удалось переключиться на новую копию", C_RED);
+				setStatus(Lang.tr("Не удалось переключиться на новую копию"), C_RED);
 			}
 		} else if (hs == Handoff.State.FAILED) {
 			ChangeQueue.end();
-			setStatus("Моды не подготовлены: " + Handoff.failure(), C_RED);
+			setStatus(Lang.tr("Моды не подготовлены: ") + Handoff.failure(), C_RED);
 		}
 	}
 
@@ -1341,7 +1349,7 @@ public final class CatalogScreen extends class_437 {
 		ConfigInfo c = this.configInfo.get(p.id);
 
 		if (c == null || c.modId == null) {
-			setStatus("«" + p.title + "» ещё не загружен — нужен перезапуск", C_GRAY);
+			setStatus("«" + p.title + Lang.tr("» ещё не загружен — нужен перезапуск"), C_GRAY);
 			return;
 		}
 
@@ -1368,21 +1376,21 @@ public final class CatalogScreen extends class_437 {
 
 		if (!c.files.isEmpty()) { // формат редактору незнаком — отдаём системной программе
 			Path file = c.files.get(0);
-			setStatus("Открываю " + file.getFileName(), C_OK);
+			setStatus(Lang.tr("Открываю ") + file.getFileName(), C_OK);
 
 			WORKER.submit(() -> {
 				try {
 					ModConfigs.openExternally(file);
 				} catch (IOException e) {
 					Log.warn(LogCategory.MODRINTH, "Не удалось открыть " + file, e);
-					setStatus("Не удалось открыть " + file.getFileName(), C_RED);
+					setStatus(Lang.tr("Не удалось открыть ") + file.getFileName(), C_RED);
 				}
 			});
 
 			return;
 		}
 
-		setStatus("У «" + p.title + "» нет настроек", C_GRAY);
+		setStatus(Lang.tr("У «") + p.title + Lang.tr("» нет настроек"), C_GRAY);
 	}
 
 	// ---------------------------------------------------------------- панель описания
@@ -1656,7 +1664,7 @@ public final class CatalogScreen extends class_437 {
 
 			if (hs == Handoff.State.READY) {
 				press("apply");
-				Handoff.swap(this.field_22787, true, "Изменения применены");
+				Handoff.swap(this.field_22787, true, Lang.tr("Изменения применены"));
 			} else if (hs == Handoff.State.FAILED) {
 				press("apply");
 				retryPrepare();
@@ -2170,7 +2178,7 @@ public final class CatalogScreen extends class_437 {
 		for (Tab t : Tab.values()) {
 			float weight = t == Tab.CATALOG ? 1F - this.tabPos : this.tabPos;
 			boolean hovered = inside(mx, my, tabX(t), TABS_Y, tabWidth(t), TABS_H);
-			String label = t == Tab.CATALOG ? "Каталог" : "Установленные";
+			String label = t == Tab.CATALOG ? Lang.tr("Каталог") : Lang.tr("Установленные");
 			int color = lerpColor(lerpColor(C_GRAY, C_TEXT, anim("tab" + t, hovered)), C_WHITE, weight);
 			text(ctx, label, tabX(t) + (tabWidth(t) - textWidth(label)) / 2, TABS_Y + 4, color);
 		}
@@ -2182,17 +2190,17 @@ public final class CatalogScreen extends class_437 {
 		drawHeaderControls(ctx, mx, my, w);
 	}
 
-	private static final String[][] SORTS = {{"", "По умолчанию"}, {"relevance", "Релевантность"}, {"downloads", "Загрузки"}, {"follows", "Лайки"}, {"newest", "Новые"}, {"updated", "Недавно обновлённые"}};
-	private static final String[] INSTALLED_FILTERS = {"Все", "С обновлениями", "Отключённые"};
+	private static final String[][] SORTS = {{"", "По умолчанию"}, {"relevance", "Релевантность"}, {"downloads", "Загрузки"}, {"follows", "Лайки"}, {"newest", "Новые"}, {"updated", "Недавно обновлённые"}}; // оригиналы: переводятся при показе
+	private static final String[] INSTALLED_FILTERS = {"Все", "С обновлениями", "Отключённые"}; // оригиналы: переводятся при показе
 
 	private String sortLabel() {
 		for (String[] s : SORTS) {
 			if (s[0].equals(this.sortKey == null ? "" : this.sortKey)) {
-				return s[1];
+				return Lang.tr(s[1]);
 			}
 		}
 
-		return SORTS[0][1];
+		return Lang.tr(SORTS[0][1]);
 	}
 
 	/** Кнопки справа от вкладок (то, что не помещается, пропускается): для каталога — сортировка и фильтры, для установленных — фильтр, обновления, импорт. */
@@ -2200,12 +2208,12 @@ public final class CatalogScreen extends class_437 {
 		List<String[]> buttons = new ArrayList<>(); // id, подпись, со стрелкой?
 
 		if (this.tab == Tab.CATALOG) {
-			buttons.add(new String[] {"filter", "Фильтры" + (this.categoryFilter.isEmpty() ? "" : " (" + this.categoryFilter.size() + ")"), "1"});
-			buttons.add(new String[] {"sort", "Сортировка: " + sortLabel(), "1"});
+			buttons.add(new String[] {"filter", Lang.tr("Фильтры") + (this.categoryFilter.isEmpty() ? "" : " (" + this.categoryFilter.size() + ")"), "1"});
+			buttons.add(new String[] {"sort", Lang.tr("Сортировка: ") + sortLabel(), "1"});
 		} else {
-			buttons.add(new String[] {"import", "Импорт сборки", "0"});
-			buttons.add(new String[] {"updall", this.updates.isEmpty() ? (this.checkingUpdates ? "Проверяю..." : "Проверить обновления") : "Обновить всё (" + this.updates.size() + ")", "0"});
-			buttons.add(new String[] {"instfilter", INSTALLED_FILTERS[this.installedFilter], "1"});
+			buttons.add(new String[] {"import", Lang.tr("Импорт сборки"), "0"});
+			buttons.add(new String[] {"updall", this.updates.isEmpty() ? (this.checkingUpdates ? Lang.tr("Проверяю...") : Lang.tr("Проверить обновления")) : Lang.tr("Обновить всё (") + this.updates.size() + ")", "0"});
+			buttons.add(new String[] {"instfilter", Lang.tr(INSTALLED_FILTERS[this.installedFilter]), "1"});
 		}
 
 		int right = w - PAD;
@@ -2247,7 +2255,7 @@ public final class CatalogScreen extends class_437 {
 				drawSkeleton(ctx);
 				ctx.method_44380();
 			} else {
-				String message = this.tab == Tab.CATALOG ? "Ничего не найдено" : "Здесь появятся моды, установленные через каталог";
+				String message = this.tab == Tab.CATALOG ? Lang.tr("Ничего не найдено") : Lang.tr("Здесь появятся моды, установленные через каталог");
 				text(ctx, message, (right - textWidth(message)) / 2, LIST_TOP + (bottom - LIST_TOP) / 2 - 4, C_GRAY);
 			}
 
@@ -2325,7 +2333,7 @@ public final class CatalogScreen extends class_437 {
 			int y = (int) (LIST_TOP + this.rowTop[current.size()] - this.scroll);
 
 			if (y < bottom) {
-				String more = "Загружаю ещё";
+				String more = Lang.tr("Загружаю ещё");
 				int total = 11 + 6 + textWidth(more);
 				int sx = (right - total) / 2;
 				PixelIcons.spinner(ctx, sx, y + 2, C_ACCENT);
@@ -2483,7 +2491,7 @@ public final class CatalogScreen extends class_437 {
 		String own = this.installedFiles.get(p.id);
 
 		if (own != null && FailSafe.failureForFile(own) != null) {
-			used += badge(ctx, "Не запустился", C_RED, x + used, y, maxWidth - used);
+			used += badge(ctx, Lang.tr("Не запустился"), C_RED, x + used, y, maxWidth - used);
 		}
 
 		ChangeQueue.Change q = ChangeQueue.get(p.id);
@@ -2494,18 +2502,18 @@ public final class CatalogScreen extends class_437 {
 
 			switch (q.kind) {
 			case REMOVE:
-				label = "Будет удалён";
+				label = Lang.tr("Будет удалён");
 				color = C_RED;
 				break;
 			case DISABLE:
-				label = "Будет отключён";
+				label = Lang.tr("Будет отключён");
 				break;
 			case ENABLE:
-				label = "Будет включён";
+				label = Lang.tr("Будет включён");
 				color = C_OK;
 				break;
 			case VERSION:
-				label = q.version != null ? "Станет " + q.version.versionNumber : "Обновится";
+				label = q.version != null ? Lang.tr("Станет ") + q.version.versionNumber : Lang.tr("Обновится");
 				color = C_ACCENT;
 				break;
 			default:
@@ -2518,19 +2526,19 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		if (isDisabled(p)) {
-			used += badge(ctx, "Отключён", C_GRAY, x + used, y, maxWidth - used);
+			used += badge(ctx, Lang.tr("Отключён"), C_GRAY, x + used, y, maxWidth - used);
 		} else {
 			ConfigInfo c = this.configInfo.get(p.id);
 			boolean active = c != null && c.modId != null;
-			used += badge(ctx, active ? "Активен" : "После перезапуска", active ? C_OK : C_WARN, x + used, y, maxWidth - used);
+			used += badge(ctx, active ? Lang.tr("Активен") : Lang.tr("После перезапуска"), active ? C_OK : C_WARN, x + used, y, maxWidth - used);
 		}
 
 		if (this.updates.containsKey(p.id)) {
-			used += badge(ctx, "Обновление", C_ACCENT, x + used, y, maxWidth - used);
+			used += badge(ctx, Lang.tr("Обновление"), C_ACCENT, x + used, y, maxWidth - used);
 		}
 
 		if (p.id.startsWith(LocalMods.LOCAL_PREFIX)) {
-			used += badge(ctx, "Локальный", C_GRAY, x + used, y, maxWidth - used);
+			used += badge(ctx, Lang.tr("Локальный"), C_GRAY, x + used, y, maxWidth - used);
 		}
 
 		return used;
@@ -2578,24 +2586,24 @@ public final class CatalogScreen extends class_437 {
 
 		if (this.tab == Tab.INSTALLED) {
 			if (busy) {
-				button(ctx, key, x, y, w, h, "Применяю", null, true, C_DISABLED, C_SECONDARY_HOVER, false, C_GRAY);
+				button(ctx, key, x, y, w, h, Lang.tr("Применяю"), null, true, C_DISABLED, C_SECONDARY_HOVER, false, C_GRAY);
 			} else if (queuedKind(p, ChangeQueue.Kind.REMOVE)) {
-				button(ctx, key, x, y, w, h, "Вернуть", null, false, C_SECONDARY, C_SECONDARY_HOVER, hovered, C_WARN);
+				button(ctx, key, x, y, w, h, Lang.tr("Вернуть"), null, false, C_SECONDARY, C_SECONDARY_HOVER, hovered, C_WARN);
 			} else {
-				button(ctx, key, x, y, w, h, "Удалить", null, false, C_SECONDARY, C_SECONDARY_HOVER, hovered, C_WHITE);
+				button(ctx, key, x, y, w, h, Lang.tr("Удалить"), null, false, C_SECONDARY, C_SECONDARY_HOVER, hovered, C_WHITE);
 			}
 		} else if (this.installedFiles.containsKey(p.id) && !busy) {
-			button(ctx, key, x, y, w, h, "Установлен", null, false, C_DISABLED, C_DISABLED, false, C_GRAY);
+			button(ctx, key, x, y, w, h, Lang.tr("Установлен"), null, false, C_DISABLED, C_DISABLED, false, C_GRAY);
 		} else if (busy) {
 			Float target = this.progressById.get(p.id);
 			float fl = target == null ? -1F : target;
 			float shown = approach(this.btnHover.getOrDefault("pf:" + p.id, 0F), Math.max(0F, fl), this.dt, 10);
 			this.btnHover.put("pf:" + p.id, shown);
-			buttonFill(ctx, key, x, y, w, h, fl >= 0F ? Math.round(shown * 100) + "%" : "Установка", null, false, C_DISABLED, C_DISABLED, false, C_WHITE, fl >= 0F ? shown : -2F);
+			buttonFill(ctx, key, x, y, w, h, fl >= 0F ? Math.round(shown * 100) + "%" : Lang.tr("Установка"), null, false, C_DISABLED, C_DISABLED, false, C_WHITE, fl >= 0F ? shown : -2F);
 		} else if (ChangeQueue.get(p.id) != null) {
-			button(ctx, key, x, y, w, h, hovered ? "Убрать" : "В очереди", null, false, C_SECONDARY, C_SECONDARY_HOVER, hovered, hovered ? C_WHITE : C_ACCENT);
+			button(ctx, key, x, y, w, h, hovered ? Lang.tr("Убрать") : Lang.tr("В очереди"), null, false, C_SECONDARY, C_SECONDARY_HOVER, hovered, hovered ? C_WHITE : C_ACCENT);
 		} else {
-			button(ctx, key, x, y, w, h, "Установить", null, false, C_ACCENT, C_ACCENT_HOVER, hovered, C_ACCENT_TEXT);
+			button(ctx, key, x, y, w, h, Lang.tr("Установить"), null, false, C_ACCENT, C_ACCENT_HOVER, hovered, C_ACCENT_TEXT);
 		}
 	}
 
@@ -2718,7 +2726,7 @@ public final class CatalogScreen extends class_437 {
 		if (!local) {
 			boolean hv = inside(mx, my, innerX, y, innerW, bh) && this.popup == null;
 			button(ctx, "ver", innerX, y, innerW, bh, "", null, false, C_SECONDARY, C_SECONDARY_HOVER, hv, C_TEXT);
-			text(ctx, "Выбрать версию", innerX + 8, y + 6, C_TEXT);
+			text(ctx, Lang.tr("Выбрать версию"), innerX + 8, y + 6, C_TEXT);
 			PixelIcons.draw(ctx, PixelIcons.ARROW_DOWN, innerX + innerW - 15, y + 8, C_TEXT);
 			addHit("ver", p, innerX, y, innerW, bh, false);
 			y += bh + 4;
@@ -2727,16 +2735,16 @@ public final class CatalogScreen extends class_437 {
 		if (this.tab == Tab.INSTALLED) {
 			int half = (innerW - 4) / 2;
 			boolean off = offNow(p);
-			drawGearButton(ctx, "panel-gear", innerX, y, half, bh, p, "Настройки", mx, my);
+			drawGearButton(ctx, "panel-gear", innerX, y, half, bh, p, Lang.tr("Настройки"), mx, my);
 			addHit("gear", p, innerX, y, half, bh, false);
-			button(ctx, "panel-tg", innerX + half + 4, y, innerW - half - 4, bh, off ? "Включить" : "Отключить", PixelIcons.POWER, false,
+			button(ctx, "panel-tg", innerX + half + 4, y, innerW - half - 4, bh, off ? Lang.tr("Включить") : Lang.tr("Отключить"), PixelIcons.POWER, false,
 					C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, innerX + half + 4, y, innerW - half - 4, bh), off ? C_WARN : C_TEXT);
 			addHit("tg", p, innerX + half + 4, y, innerW - half - 4, bh, false);
 			y += bh + 4;
 
 			if (this.updates.containsKey(p.id)) {
 				boolean qv = queuedKind(p, ChangeQueue.Kind.VERSION);
-				button(ctx, "panel-up", innerX, y, half, bh, qv ? "Отменить" : "Обновить", PixelIcons.UP, false, qv ? C_SECONDARY : C_ACCENT, qv ? C_SECONDARY_HOVER : C_ACCENT_HOVER,
+				button(ctx, "panel-up", innerX, y, half, bh, qv ? Lang.tr("Отменить") : Lang.tr("Обновить"), PixelIcons.UP, false, qv ? C_SECONDARY : C_ACCENT, qv ? C_SECONDARY_HOVER : C_ACCENT_HOVER,
 						inside(mx, my, innerX, y, half, bh), qv ? C_ACCENT : C_ACCENT_TEXT);
 				addHit("up", p, innerX, y, half, bh, false);
 				drawActionButton(ctx, "panel-act", p, innerX + half + 4, y, innerW - half - 4, bh, mx, my);
@@ -2815,10 +2823,10 @@ public final class CatalogScreen extends class_437 {
 				lines.addAll(wrap(this.detailBody, width));
 				break;
 			case 3:
-				lines.add("Полное описание недоступно без сети.");
+				lines.add(Lang.tr("Полное описание недоступно без сети."));
 				break;
 			default:
-				lines.add("    Загружаю описание"); // слева место под спиннер
+				lines.add(Lang.tr("    Загружаю описание")); // слева место под спиннер
 			}
 
 			this.detailLines = lines;
@@ -2853,21 +2861,21 @@ public final class CatalogScreen extends class_437 {
 			String widest = null;
 
 			if (hs == Handoff.State.SWAPPING) {
-				label = "Переключаю";
+				label = Lang.tr("Переключаю");
 				fill = -2F;
 			} else if (applying || hs == Handoff.State.PREPARING) {
-				label = "Применяю изменения " + Math.round(this.prepShown * 100) + "%";
-				widest = "Применяю изменения 100%";
+				label = Lang.tr("Применяю изменения ") + Math.round(this.prepShown * 100) + "%";
+				widest = Lang.tr("Применяю изменения 100%");
 				fill = this.prepShown;
 				textColor = C_WHITE;
 			} else if (hs == Handoff.State.FAILED) {
-				label = "Не вышло — повторить";
+				label = Lang.tr("Не вышло — повторить");
 				clickable = true;
 				base = C_SECONDARY;
 				hover = C_SECONDARY_HOVER;
 				textColor = C_WARN;
 			} else {
-				label = pending > 0 && ChangeQueue.size() > 0 ? "Применить изменения (" + ChangeQueue.size() + ")" : "Применить изменения";
+				label = pending > 0 && ChangeQueue.size() > 0 ? Lang.tr("Применить изменения (") + ChangeQueue.size() + ")" : Lang.tr("Применить изменения");
 				clickable = true;
 				base = C_ACCENT;
 				hover = C_ACCENT_HOVER;
@@ -2907,14 +2915,14 @@ public final class CatalogScreen extends class_437 {
 		String status = this.status;
 
 		if (hs == Handoff.State.FAILED && status.isEmpty()) {
-			status = "Моды не подготовлены: " + Handoff.failure();
+			status = Lang.tr("Моды не подготовлены: ") + Handoff.failure();
 		}
 
 		text(ctx, fit(status, rightEdge - textX - 4), textX, top + 8, this.statusColor);
 
 		boolean backHover = inside(mx, my, w - PAD - backW, by, backW, BTN_H);
 		boolean backLocked = ChangeQueue.applying();
-		button(ctx, "back", w - PAD - backW, by, backW, BTN_H, "Назад", null, false, backLocked ? C_DISABLED : C_SECONDARY, backLocked ? C_DISABLED : C_SECONDARY_HOVER, backHover && !backLocked, backLocked ? C_GRAY : C_TEXT);
+		button(ctx, "back", w - PAD - backW, by, backW, BTN_H, Lang.tr("Назад"), null, false, backLocked ? C_DISABLED : C_SECONDARY, backLocked ? C_DISABLED : C_SECONDARY_HOVER, backHover && !backLocked, backLocked ? C_GRAY : C_TEXT);
 	}
 
 	// ---------------------------------------------------------------- отключение, обновления, версии, импорт, диагностика
@@ -2923,7 +2931,7 @@ public final class CatalogScreen extends class_437 {
 		ModrinthProject p = hit.p;
 
 		if (ChangeQueue.applying() && !hit.id.equals("gear") && !hit.id.equals("close")) {
-			setStatus("Подожди, применяю изменения", C_GRAY);
+			setStatus(Lang.tr("Подожди, применяю изменения"), C_GRAY);
 
 			return;
 		}
@@ -2961,10 +2969,10 @@ public final class CatalogScreen extends class_437 {
 		case "updall":
 			if (this.updates.isEmpty()) {
 				if (!this.checkingUpdates) {
-					setStatus("Проверяю обновления", C_GRAY);
+					setStatus(Lang.tr("Проверяю обновления"), C_GRAY);
 					QUICK.submit(() -> {
 						checkUpdatesNow();
-						setStatus(this.updates.isEmpty() ? "Все моды актуальны" : "Доступно обновлений: " + this.updates.size(), this.updates.isEmpty() ? C_OK : C_ACCENT);
+						setStatus(this.updates.isEmpty() ? Lang.tr("Все моды актуальны") : Lang.tr("Доступно обновлений: ") + this.updates.size(), this.updates.isEmpty() ? C_OK : C_ACCENT);
 					});
 				}
 			} else {
@@ -2989,9 +2997,9 @@ public final class CatalogScreen extends class_437 {
 		if (queuedKind(p, ChangeQueue.Kind.ENABLE) || queuedKind(p, ChangeQueue.Kind.DISABLE)) {
 			unqueue(p);
 		} else if (isDisabled(p)) {
-			queue(ChangeQueue.Kind.ENABLE, p, null, "Будет включён: «" + p.title + "»", C_GRAY);
+			queue(ChangeQueue.Kind.ENABLE, p, null, Lang.tr("Будет включён: «") + p.title + "»", C_GRAY);
 		} else {
-			queue(ChangeQueue.Kind.DISABLE, p, null, "Будет отключён: «" + p.title + "»", C_WARN);
+			queue(ChangeQueue.Kind.DISABLE, p, null, Lang.tr("Будет отключён: «") + p.title + "»", C_WARN);
 		}
 	}
 
@@ -3006,7 +3014,7 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		boolean installed = this.installedFiles.containsKey(p.id);
-		queue(installed ? ChangeQueue.Kind.VERSION : ChangeQueue.Kind.INSTALL, p, v, "В очереди: «" + p.title + "» " + v.versionNumber, C_GRAY);
+		queue(installed ? ChangeQueue.Kind.VERSION : ChangeQueue.Kind.INSTALL, p, v, Lang.tr("В очереди: «") + p.title + "» " + v.versionNumber, C_GRAY);
 	}
 
 	private void updateAll() {
@@ -3018,7 +3026,7 @@ public final class CatalogScreen extends class_437 {
 			n++;
 		}
 
-		setStatus("Обновлений в очереди: " + n, C_GRAY);
+		setStatus(Lang.tr("Обновлений в очереди: ") + n, C_GRAY);
 	}
 
 	// ---- выбор версии
@@ -3039,7 +3047,7 @@ public final class CatalogScreen extends class_437 {
 					}
 				} catch (Exception e) {
 					Log.warn(LogCategory.MODRINTH, "Не удалось получить версии «" + p.title + "»", e);
-					setStatus("Не удалось получить версии: " + shortError(e), C_RED);
+					setStatus(Lang.tr("Не удалось получить версии: ") + shortError(e), C_RED);
 					this.popup = null;
 				}
 			});
@@ -3052,12 +3060,12 @@ public final class CatalogScreen extends class_437 {
 		switch (pp.kind) {
 		case "sort":
 			for (String[] srt : SORTS) {
-				items.add(new PopupItem("sort:" + srt[0], srt[1], srt[0].equals(this.sortKey == null ? "" : this.sortKey), C_TEXT));
+				items.add(new PopupItem("sort:" + srt[0], Lang.tr(srt[1]), srt[0].equals(this.sortKey == null ? "" : this.sortKey), C_TEXT));
 			}
 
 			break;
 		case "filter":
-			items.add(new PopupItem("cat:*", "Сбросить категории", false, C_GRAY));
+			items.add(new PopupItem("cat:*", Lang.tr("Сбросить категории"), false, C_GRAY));
 
 			for (String c : Fmt.FILTER_CATEGORIES) {
 				items.add(new PopupItem("cat:" + c, Fmt.categoryLabel(c), this.categoryFilter.contains(c), C_TEXT));
@@ -3066,7 +3074,7 @@ public final class CatalogScreen extends class_437 {
 			break;
 		case "instfilter":
 			for (int i = 0; i < INSTALLED_FILTERS.length; i++) {
-				items.add(new PopupItem("if:" + i, INSTALLED_FILTERS[i], i == this.installedFilter, C_TEXT));
+				items.add(new PopupItem("if:" + i, Lang.tr(INSTALLED_FILTERS[i]), i == this.installedFilter, C_TEXT));
 			}
 
 			break;
@@ -3074,15 +3082,15 @@ public final class CatalogScreen extends class_437 {
 			List<ModrinthVersion> list = this.versionList;
 
 			if (list == null || pp.p == null || !this.versionListFor.equals(pp.p.id)) {
-				items.add(new PopupItem("none", "Загружаю список версий...", false, C_GRAY));
+				items.add(new PopupItem("none", Lang.tr("Загружаю список версий..."), false, C_GRAY));
 			} else if (list.isEmpty()) {
-				items.add(new PopupItem("none", "Нет версий под " + this.gameVersion, false, C_GRAY));
+				items.add(new PopupItem("none", Lang.tr("Нет версий под ") + this.gameVersion, false, C_GRAY));
 			} else {
 				String current = this.installedVersions.get(pp.p.id);
 
 				for (int i = 0; i < list.size(); i++) {
 					ModrinthVersion v = list.get(i);
-					String type = "beta".equals(v.versionType) ? "бета" : "alpha".equals(v.versionType) ? "альфа" : "релиз";
+					String type = "beta".equals(v.versionType) ? Lang.tr("бета") : "alpha".equals(v.versionType) ? Lang.tr("альфа") : Lang.tr("релиз");
 					int color = "beta".equals(v.versionType) ? C_WARN : "alpha".equals(v.versionType) ? C_RED : C_TEXT;
 					String when = Fmt.ago(v.datePublished);
 					items.add(new PopupItem("ver:" + i, v.versionNumber + " · " + type + (when.isEmpty() ? "" : " · " + when), v.id.equals(current), color));
@@ -3204,7 +3212,7 @@ public final class CatalogScreen extends class_437 {
 				ModrinthVersion v = list.get(i);
 
 				if (it.checked) {
-					setStatus("Эта версия уже установлена", C_GRAY);
+					setStatus(Lang.tr("Эта версия уже установлена"), C_GRAY);
 				} else {
 					applyVersion(pp.p, v);
 				}
@@ -3221,10 +3229,10 @@ public final class CatalogScreen extends class_437 {
 			try (MemoryStack stack = MemoryStack.stackPush()) {
 				PointerBuffer filters = stack.mallocPointer(1);
 				filters.put(stack.UTF8("*.mrpack")).flip();
-				path = TinyFileDialogs.tinyfd_openFileDialog("Импорт сборки Modrinth", "", filters, "Сборки Modrinth (*.mrpack)", false);
+				path = TinyFileDialogs.tinyfd_openFileDialog(Lang.tr("Импорт сборки Modrinth"), "", filters, Lang.tr("Сборки Modrinth (*.mrpack)"), false);
 			} catch (Throwable t) {
 				Log.warn(LogCategory.MODRINTH, "Диалог выбора файла недоступен", t);
-				setStatus("Диалог выбора файла недоступен — перетащи .mrpack в окно", C_WARN);
+				setStatus(Lang.tr("Диалог выбора файла недоступен — перетащи .mrpack в окно"), C_WARN);
 			}
 
 			if (path != null) {
@@ -3243,7 +3251,7 @@ public final class CatalogScreen extends class_437 {
 			}
 		}
 
-		setStatus("Нужен файл .mrpack", C_GRAY);
+		setStatus(Lang.tr("Нужен файл .mrpack"), C_GRAY);
 	}
 
 	private void importPackFile(Path file) {
@@ -3252,13 +3260,13 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		this.installFraction = -1F;
-		setStatus("Читаю сборку", C_GRAY);
+		setStatus(Lang.tr("Читаю сборку"), C_GRAY);
 		boolean handed = false;
 
 		try {
 			MrpackImporter.Result result = MrpackImporter.importPack(file, FabricLoader.getInstance().getGameDir(), this.gameVersion, (done, total, what) -> {
 				this.installFraction = total <= 0 ? -1F : (float) done / total;
-				setStatus("Сборка: " + done + "/" + total, C_GRAY);
+				setStatus(Lang.tr("Сборка: ") + done + "/" + total, C_GRAY);
 			});
 
 			try {
@@ -3269,7 +3277,7 @@ public final class CatalogScreen extends class_437 {
 
 			refreshInstalledIndex();
 			refreshLocalMods();
-			setStatus("Сборка «" + result.name + "»: скачано " + result.downloaded + ", " + result.newMods.size() + " модов", C_OK);
+			setStatus(Lang.tr("Сборка «") + result.name + Lang.tr("»: скачано ") + result.downloaded + ", " + result.newMods.size() + Lang.tr(" модов"), C_OK);
 
 			if (!result.newMods.isEmpty()) {
 				ChangeQueue.markDirty(); // файлы уже на месте — остаётся применить изменения (перезапуск)
@@ -3324,7 +3332,7 @@ public final class CatalogScreen extends class_437 {
 							try {
 								ModConfigs.openExternally(FabricLoader.getInstance().getGameDir().resolve("crash-reports").resolve(d.crashFile));
 							} catch (IOException e) {
-								setStatus("Не удалось открыть отчёт", C_RED);
+								setStatus(Lang.tr("Не удалось открыть отчёт"), C_RED);
 							}
 						});
 					}
@@ -3337,9 +3345,9 @@ public final class CatalogScreen extends class_437 {
 							boolean now = LocalMods.disable(modsDir(), file);
 							refreshInstalledIndex();
 							ChangeQueue.markDirty();
-							setStatus(now ? "Мод отключён — примени изменения" : "Мод отключится при перезапуске", now ? C_OK : C_WARN);
+							setStatus(now ? Lang.tr("Мод отключён — примени изменения") : Lang.tr("Мод отключится при перезапуске"), now ? C_OK : C_WARN);
 						} catch (IOException e) {
-							setStatus("Не удалось отключить мод", C_RED);
+							setStatus(Lang.tr("Не удалось отключить мод"), C_RED);
 						}
 					});
 				}
@@ -3369,9 +3377,9 @@ public final class CatalogScreen extends class_437 {
 		frame(ctx, bx, by, bw, bh, C_HEADER, lighter(C_HEADER, 0.1F), darker(C_HEADER, 0.35F), false);
 		ctx.method_25294(bx + 1, by + 1, bx + bw - 1, by + 2, C_WARN);
 
-		text(ctx, "Игра закрылась с ошибкой", bx + 12, by + 12, C_WHITE);
+		text(ctx, Lang.tr("Игра закрылась с ошибкой"), bx + 12, by + 12, C_WHITE);
 		text(ctx, fit(d.description.isEmpty() ? d.crashFile : d.description, bw - 24), bx + 12, by + 26, C_GRAY);
-		text(ctx, d.suspects.isEmpty() ? "Виновника по отчёту определить не удалось." : "Вероятные виновники:", bx + 12, by + 44, C_TEXT);
+		text(ctx, d.suspects.isEmpty() ? Lang.tr("Виновника по отчёту определить не удалось.") : Lang.tr("Вероятные виновники:"), bx + 12, by + 44, C_TEXT);
 
 		int y = by + 60;
 
@@ -3383,9 +3391,9 @@ public final class CatalogScreen extends class_437 {
 			int bxx = bx + bw - 10 - 92;
 
 			if (done) {
-				button(ctx, "m-off-" + sp.fileName, bxx, y + 6, 84, 18, "Отключён", null, false, C_DISABLED, C_DISABLED, false, C_GRAY);
+				button(ctx, "m-off-" + sp.fileName, bxx, y + 6, 84, 18, Lang.tr("Отключён"), null, false, C_DISABLED, C_DISABLED, false, C_GRAY);
 			} else {
-				button(ctx, "m-off-" + sp.fileName, bxx, y + 6, 84, 18, "Отключить", PixelIcons.POWER, false, C_ACCENT, C_ACCENT_HOVER, inside(mx, my, bxx, y + 6, 84, 18), C_ACCENT_TEXT);
+				button(ctx, "m-off-" + sp.fileName, bxx, y + 6, 84, 18, Lang.tr("Отключить"), PixelIcons.POWER, false, C_ACCENT, C_ACCENT_HOVER, inside(mx, my, bxx, y + 6, 84, 18), C_ACCENT_TEXT);
 				this.modalHits.add(new Hit("off:" + sp.fileName, null, bxx, y + 6, 84, 18, false));
 			}
 
@@ -3397,9 +3405,9 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		int fy = by + bh - 28;
-		button(ctx, "m-close", bx + bw - 10 - 80, fy, 80, 18, "Закрыть", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + bw - 90, fy, 80, 18), C_TEXT);
+		button(ctx, "m-close", bx + bw - 10 - 80, fy, 80, 18, Lang.tr("Закрыть"), null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + bw - 90, fy, 80, 18), C_TEXT);
 		this.modalHits.add(new Hit("close", null, bx + bw - 90, fy, 80, 18, false));
-		button(ctx, "m-report", bx + 10, fy, 110, 18, "Открыть отчёт", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 10, fy, 110, 18), C_TEXT);
+		button(ctx, "m-report", bx + 10, fy, 110, 18, Lang.tr("Открыть отчёт"), null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 10, fy, 110, 18), C_TEXT);
 		this.modalHits.add(new Hit("report", null, bx + 10, fy, 110, 18, false));
 	}
 
@@ -3421,7 +3429,7 @@ public final class CatalogScreen extends class_437 {
 						try {
 							ModConfigs.openExternally(FabricLoader.getInstance().getGameDir().resolve(".argentum").resolve("preflight-report.txt"));
 						} catch (IOException e) {
-							setStatus("Не удалось открыть отчёт", C_RED);
+							setStatus(Lang.tr("Не удалось открыть отчёт"), C_RED);
 						}
 					});
 				}
@@ -3452,8 +3460,8 @@ public final class CatalogScreen extends class_437 {
 		frame(ctx, bx, by, bw, bh, C_HEADER, lighter(C_HEADER, 0.1F), darker(C_HEADER, 0.35F), false);
 		ctx.method_25294(bx + 1, by + 1, bx + bw - 1, by + 2, C_RED);
 
-		text(ctx, "Нельзя применить изменения", bx + 12, by + 12, C_WHITE);
-		text(ctx, "Игра не тронута — всё осталось как было.", bx + 12, by + 26, C_GRAY);
+		text(ctx, Lang.tr("Нельзя применить изменения"), bx + 12, by + 12, C_WHITE);
+		text(ctx, Lang.tr("Игра не тронута — всё осталось как было."), bx + 12, by + 26, C_GRAY);
 
 		for (int i = 0; i < shown; i++) {
 			String line = lines.get(i);
@@ -3466,9 +3474,9 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		int fy = by + bh - 28;
-		button(ctx, "pf-close", bx + bw - 90, fy, 80, 18, "Закрыть", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + bw - 90, fy, 80, 18), C_TEXT);
+		button(ctx, "pf-close", bx + bw - 90, fy, 80, 18, Lang.tr("Закрыть"), null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + bw - 90, fy, 80, 18), C_TEXT);
 		this.preflightHits.add(new Hit("close", null, bx + bw - 90, fy, 80, 18, false));
-		button(ctx, "pf-report", bx + 10, fy, 110, 18, "Полный отчёт", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 10, fy, 110, 18), C_TEXT);
+		button(ctx, "pf-report", bx + 10, fy, 110, 18, Lang.tr("Полный отчёт"), null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 10, fy, 110, 18), C_TEXT);
 		this.preflightHits.add(new Hit("report", null, bx + 10, fy, 110, 18, false));
 	}
 
@@ -3494,7 +3502,7 @@ public final class CatalogScreen extends class_437 {
 						try {
 							ModConfigs.openExternally(FabricLoader.getInstance().getGameDir().resolve("logs").resolve("latest.log"));
 						} catch (IOException e) {
-							setStatus("Не удалось открыть журнал", C_RED);
+							setStatus(Lang.tr("Не удалось открыть журнал"), C_RED);
 						}
 					});
 				}
@@ -3531,8 +3539,8 @@ public final class CatalogScreen extends class_437 {
 		frame(ctx, bx, by, bw, bh, C_HEADER, lighter(C_HEADER, 0.1F), darker(C_HEADER, 0.35F), false);
 		ctx.method_25294(bx + 1, by + 1, bx + bw - 1, by + 2, C_RED);
 
-		text(ctx, list.size() == 1 ? "Мод не запустился и отключён" : "Не запустились и отключены: " + list.size(), bx + 12, by + 12, C_WHITE);
-		text(ctx, fit("Игра запущена без них. Перезапуск без них даёт чистый запуск.", bw - 24), bx + 12, by + 26, C_GRAY);
+		text(ctx, list.size() == 1 ? Lang.tr("Мод не запустился и отключён") : Lang.tr("Не запустились и отключены: ") + list.size(), bx + 12, by + 12, C_WHITE);
+		text(ctx, fit(Lang.tr("Игра запущена без них. Перезапуск без них даёт чистый запуск."), bw - 24), bx + 12, by + 26, C_GRAY);
 
 		int y = by + 44;
 
@@ -3541,21 +3549,21 @@ public final class CatalogScreen extends class_437 {
 			frame(ctx, bx + 10, y, bw - 20, 30, C_PANEL, lighter(C_PANEL, 0.07F), darker(C_PANEL, 0.3F), false);
 			text(ctx, fit(f.name + " " + f.version, bw - 130), bx + 18, y + 6, C_WHITE);
 			text(ctx, fit(f.reason, bw - 130), bx + 18, y + 17, C_GRAY);
-			button(ctx, "fm-off-" + i, bx + bw - 10 - 92, y + 6, 84, 18, "Отключён", null, false, C_DISABLED, C_DISABLED, false, C_GRAY);
+			button(ctx, "fm-off-" + i, bx + bw - 10 - 92, y + 6, 84, 18, Lang.tr("Отключён"), null, false, C_DISABLED, C_DISABLED, false, C_GRAY);
 			y += 34;
 		}
 
 		if (list.size() > rows) {
-			text(ctx, "…и ещё " + (list.size() - rows), bx + 18, y, C_GRAY);
+			text(ctx, Lang.tr("…и ещё ") + (list.size() - rows), bx + 18, y, C_GRAY);
 		}
 
 		int fy = by + bh - 28;
 		int restartW = 150;
-		button(ctx, "fm-restart", bx + 10, fy, restartW, 18, "Перезапустить без них", null, false, C_ACCENT, C_ACCENT_HOVER, inside(mx, my, bx + 10, fy, restartW, 18), C_ACCENT_TEXT);
+		button(ctx, "fm-restart", bx + 10, fy, restartW, 18, Lang.tr("Перезапустить без них"), null, false, C_ACCENT, C_ACCENT_HOVER, inside(mx, my, bx + 10, fy, restartW, 18), C_ACCENT_TEXT);
 		this.failedHits.add(new Hit("restart", null, bx + 10, fy, restartW, 18, false));
-		button(ctx, "fm-log", bx + 10 + restartW + 6, fy, 70, 18, "Журнал", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 16 + restartW, fy, 70, 18), C_TEXT);
+		button(ctx, "fm-log", bx + 10 + restartW + 6, fy, 70, 18, Lang.tr("Журнал"), null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 16 + restartW, fy, 70, 18), C_TEXT);
 		this.failedHits.add(new Hit("log", null, bx + 16 + restartW, fy, 70, 18, false));
-		button(ctx, "fm-close", bx + bw - 10 - 80, fy, 80, 18, "Продолжить", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + bw - 90, fy, 80, 18), C_TEXT);
+		button(ctx, "fm-close", bx + bw - 10 - 80, fy, 80, 18, Lang.tr("Продолжить"), null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + bw - 90, fy, 80, 18), C_TEXT);
 		this.failedHits.add(new Hit("close", null, bx + bw - 90, fy, 80, 18, false));
 	}
 }

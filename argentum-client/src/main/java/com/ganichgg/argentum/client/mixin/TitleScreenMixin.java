@@ -15,6 +15,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.ganichgg.argentum.client.screen.CatalogScreen;
 
+import net.fabricmc.loader.impl.i18n.Lang;
+
 import net.minecraft.class_2561;
 import net.minecraft.class_364;
 import net.minecraft.class_8021;
@@ -49,7 +51,7 @@ public abstract class TitleScreenMixin extends class_437 {
 		}
 
 		// Наша кнопка — в той же колонке сразу под Realms: baseY + 36 (новый Y Realms) + 24
-		this.method_37063(class_4185.method_46430(class_2561.method_43470("Моды Argentum"),
+		this.method_37063(class_4185.method_46430(class_2561.method_43470(Lang.tr("Моды Argentum")),
 				button -> this.field_22787.method_1507(new CatalogScreen(this))).method_46434(this.field_22789 / 2 - 100, baseY + 60, 200, 20).method_46431());
 
 		com.ganichgg.argentum.client.handoff.Handoff.childReady(this.field_22787);

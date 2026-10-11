@@ -19,6 +19,7 @@ import java.util.Map;
 import com.ganichgg.argentum.client.config.ConfigDoc;
 import com.ganichgg.argentum.client.ui.ModConfigs;
 
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 import net.minecraft.class_1109;
@@ -85,7 +86,7 @@ public final class ConfigScreen extends class_437 {
 	private final Map<String, Float> flash = new HashMap<>();
 
 	public ConfigScreen(class_437 parent, String title, List<Path> files) {
-		super(class_2561.method_43470("Настройки: " + title));
+		super(class_2561.method_43470(Lang.tr("Настройки: ") + title));
 		this.parent = parent;
 		this.title = title;
 		this.files = new ArrayList<>();
@@ -105,7 +106,7 @@ public final class ConfigScreen extends class_437 {
 		this.editing = null;
 
 		if (this.files.isEmpty()) {
-			this.loadError = "Нет файлов настроек, которые умеет читать редактор";
+			this.loadError = Lang.tr("Нет файлов настроек, которые умеет читать редактор");
 			return;
 		}
 
@@ -113,7 +114,7 @@ public final class ConfigScreen extends class_437 {
 			this.doc = ConfigDoc.load(this.files.get(this.fileIndex));
 		} catch (IOException | RuntimeException e) {
 			Log.warn(LogCategory.GENERAL, "Не удалось прочитать настройки " + this.files.get(this.fileIndex), e);
-			this.loadError = "Не удалось прочитать файл: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+			this.loadError = Lang.tr("Не удалось прочитать файл: ") + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
 		}
 
 		refilter();
@@ -171,7 +172,7 @@ public final class ConfigScreen extends class_437 {
 		this.filterField = new class_342(this.field_22793, PAD + 6, 8 + 8, w - PAD * 2 - 12, 10, class_2561.method_43470(""));
 		this.filterField.method_1858(false);
 		this.filterField.method_1880(60);
-		this.filterField.method_47404(class_2561.method_43470("Фильтр настроек"));
+		this.filterField.method_47404(class_2561.method_43470(Lang.tr("Фильтр настроек")));
 		this.filterField.method_1863(s -> refilter());
 		this.method_37063(this.filterField);
 
@@ -222,7 +223,7 @@ public final class ConfigScreen extends class_437 {
 		String text = this.editField.method_1882();
 
 		if (!this.editing.valid(text)) {
-			setStatus("Значение «" + this.editing.label + "» не подходит по типу", C_RED);
+			setStatus(Lang.tr("Значение «") + this.editing.label + Lang.tr("» не подходит по типу"), C_RED);
 			return false;
 		}
 
@@ -248,10 +249,10 @@ public final class ConfigScreen extends class_437 {
 			this.doc.save();
 			this.closeArmed = false;
 			load();
-			setStatus("Сохранено — вступит в силу после перезапуска", C_OK);
+			setStatus(Lang.tr("Сохранено — вступит в силу после перезапуска"), C_OK);
 		} catch (IOException | RuntimeException e) {
 			Log.warn(LogCategory.GENERAL, "Не удалось сохранить настройки", e);
-			setStatus("Не удалось сохранить: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), C_RED);
+			setStatus(Lang.tr("Не удалось сохранить: ") + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), C_RED);
 		}
 	}
 
@@ -262,16 +263,16 @@ public final class ConfigScreen extends class_437 {
 
 		try {
 			ModConfigs.openExternally(this.files.get(this.fileIndex));
-			setStatus("Открываю файл в системе", C_OK);
+			setStatus(Lang.tr("Открываю файл в системе"), C_OK);
 		} catch (IOException e) {
-			setStatus("Не удалось открыть файл", C_RED);
+			setStatus(Lang.tr("Не удалось открыть файл"), C_RED);
 		}
 	}
 
 	private void tryClose() {
 		if (this.doc != null && this.doc.dirty() && !this.closeArmed) {
 			this.closeArmed = true;
-			setStatus("Есть несохранённые изменения — «Назад» ещё раз, чтобы выйти", C_WARN);
+			setStatus(Lang.tr("Есть несохранённые изменения — «Назад» ещё раз, чтобы выйти"), C_WARN);
 			return;
 		}
 
@@ -325,7 +326,7 @@ public final class ConfigScreen extends class_437 {
 				switch (i) {
 				case 0: tryClose(); break;
 				case 1: openExternally(); break;
-				case 2: load(); this.closeArmed = false; setStatus("Изменения сброшены", C_GRAY); break;
+				case 2: load(); this.closeArmed = false; setStatus(Lang.tr("Изменения сброшены"), C_GRAY); break;
 				default: save();
 				}
 
@@ -342,7 +343,7 @@ public final class ConfigScreen extends class_437 {
 				if (inside(mx, my, x, 38, bw, BTN_H)) {
 					if (i != this.fileIndex) {
 						if (this.doc != null && this.doc.dirty()) {
-							setStatus("Сначала сохрани или сбрось изменения", C_WARN);
+							setStatus(Lang.tr("Сначала сохрани или сбрось изменения"), C_WARN);
 						} else {
 							press("file" + i);
 							this.fileIndex = i;
@@ -584,7 +585,7 @@ public final class ConfigScreen extends class_437 {
 		int bottom = listBottom();
 
 		if (this.loadError != null || this.visible.isEmpty()) {
-			String msg = this.loadError != null ? this.loadError : this.doc != null && this.doc.entries().isEmpty() ? "В файле нет настроек" : "Ничего не найдено";
+			String msg = this.loadError != null ? this.loadError : this.doc != null && this.doc.entries().isEmpty() ? Lang.tr("В файле нет настроек") : Lang.tr("Ничего не найдено");
 			text(ctx, fit(msg, w - PAD * 4), (w - Math.min(textWidth(msg), w - PAD * 4)) / 2, top + (bottom - top) / 2 - 4, C_GRAY);
 			this.editField.field_22764 = false;
 
@@ -630,7 +631,7 @@ public final class ConfigScreen extends class_437 {
 
 			if (e.kind == ConfigDoc.Kind.BOOL) {
 				boolean on = e.value.equals("true");
-				button(ctx, "val" + System.identityHashCode(e), cx, y + 3, CTRL_W, ROW_H - 6 + 1, on ? "Включено" : "Выключено",
+				button(ctx, "val" + System.identityHashCode(e), cx, y + 3, CTRL_W, ROW_H - 6 + 1, on ? Lang.tr("Включено") : Lang.tr("Выключено"),
 						on ? C_ACCENT : C_SECONDARY, on ? C_ACCENT_HOVER : C_SECONDARY_HOVER, inside(mx, my, cx, y + 3, CTRL_W, ROW_H - 5) && hovered,
 						on ? C_ACCENT_TEXT : C_TEXT);
 			} else {
@@ -674,7 +675,7 @@ public final class ConfigScreen extends class_437 {
 		ctx.method_25294(0, top, w, top + 1, C_BLACK);
 
 		boolean dirty = this.doc != null && this.doc.dirty();
-		String[] labels = {"Назад", "Файл", "Сбросить", "Сохранить"};
+		String[] labels = {Lang.tr("Назад"), Lang.tr("Файл"), Lang.tr("Сбросить"), Lang.tr("Сохранить")};
 		String[] keys = {"back", "file", "reset", "save"};
 
 		for (int i = 0; i < 4; i++) {
@@ -696,10 +697,10 @@ public final class ConfigScreen extends class_437 {
 		int color = this.statusColor;
 
 		if (line.isEmpty()) {
-			line = this.doc == null ? "" : shortName(this.files.get(this.fileIndex)) + (dirty ? " · есть изменения" : "");
+			line = this.doc == null ? "" : shortName(this.files.get(this.fileIndex)) + (dirty ? Lang.tr(" · есть изменения") : "");
 
 			if (dirty && this.doc.lossy()) {
-				line = "Комментарии в файле пропадут при сохранении";
+				line = Lang.tr("Комментарии в файле пропадут при сохранении");
 				color = C_WARN;
 			}
 		}

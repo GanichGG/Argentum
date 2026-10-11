@@ -344,7 +344,7 @@ allprojects {
 	spotless {
 		java {
 			licenseHeaderFile(rootProject.file("HEADER"))
-			targetExclude '**/lib/gson/*.java'
+			targetExclude '**/lib/gson/*.java', 'src/main/java/net/fabricmc/loader/impl/modrinth/**', 'src/main/java/net/fabricmc/loader/impl/hotload/**', 'src/main/java/net/fabricmc/loader/impl/discovery/HotModDiscovery.java', 'src/test/java/net/fabricmc/test/modrinth/**'
 		}
 	}
 }

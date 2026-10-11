@@ -2,6 +2,14 @@
 
 Release notes are taken from the section whose heading matches the version (see `tools/release_notes.py`).
 
+## [0.1B2] - 2026-10-11 (beta)
+
+- New installer window in the style of the Fabric installer, with standard Windows controls: it finds Prism Launcher
+  instances and the official launcher's `.minecraft` by itself, so `ArgentumAnchor.exe` can be run from anywhere (it no
+  longer has to be placed into the game folder). The **...** button picks any other folder. Unsupported Minecraft versions and
+  instances that already contain Fabric Loader are reported before installing.
+- The loader and the catalog are installed together, there is no separate choice.
+
 ## [0.1B1] - 2026-10-11 (beta)
 
 First public build of ArgentumLoader, a fork of Fabric Loader 0.19.5 (that is the version mods see as `fabricloader`).

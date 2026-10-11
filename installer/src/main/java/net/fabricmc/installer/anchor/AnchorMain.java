@@ -8,7 +8,6 @@
 
 package net.fabricmc.installer.anchor;
 
-import java.awt.BorderLayout;
 import java.awt.GraphicsEnvironment;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,12 +32,7 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.swing.BorderFactory;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
 import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-
 
 /**
  * Одноразовый установщик ArgentumLoader ("якорь").
@@ -81,7 +75,7 @@ public final class AnchorMain {
 	}
 
 	// Пока целимся только на одну версию; список расширим по мере тестирования на других.
-	private static final String[] SUPPORTED_VERSIONS = {"1.21.1"};
+	static final String[] SUPPORTED_VERSIONS = {"1.21.1"};
 
 	// Обычный запуск (двойной клик) — окно выбора версии и окно с результатом.
 	// Если передан аргумент командной строки или окна недоступны (headless), используется он
@@ -89,26 +83,45 @@ public final class AnchorMain {
 	private static final boolean HEADLESS = GraphicsEnvironment.isHeadless();
 
 	public static void main(String[] args) {
-		String presetVersion = args.length > 0 ? args[0] : null;
+		// Аргументы (для автотестов и скриптов): [версия Minecraft] [--target <папка>]. Без них открывается окно установщика.
+		String presetVersion = null;
+		Path target = null;
+
+		for (int i = 0; i < args.length; i++) {
+			if (args[i].equals("--target") && i + 1 < args.length) {
+				target = Paths.get(args[++i]);
+			} else if (args[i].equals("--trace-ui")) {
+				try {
+					InstallerWindow.trace(findInstallLocation()); // служебный режим для сборки нативного exe, см. docs/RELEASING.md
+				} catch (Exception e) {
+					e.printStackTrace();
+					System.exit(1);
+				}
+
+				return;
+			} else if (args[i].equals("--list-targets")) {
+				System.out.print(InstallTargets.describe(InstallTargets.detect(i + 1 < args.length ? Paths.get(args[i + 1]) : InstallTargets.appData())));
+				System.exit(0);
+			} else if (presetVersion == null) {
+				presetVersion = args[i];
+			}
+		}
+
+		if (!HEADLESS && presetVersion == null && target == null) {
+			InstallerWindow.open(findInstallLocation());
+
+			return; // дальше окно живёт само и завершает процесс при закрытии
+		}
 
 		try {
-			InstallResult result = install(presetVersion);
-			String message = result.prismInstance
-					? AnchorLang.tr("<html><b>ArgentumLoader установлен!</b><br><br>")
-							+ AnchorLang.tr("Компонент записан в:<br>") + escapeHtml(result.profilePath.toString()) + "<br><br>"
-							+ AnchorLang.tr("Открой Prism Launcher, зайди в <b>Edit Instance → Version</b> — там уже должен быть<br>")
-							+ AnchorLang.tr("ArgentumLoader. Недостающие библиотеки Prism скачает сам при запуске.</html>")
-					: AnchorLang.tr("<html><b>ArgentumLoader установлен!</b><br><br>")
-							+ AnchorLang.tr("Профиль записан в:<br>") + escapeHtml(result.profilePath.toString()) + "<br><br>"
-							+ AnchorLang.tr("Теперь выберите профиль <b>ArgentumLoader</b> в лаунчере Minecraft и нажмите «Играть» —<br>")
-							+ AnchorLang.tr("недостающие библиотеки лаунчер скачает сам.</html>");
+			InstallResult result = install(presetVersion, target);
 
 			if (HEADLESS) {
 				System.out.println(result.profilePath);
 			} else {
 				// Диалог блокирует поток до закрытия — самоочистку планируем уже после этого,
 				// чтобы не пытаться удалить ещё выполняющийся .exe/jar (файл будет занят).
-				JOptionPane.showMessageDialog(null, message, "ArgentumLoader", JOptionPane.INFORMATION_MESSAGE);
+				JOptionPane.showMessageDialog(null, successMessage(result), "ArgentumLoader", JOptionPane.INFORMATION_MESSAGE);
 				scheduleCleanup(result.leftovers);
 			}
 
@@ -128,10 +141,47 @@ public final class AnchorMain {
 		}
 	}
 
-	private static InstallResult install(String presetVersion) throws IOException {
-		InstallLocation location = findInstallLocation();
-		Path gameDir = location.gameDir;
+	/** Текст «установлено» с дальнейшими шагами — одинаковый для окна и для командной строки. */
+	static String successMessage(InstallResult result) {
+		return result.prismInstance
+				? AnchorLang.tr("<html><b>ArgentumLoader установлен!</b><br><br>")
+						+ AnchorLang.tr("Компонент записан в:<br>") + escapeHtml(result.profilePath.toString()) + "<br><br>"
+						+ AnchorLang.tr("Открой Prism Launcher, зайди в <b>Edit Instance → Version</b> — там уже должен быть<br>")
+						+ AnchorLang.tr("ArgentumLoader. Недостающие библиотеки Prism скачает сам при запуске.</html>")
+				: AnchorLang.tr("<html><b>ArgentumLoader установлен!</b><br><br>")
+						+ AnchorLang.tr("Профиль записан в:<br>") + escapeHtml(result.profilePath.toString()) + "<br><br>"
+						+ AnchorLang.tr("Теперь выберите профиль <b>ArgentumLoader</b> в лаунчере Minecraft и нажмите «Играть» —<br>")
+						+ AnchorLang.tr("недостающие библиотеки лаунчер скачает сам.</html>");
+	}
 
+	/**
+	 * Что убрать после установки: распакованные рядом библиотеки AWT — всегда; сам установщик — только если он лежал внутри
+	 * папки, куда ставили (так было раньше: «положил, запустил, он сам исчез»), а скачанный в Загрузки файл не трогаем.
+	 */
+	static List<Path> cleanupList(List<Path> leftovers, Path installedInto) {
+		List<Path> result = new ArrayList<>();
+
+		for (Path p : leftovers) {
+			String name = p.getFileName() == null ? "" : p.getFileName().toString();
+			boolean support = name.endsWith(".dll") || name.equals("fontconfig.properties");
+
+			if (support || (installedInto != null && p.toAbsolutePath().normalize().startsWith(installedInto.toAbsolutePath().normalize()))) {
+				result.add(p);
+			}
+		}
+
+		return result;
+	}
+
+	/** Установка из командной строки: в --target, а без него — в папку, где лежит сам установщик. */
+	private static InstallResult install(String presetVersion, Path target) throws IOException {
+		InstallLocation location = findInstallLocation();
+
+		return installAt(target != null ? target : location.gameDir, presetVersion, location.leftovers);
+	}
+
+	/** Установка в указанную папку: инстанс Prism (по mmc-pack.json), его подпапка minecraft либо папка игры официального лаунчера. */
+	static InstallResult installAt(Path gameDir, String presetVersion, List<Path> leftovers) throws IOException {
 		// Инстанс Prism/MultiMC устроен иначе, чем ванильный .minecraft — там нет versions/,
 		// а есть mmc-pack.json (список "компонентов") + patches/ (по файлу на компонент).
 		// Якорь кладут прямо в корень инстанса (туда же, где mmc-pack.json), не во вложенную
@@ -139,7 +189,7 @@ public final class AnchorMain {
 		Path mmcPack = gameDir.resolve("mmc-pack.json");
 
 		if (Files.exists(mmcPack)) {
-			return installPrism(gameDir, mmcPack, location.leftovers);
+			return installPrism(gameDir, mmcPack, leftovers);
 		}
 
 		// Кнопка «Folder» в Prism открывает папку игры (minecraft/ или .minecraft/) внутри инстанса — файл часто кладут туда,
@@ -149,21 +199,13 @@ public final class AnchorMain {
 
 		if (parent != null && (folderName.equals("minecraft") || folderName.equals(".minecraft"))
 				&& Files.exists(parent.resolve("mmc-pack.json")) && Files.exists(parent.resolve("instance.cfg"))) {
-			return installPrism(parent, parent.resolve("mmc-pack.json"), location.leftovers);
+			return installPrism(parent, parent.resolve("mmc-pack.json"), leftovers);
 		}
 
 		String mcVersion = presetVersion;
 
 		if (mcVersion == null) {
-			if (HEADLESS) {
-				throw new IOException(AnchorLang.tr("нет окна для выбора версии — укажите версию Minecraft первым аргументом командной строки"));
-			}
-
-			mcVersion = askVersion(gameDir);
-
-			if (mcVersion == null) {
-				throw new IOException(AnchorLang.tr("установка отменена"));
-			}
+			throw new IOException(AnchorLang.tr("нет окна для выбора версии — укажите версию Minecraft первым аргументом командной строки"));
 		}
 
 		mcVersion = mcVersion.trim();
@@ -197,7 +239,7 @@ public final class AnchorMain {
 		String json = buildProfileJson(profileId, mcVersion, mainClass, ownLibraryJson, thirdPartyLibraries);
 		Files.write(profileJson, json.getBytes(StandardCharsets.UTF_8));
 
-		return new InstallResult(profileJson, location.leftovers, false);
+		return new InstallResult(profileJson, leftovers, false);
 	}
 
 	/**
@@ -279,7 +321,7 @@ public final class AnchorMain {
 		return new InstallResult(patchFile, leftovers, true);
 	}
 
-	private static final class InstallResult {
+	static final class InstallResult {
 		final Path profilePath;
 		final List<Path> leftovers;
 		final boolean prismInstance;
@@ -291,7 +333,7 @@ public final class AnchorMain {
 		}
 	}
 
-	private static final class InstallLocation {
+	static final class InstallLocation {
 		final Path gameDir;
 		/** Собственные файлы якоря (exe/app/runtime или сам jar) — после успешной установки не нужны. */
 		final List<Path> leftovers;
@@ -307,7 +349,7 @@ public final class AnchorMain {
 	 * (на Windows при запуске двойным кликом она может оказаться System32) — плюс список
 	 * его собственных файлов, которые после успешной установки становятся не нужны.
 	 */
-	private static InstallLocation findInstallLocation() {
+	static InstallLocation findInstallLocation() {
 		// Под native-image getProtectionDomain().getCodeSource() не возвращает null, как можно
 		// было бы ожидать (нет "настоящей" загрузки из jar в рантайме) — он указывает прямо на
 		// сам .exe. Из-за этого ветка ниже, рассчитанная на обычный jar/app-image, раньше молча
@@ -490,7 +532,7 @@ public final class AnchorMain {
 	 * этот процесс не завершится. На игру и уже записанные versions/libraries не влияет —
 	 * в список leftovers они не входят.
 	 */
-	private static void scheduleCleanup(List<Path> leftovers) {
+	static void scheduleCleanup(List<Path> leftovers) {
 		if (leftovers.isEmpty() || !isWindows()) {
 			return;
 		}
@@ -528,33 +570,11 @@ public final class AnchorMain {
 		return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
 	}
 
-	private static String askVersion(Path gameDir) {
-		JComboBox<String> versionBox = new JComboBox<>(SUPPORTED_VERSIONS);
-		versionBox.setSelectedIndex(0);
-
-		JLabel info = new JLabel(AnchorLang.tr("<html>Папка установки:<br><b>") + escapeHtml(gameDir.toString()) + "</b><br><br>"
-				+ AnchorLang.tr("Версия Minecraft:</html>"));
-		info.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
-
-		JPanel panel = new JPanel(new BorderLayout());
-		panel.add(info, BorderLayout.NORTH);
-		panel.add(versionBox, BorderLayout.CENTER);
-
-		int result = JOptionPane.showConfirmDialog(null, panel, AnchorLang.tr("ArgentumLoader — установка"),
-				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
-
-		if (result != JOptionPane.OK_OPTION) {
-			return null;
-		}
-
-		return (String) versionBox.getSelectedItem();
-	}
-
-	private static boolean isSupported(String mcVersion) {
+	static boolean isSupported(String mcVersion) {
 		return Arrays.asList(SUPPORTED_VERSIONS).contains(mcVersion);
 	}
 
-	private static Properties loadLibraryList() throws IOException {
+	static Properties loadLibraryList() throws IOException {
 		try (InputStream is = AnchorMain.class.getResourceAsStream(LIBRARIES_RESOURCE)) {
 			if (is == null) {
 				throw new IOException(AnchorLang.tr("не найден ") + LIBRARIES_RESOURCE + AnchorLang.tr(" внутри якоря — сборка повреждена"));
@@ -651,7 +671,7 @@ public final class AnchorMain {
 		}
 	}
 
-	private static boolean hasComponent(String mmcPackJson, String uid) {
+	static boolean hasComponent(String mmcPackJson, String uid) {
 		String needle = "\"uid\":\"" + uid + "\"";
 
 		for (String component : splitTopLevelObjects(mmcPackJson)) {
@@ -661,7 +681,7 @@ public final class AnchorMain {
 		return false;
 	}
 
-	private static String extractComponentVersion(String mmcPackJson, String uid) {
+	static String extractComponentVersion(String mmcPackJson, String uid) {
 		String needle = "\"uid\":\"" + uid + "\"";
 
 		for (String component : splitTopLevelObjects(mmcPackJson)) {
@@ -890,7 +910,7 @@ public final class AnchorMain {
 		return s.replace("\\", "\\\\").replace("\"", "\\\"");
 	}
 
-	private static String escapeHtml(String s) {
+	static String escapeHtml(String s) {
 		return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 	}
 

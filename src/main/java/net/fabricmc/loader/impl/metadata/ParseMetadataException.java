@@ -19,6 +19,7 @@ package net.fabricmc.loader.impl.metadata;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 
 @SuppressWarnings("serial")
@@ -30,7 +31,7 @@ public class ParseMetadataException extends Exception {
 	}
 
 	public ParseMetadataException(String message, JsonReader reader) {
-		this(message + " Место ошибки: " + reader.locationString());
+		this(message + Lang.tr(" Место ошибки: ") + reader.locationString());
 	}
 
 	public ParseMetadataException(String message, Throwable throwable) {
@@ -48,10 +49,10 @@ public class ParseMetadataException extends Exception {
 
 	@Override
 	public String getMessage() {
-		String ret = "Ошибка чтения fabric.mod.json мода, расположение: ";
+		String ret = Lang.tr("Ошибка чтения fabric.mod.json мода, расположение: ");
 
 		if (modPaths == null) {
-			ret += "неизвестно";
+			ret += Lang.tr("неизвестно");
 		} else {
 			ret += String.join(" -> ", modPaths);
 		}
@@ -67,7 +68,7 @@ public class ParseMetadataException extends Exception {
 
 	public static class MissingField extends ParseMetadataException {
 		public MissingField(String field) {
-			super(String.format("Отсутствует обязательное поле \"%s\".", field));
+			super(String.format(Lang.tr("Отсутствует обязательное поле \"%s\"."), field));
 		}
 	}
 }

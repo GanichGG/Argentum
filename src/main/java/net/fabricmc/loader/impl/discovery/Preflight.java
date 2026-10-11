@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 
 import net.fabricmc.loader.impl.FabricLoaderImpl;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.metadata.DependencyOverrides;
 import net.fabricmc.loader.impl.metadata.VersionOverrides;
 import net.fabricmc.loader.impl.util.LoaderUtil;
@@ -51,7 +52,7 @@ public final class Preflight {
 		} catch (ModResolutionException e) {
 			return e;
 		} catch (RuntimeException e) {
-			return new ModResolutionException("Не удалось проверить набор модов: " + e.getMessage(), e);
+			return new ModResolutionException(Lang.tr("Не удалось проверить набор модов: ") + e.getMessage(), e);
 		}
 	}
 }

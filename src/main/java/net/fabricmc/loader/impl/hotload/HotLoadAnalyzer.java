@@ -31,6 +31,7 @@ import org.objectweb.asm.Type;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.impl.discovery.ModCandidateImpl;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 import net.fabricmc.loader.impl.lib.gson.JsonToken;
@@ -54,15 +55,15 @@ final class HotLoadAnalyzer {
 		LoaderModMetadata md = candidate.getMetadata();
 
 		if (md.getClassTweaker() != null) {
-			reasons.add("использует access widener — он применяется только при старте игры");
+			reasons.add(Lang.tr("использует access widener — он применяется только при старте игры"));
 		}
 
 		if (!md.getLanguageAdapterDefinitions().isEmpty()) {
-			reasons.add("приносит свой языковой адаптер");
+			reasons.add(Lang.tr("приносит свой языковой адаптер"));
 		}
 
 		if (md.getEntrypointKeys().contains("preLaunch")) {
-			reasons.add("должен запускаться до игры (preLaunch)");
+			reasons.add(Lang.tr("должен запускаться до игры (preLaunch)"));
 		}
 
 		Path jar = candidate.getPaths().get(0);
@@ -87,14 +88,14 @@ final class HotLoadAnalyzer {
 			}
 
 			if (!loaded.isEmpty()) {
-				reasons.add("правит классы игры, которые уже загружены: " + preview(loaded));
+				reasons.add(Lang.tr("правит классы игры, которые уже загружены: ") + preview(loaded));
 			}
 
 			if (registersContent(zip)) {
-				reasons.add("добавляет блоки, предметы или другое содержимое — реестры игры уже закрыты");
+				reasons.add(Lang.tr("добавляет блоки, предметы или другое содержимое — реестры игры уже закрыты"));
 			}
 		} catch (IOException | RuntimeException e) {
-			reasons.add("не удалось проанализировать файл: " + e.getMessage());
+			reasons.add(Lang.tr("не удалось проанализировать файл: ") + e.getMessage());
 		}
 
 		return reasons;
@@ -133,7 +134,7 @@ final class HotLoadAnalyzer {
 			shown.add(n.substring(n.lastIndexOf('.') + 1));
 		}
 
-		return String.join(", ", shown) + (names.size() > MAX_NAMED ? " и ещё " + (names.size() - MAX_NAMED) : "");
+		return String.join(", ", shown) + (names.size() > MAX_NAMED ? Lang.tr(" и ещё ") + (names.size() - MAX_NAMED) : "");
 	}
 
 	// ---------------------------------------------------------------- миксины

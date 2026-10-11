@@ -1250,7 +1250,10 @@ public final class CatalogScreen extends class_437 {
 
 	/** Из полного отчёта лоадера берём суть: что сделать и первые причины (остальное — «и ещё N» и файл отчёта). */
 	private static String summarize(String full, String fallback) {
-		if (full == null || !full.contains(Lang.tr("Подробности"))) {
+		// заголовок раздела причин берём из тех же сообщений лоадера, на языке которых написан отчёт
+		String marker = net.fabricmc.loader.impl.util.Localization.format("resolution.depListHeader").replace(":", "").trim();
+
+		if (full == null || !full.contains(marker)) {
 			return fallback;
 		}
 
@@ -1266,7 +1269,7 @@ public final class CatalogScreen extends class_437 {
 				continue;
 			}
 
-			if (t.startsWith(Lang.tr("Подробности"))) {
+			if (t.startsWith(marker)) {
 				details = true;
 				out.add("");
 				out.add(Lang.tr("Почему:"));

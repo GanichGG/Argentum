@@ -28,6 +28,7 @@ import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.ModContainerImpl;
 import net.fabricmc.loader.impl.discovery.HotModDiscovery;
 import net.fabricmc.loader.impl.discovery.ModCandidateImpl;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.launch.FabricMixinBootstrap;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
@@ -54,7 +55,7 @@ public final class HotLoader {
 			candidates = HotModDiscovery.discover(jars);
 		} catch (Exception e) {
 			Log.warn(LogCategory.GENERAL, "Hot-loader: не удалось прочитать моды", e);
-			report.add("?", "Моды", HotLoadReport.Status.FAILED, Collections.singletonList("не удалось прочитать метаданные: " + e.getMessage()), false);
+			report.add("?", Lang.tr("Моды"), HotLoadReport.Status.FAILED, Collections.singletonList(Lang.tr("не удалось прочитать метаданные: ") + e.getMessage()), false);
 
 			return report;
 		}
@@ -80,7 +81,7 @@ public final class HotLoader {
 				byId.put(provided, c);
 			}
 
-			blockers.put(c, c.hasPath() ? new ArrayList<>(HotLoadAnalyzer.blockers(c, env)) : new ArrayList<>(Collections.singletonList("не удалось распаковать")));
+			blockers.put(c, c.hasPath() ? new ArrayList<>(HotLoadAnalyzer.blockers(c, env)) : new ArrayList<>(Collections.singletonList(Lang.tr("не удалось распаковать"))));
 		}
 
 		// зависимости и вложенность: могут тянуть блокировку по цепочке, поэтому считаем до устойчивого состояния
@@ -99,7 +100,7 @@ public final class HotLoader {
 				String problem = dependencyProblem(c, byId, blockers, loader);
 
 				if (problem == null && !c.getParentMods().isEmpty() && allParentsBlocked(c, blockers)) {
-					problem = "входит в мод, который заработает только после перезапуска";
+					problem = Lang.tr("входит в мод, который заработает только после перезапуска");
 				}
 
 				if (problem != null) {
@@ -149,7 +150,7 @@ public final class HotLoader {
 
 			for (ModContainerImpl mod : containers) {
 				failed.add(mod.getMetadata().getId());
-				failReason.put(mod.getMetadata().getId(), "миксины не подключились: " + describe(t));
+				failReason.put(mod.getMetadata().getId(), Lang.tr("миксины не подключились: ") + describe(t));
 			}
 		}
 
@@ -193,7 +194,7 @@ public final class HotLoader {
 			} catch (Throwable t) {
 				Log.warn(LogCategory.ENTRYPOINT, "Hot-loader: инициализатор '" + key + "' мода " + id + " упал", t);
 				failed.add(id);
-				failReason.put(id, "ошибка при запуске: " + describe(t));
+				failReason.put(id, Lang.tr("ошибка при запуске: ") + describe(t));
 			}
 		}
 	}
@@ -240,20 +241,20 @@ public final class HotLoader {
 			case DEPENDS:
 				if (loadedVersion != null) {
 					if (!dep.matches(loadedVersion)) {
-						return "не подходит версия мода " + id + ": установлена " + loadedVersion.getFriendlyString();
+						return Lang.tr("не подходит версия мода ") + id + Lang.tr(": установлена ") + loadedVersion.getFriendlyString();
 					}
 				} else if (inBatch == null) {
-					return "требует мод " + id + ", которого нет в игре";
+					return Lang.tr("требует мод ") + id + Lang.tr(", которого нет в игре");
 				} else if (!blockers.get(inBatch).isEmpty()) {
-					return "зависит от мода " + id + ", который заработает только после перезапуска";
+					return Lang.tr("зависит от мода ") + id + Lang.tr(", который заработает только после перезапуска");
 				} else if (!dep.matches(inBatch.getVersion())) {
-					return "не подходит версия мода " + id + ": " + inBatch.getVersion().getFriendlyString();
+					return Lang.tr("не подходит версия мода ") + id + ": " + inBatch.getVersion().getFriendlyString();
 				}
 
 				break;
 			case BREAKS:
 				if (loadedVersion != null && dep.matches(loadedVersion)) {
-					return "несовместим с загруженным модом " + id;
+					return Lang.tr("несовместим с загруженным модом ") + id;
 				}
 
 				break;

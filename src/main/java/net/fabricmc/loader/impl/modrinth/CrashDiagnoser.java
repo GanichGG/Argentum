@@ -26,6 +26,8 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.fabricmc.loader.impl.i18n.Lang;
+
 /**
  * Разбор последнего отчёта о падении игры: кто из модов вероятный виновник. Признаки — раздел «Suspected Mods»,
  * ошибки Mixin «from mod …» и классы модов в стеке ошибки (ближе к вершине стека — весомее).
@@ -162,7 +164,7 @@ public final class CrashDiagnoser {
 			Matcher m = SUSPECT_LINE.matcher(stop > 0 ? block.substring(0, stop) : block);
 
 			while (m.find()) {
-				add(score, why, m.group(2), 10, "названа подозреваемой в отчёте об ошибке");
+				add(score, why, m.group(2), 10, Lang.tr("названа подозреваемой в отчёте об ошибке"));
 			}
 		}
 
@@ -170,7 +172,7 @@ public final class CrashDiagnoser {
 		Matcher fm = FROM_MOD.matcher(text);
 
 		while (fm.find()) {
-			add(score, why, fm.group(1), 8, "ошибка применения Mixin от этого мода");
+			add(score, why, fm.group(1), 8, Lang.tr("ошибка применения Mixin от этого мода"));
 		}
 
 		// 3) классы модов в стеке
@@ -195,7 +197,7 @@ public final class CrashDiagnoser {
 			for (Map.Entry<String, Set<String>> e : prefixes.entrySet()) {
 				for (String prefix : e.getValue()) {
 					if (path.startsWith(prefix)) {
-						add(score, why, e.getKey(), frameNo <= 15 ? 3 : 1, "его код в стеке ошибки");
+						add(score, why, e.getKey(), frameNo <= 15 ? 3 : 1, Lang.tr("его код в стеке ошибки"));
 						break;
 					}
 				}

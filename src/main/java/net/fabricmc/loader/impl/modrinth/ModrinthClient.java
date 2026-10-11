@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.fabricmc.loader.impl.FabricLoaderImpl;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 import net.fabricmc.loader.impl.lib.gson.JsonToken;
 import net.fabricmc.loader.impl.util.log.Log;
@@ -103,7 +104,7 @@ public final class ModrinthClient {
 
 			return new SearchPage(ret, total);
 		} catch (IOException e) {
-			throw new ModrinthApiException("Не удалось выполнить поиск модов на Modrinth по запросу \"" + query + "\"", e);
+			throw new ModrinthApiException(Lang.tr("Не удалось выполнить поиск модов на Modrinth по запросу \"") + query + "\"", e);
 		}
 	}
 
@@ -129,7 +130,7 @@ public final class ModrinthClient {
 
 			return body;
 		} catch (IOException e) {
-			throw new ModrinthApiException("Не удалось получить с Modrinth описание мода \"" + projectIdOrSlug + "\"", e);
+			throw new ModrinthApiException(Lang.tr("Не удалось получить с Modrinth описание мода \"") + projectIdOrSlug + "\"", e);
 		}
 	}
 
@@ -139,7 +140,7 @@ public final class ModrinthClient {
 		try (JsonReader reader = openJsonReader(url)) {
 			return parseProject(reader);
 		} catch (IOException e) {
-			throw new ModrinthApiException("Не удалось получить с Modrinth информацию о моде \"" + projectIdOrSlug + "\"", e);
+			throw new ModrinthApiException(Lang.tr("Не удалось получить с Modrinth информацию о моде \"") + projectIdOrSlug + "\"", e);
 		}
 	}
 
@@ -169,7 +170,7 @@ public final class ModrinthClient {
 
 			return ret;
 		} catch (IOException e) {
-			throw new ModrinthApiException("Не удалось получить с Modrinth сведения об установленных модах", e);
+			throw new ModrinthApiException(Lang.tr("Не удалось получить с Modrinth сведения об установленных модах"), e);
 		}
 	}
 
@@ -191,8 +192,8 @@ public final class ModrinthClient {
 
 			return ret;
 		} catch (IOException e) {
-			throw new ModrinthApiException("Не удалось получить с Modrinth список версий мода \"" + projectIdOrSlug + "\""
-					+ " под " + gameVersion + "/" + loader, e);
+			throw new ModrinthApiException(Lang.tr("Не удалось получить с Modrinth список версий мода \"") + projectIdOrSlug + "\""
+					+ Lang.tr(" под ") + gameVersion + "/" + loader, e);
 		}
 	}
 
@@ -202,7 +203,7 @@ public final class ModrinthClient {
 		try (JsonReader reader = openJsonReader(url)) {
 			return parseVersion(reader);
 		} catch (IOException e) {
-			throw new ModrinthApiException("Не удалось получить с Modrinth версию мода (id версии: " + versionId + ")", e);
+			throw new ModrinthApiException(Lang.tr("Не удалось получить с Modrinth версию мода (id версии: ") + versionId + ")", e);
 		}
 	}
 
@@ -245,7 +246,7 @@ public final class ModrinthClient {
 
 			r.endObject();
 		} catch (IOException e) {
-			throw new ModrinthApiException("Не удалось разобрать ответ Modrinth о версиях по хешам", e);
+			throw new ModrinthApiException(Lang.tr("Не удалось разобрать ответ Modrinth о версиях по хешам"), e);
 		}
 
 		return ret;
@@ -282,11 +283,11 @@ public final class ModrinthClient {
 				int status = connection.getResponseCode();
 
 				if (status == 404) {
-					throw new ModrinthApiException("Modrinth не нашёл запрошенный мод/версию (404) — возможно, он был удалён или переименован");
+					throw new ModrinthApiException(Lang.tr("Modrinth не нашёл запрошенный мод/версию (404) — возможно, он был удалён или переименован"));
 				} else if (status == 429 || status >= 500) {
 					last = new IOException("HTTP " + status);
 				} else if (status != 200) {
-					throw new ModrinthApiException("Modrinth ответил с ошибкой: HTTP " + status);
+					throw new ModrinthApiException(Lang.tr("Modrinth ответил с ошибкой: HTTP ") + status);
 				} else {
 					return new JsonReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
 				}
@@ -306,7 +307,7 @@ public final class ModrinthClient {
 			}
 		}
 
-		throw new ModrinthApiException("Не удалось подключиться к Modrinth — проверь интернет или VPN/прокси. Попробуй ещё раз.", last);
+		throw new ModrinthApiException(Lang.tr("Не удалось подключиться к Modrinth — проверь интернет или VPN/прокси. Попробуй ещё раз."), last);
 	}
 
 	private static String urlEncode(String s) {

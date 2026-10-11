@@ -41,6 +41,7 @@ import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.FormattedException;
 import net.fabricmc.loader.impl.game.GameProvider;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.loader.impl.profile.StartupProfile;
 import net.fabricmc.loader.impl.launch.FabricMixinBootstrap;
@@ -147,7 +148,7 @@ public final class Knot extends FabricLauncherBase {
 
 		long profileStart = System.nanoTime();
 		FabricMixinBootstrap.init(getEnvironmentType(), loader);
-		StartupProfile.phase("настройка миксинов", System.nanoTime() - profileStart);
+		StartupProfile.phase(Lang.tr("настройка миксинов"), System.nanoTime() - profileStart);
 		FabricLauncherBase.finishMixinBootstrapping();
 
 		classLoader.initializeTransformers();
@@ -260,6 +261,7 @@ public final class Knot extends FabricLauncherBase {
 
 	@Override
 	public void addToClassPath(Path path, String... allowedPrefixes) {
+		Lang.invalidate(); // у нового jar могут быть свои таблицы перевода
 		Log.debug(LogCategory.KNOT, "Adding " + path + " to classpath.");
 
 		classLoader.setAllowedPrefixes(path, allowedPrefixes);

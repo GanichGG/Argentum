@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import net.fabricmc.loader.impl.i18n.Lang;
+
 /** Итог попытки загрузить моды на лету: по каждому моду — что получилось и почему, по-русски. */
 public final class HotLoadReport {
 	public enum Status {
@@ -86,21 +88,21 @@ public final class HotLoadReport {
 		List<String> parts = new ArrayList<>();
 
 		if (loaded > 0) {
-			parts.add("работает сразу: " + names(Status.LOADED));
+			parts.add(Lang.tr("работает сразу: ") + names(Status.LOADED));
 		}
 
 		if (restart > 0) {
 			Entry first = firstOf(Status.NEEDS_RESTART);
 			String why = first.notes.isEmpty() ? "" : " (" + first.notes.get(0) + ")";
-			parts.add("после перезапуска: " + names(Status.NEEDS_RESTART) + why);
+			parts.add(Lang.tr("после перезапуска: ") + names(Status.NEEDS_RESTART) + why);
 		}
 
 		if (failed > 0) {
 			Entry first = firstOf(Status.FAILED);
-			parts.add("ошибка: " + names(Status.FAILED) + (first.notes.isEmpty() ? "" : " — " + first.notes.get(0)));
+			parts.add(Lang.tr("ошибка: ") + names(Status.FAILED) + (first.notes.isEmpty() ? "" : " — " + first.notes.get(0)));
 		}
 
-		return parts.isEmpty() ? "Нечего загружать" : String.join("; ", parts);
+		return parts.isEmpty() ? Lang.tr("Нечего загружать") : String.join("; ", parts);
 	}
 
 	private Entry firstOf(Status status) {

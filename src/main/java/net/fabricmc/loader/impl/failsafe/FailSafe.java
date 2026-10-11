@@ -23,6 +23,7 @@ import net.fabricmc.loader.api.metadata.ModDependency;
 import net.fabricmc.loader.api.metadata.ModOrigin;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 
@@ -108,7 +109,7 @@ public final class FailSafe {
 				}
 
 				String depName = FabricLoaderImpl.INSTANCE.getModContainer(dep.getModId()).map(c -> c.getMetadata().getName()).orElse(dep.getModId());
-				record(mod, stage, "Зависит от «" + depName + "», он не запустился", file, true);
+				record(mod, stage, Lang.tr("Зависит от «") + depName + Lang.tr("», он не запустился"), file, true);
 
 				return true;
 			}

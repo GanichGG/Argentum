@@ -57,13 +57,18 @@ public final class Lang {
 		return String.format(tr(original), args);
 	}
 
-	/** Читает язык заново (игрок мог его сменить в настройках игры) и перезагружает таблицу, если он изменился. */
+	/** Читает язык и таблицы заново (игрок мог сменить язык в настройках игры, а моды — добавить свои таблицы). */
 	public static void refresh() {
-		String code = detect();
+		load(detect());
+	}
 
-		if (!code.equals(loadedFor)) {
-			load(code);
-		}
+	/**
+	 * Таблицы лежат в jar'ах модов, которые становятся видны не сразу: что-то могло запросить перевод до того, как загрузился
+	 * клиентский мод. Поэтому при каждом добавлении jar в classpath загрузка помечается устаревшей и выполняется заново при
+	 * следующем запросе.
+	 */
+	public static void invalidate() {
+		loadedFor = null;
 	}
 
 	/** Код текущего языка в нижнем регистре, например {@code ru_ru}. */
@@ -75,7 +80,7 @@ public final class Lang {
 
 	private static void ensureLoaded() {
 		if (loadedFor == null) {
-			refresh();
+			load(detect());
 		}
 	}
 

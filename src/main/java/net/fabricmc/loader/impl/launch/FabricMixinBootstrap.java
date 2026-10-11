@@ -37,6 +37,7 @@ import net.fabricmc.loader.api.metadata.ModDependency.Kind;
 import net.fabricmc.loader.api.metadata.version.VersionInterval;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.ModContainerImpl;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.launch.knot.MixinServiceKnot;
 import net.fabricmc.loader.impl.launch.knot.MixinServiceKnotBootstrap;
 import net.fabricmc.loader.impl.util.log.Log;
@@ -122,7 +123,7 @@ public final class FabricMixinBootstrap {
 	 */
 	public static void addLate(EnvType side, List<ModContainerImpl> mods) {
 		if (!initialized) {
-			throw new IllegalStateException("Mixin ещё не инициализирован");
+			throw new IllegalStateException(Lang.tr("Mixin ещё не инициализирован"));
 		}
 
 		Map<String, ModContainerImpl> configToModMap = new HashMap<>();
@@ -162,7 +163,7 @@ public final class FabricMixinBootstrap {
 				countField.setInt(processor, 0);
 			}
 		} catch (ReflectiveOperationException | RuntimeException e) {
-			throw new RuntimeException("Не удалось заставить Mixin подхватить новые конфиги", e);
+			throw new RuntimeException(Lang.tr("Не удалось заставить Mixin подхватить новые конфиги"), e);
 		}
 	}
 

@@ -19,6 +19,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 
@@ -68,7 +69,7 @@ public final class ModInstaller {
 		try {
 			Files.createDirectories(modsDir);
 		} catch (IOException e) {
-			throw new ModrinthApiException("Не удалось создать папку mods: " + modsDir, e);
+			throw new ModrinthApiException(Lang.tr("Не удалось создать папку mods: ") + modsDir, e);
 		}
 
 		int fileIndex = 0;
@@ -77,7 +78,7 @@ public final class ModInstaller {
 			ModrinthFile file = version.getPrimaryFile();
 
 			if (file == null || file.url == null) {
-				throw new ModrinthApiException("У версии \"" + version.name + "\" мода " + version.projectId + " на Modrinth нет скачиваемого файла");
+				throw new ModrinthApiException(Lang.tr("У версии \"") + version.name + Lang.tr("\" мода ") + version.projectId + Lang.tr(" на Modrinth нет скачиваемого файла"));
 			}
 
 			String targetName = file.filename;
@@ -102,7 +103,7 @@ public final class ModInstaller {
 		try {
 			index.save();
 		} catch (IOException e) {
-			throw new ModrinthApiException("Моды скачаны, но не удалось сохранить реестр установленных модов", e);
+			throw new ModrinthApiException(Lang.tr("Моды скачаны, но не удалось сохранить реестр установленных модов"), e);
 		}
 
 		return new InstallResult(installedNames, installedFiles, modsDir);
@@ -148,7 +149,7 @@ public final class ModInstaller {
 			int status = connection.getResponseCode();
 
 			if (status != 200) {
-				throw new ModrinthApiException("Не удалось скачать " + file.filename + " — сервер ответил HTTP " + status);
+				throw new ModrinthApiException(Lang.tr("Не удалось скачать ") + file.filename + Lang.tr(" — сервер ответил HTTP ") + status);
 			}
 
 			MessageDigest sha1Digest = file.sha1 != null ? newSha1() : null;
@@ -176,8 +177,8 @@ public final class ModInstaller {
 
 				if (!actual.equalsIgnoreCase(file.sha1)) {
 					Files.deleteIfExists(tmp);
-					throw new ModrinthApiException("Скачанный файл " + file.filename + " повреждён: контрольная сумма не совпадает "
-							+ "(ожидалось " + file.sha1 + ", получено " + actual + ")");
+					throw new ModrinthApiException(Lang.tr("Скачанный файл ") + file.filename + Lang.tr(" повреждён: контрольная сумма не совпадает ")
+							+ Lang.tr("(ожидалось ") + file.sha1 + Lang.tr(", получено ") + actual + ")");
 				}
 			}
 
@@ -189,7 +190,7 @@ public final class ModInstaller {
 				// неважно, это временный файл
 			}
 
-			throw new ModrinthApiException("Не удалось скачать " + file.filename, e);
+			throw new ModrinthApiException(Lang.tr("Не удалось скачать ") + file.filename, e);
 		}
 	}
 
@@ -197,7 +198,7 @@ public final class ModInstaller {
 		try {
 			return MessageDigest.getInstance("SHA-1");
 		} catch (NoSuchAlgorithmException e) {
-			throw new ModrinthApiException("SHA-1 недоступен в этой JVM", e);
+			throw new ModrinthApiException(Lang.tr("SHA-1 недоступен в этой JVM"), e);
 		}
 	}
 

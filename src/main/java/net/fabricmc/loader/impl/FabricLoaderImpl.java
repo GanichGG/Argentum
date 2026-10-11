@@ -60,6 +60,7 @@ import net.fabricmc.loader.impl.discovery.RuntimeModRemapper;
 import net.fabricmc.loader.impl.entrypoint.EntrypointStorage;
 import net.fabricmc.loader.impl.game.GameProvider;
 import net.fabricmc.loader.impl.failsafe.FailSafe;
+import net.fabricmc.loader.impl.profile.StartupProfile;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.loader.impl.launch.MappingConfiguration;
@@ -251,7 +252,9 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 		discoverer.addCandidateFinder(new ArgumentModCandidateFinder(remapRegularMods));
 
 		Map<String, Set<ModCandidateImpl>> envDisabledMods = new HashMap<>();
+		long profileStart = System.nanoTime();
 		modCandidates = discoverer.discoverMods(this, envDisabledMods);
+		StartupProfile.phase("поиск и чтение модов", System.nanoTime() - profileStart);
 
 		// dump version and dependency overrides info
 
@@ -265,7 +268,9 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 
 		// resolve mods
 
+		profileStart = System.nanoTime();
 		modCandidates = ModResolver.resolve(modCandidates, getEnvironmentType(), envDisabledMods);
+		StartupProfile.phase("разрешение зависимостей", System.nanoTime() - profileStart);
 
 		dumpModList(modCandidates);
 		dumpNonFabricMods(discoverer.getNonFabricMods());
@@ -441,9 +446,14 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 				continue; // ArgentumLoader: мод уже отключён из-за ошибки запуска, зависимые от него не запускаем
 			}
 
+			long entrypointStart = System.nanoTime();
+
 			try {
 				invoker.accept(container.getEntrypoint());
+				StartupProfile.entrypoint(container.getProvider().getMetadata().getId(), key, System.nanoTime() - entrypointStart);
 			} catch (Throwable t) {
+				StartupProfile.entrypoint(container.getProvider().getMetadata().getId(), key, System.nanoTime() - entrypointStart);
+
 				if (FailSafe.handle(key, container.getProvider(), t)) {
 					continue; // ArgentumLoader: мод отключён, игра продолжает запуск
 				}

@@ -3,6 +3,9 @@
   "name":"[Ljava.util.Locale;"
 },
 {
+  "name":"[Lsun.awt.shell.ShellFolderColumnInfo;"
+},
+{
   "name":"[Lsun.java2d.loops.GraphicsPrimitive;"
 },
 {
@@ -15,7 +18,7 @@
 },
 {
   "name":"java.awt.Color",
-  "methods":[{"name":"getRGB","parameterTypes":[] }]
+  "methods":[{"name":"<init>","parameterTypes":["int","int","int"] }, {"name":"getRGB","parameterTypes":[] }]
 },
 {
   "name":"java.awt.Component",
@@ -37,7 +40,8 @@
 },
 {
   "name":"java.awt.Dimension",
-  "fields":[{"name":"height"}, {"name":"width"}]
+  "fields":[{"name":"height"}, {"name":"width"}],
+  "methods":[{"name":"<init>","parameterTypes":["int","int"] }]
 },
 {
   "name":"java.awt.Font",
@@ -234,6 +238,15 @@
   "methods":[{"name":"<init>","parameterTypes":["long"] }]
 },
 {
+  "name":"sun.awt.image.ByteComponentRaster",
+  "fields":[{"name":"data"}, {"name":"dataOffsets"}, {"name":"pixelStride"}, {"name":"scanlineStride"}, {"name":"type"}]
+},
+{
+  "name":"sun.awt.image.GifImageDecoder",
+  "fields":[{"name":"outCode"}, {"name":"prefix"}, {"name":"suffix"}],
+  "methods":[{"name":"readBytes","parameterTypes":["byte[]","int","int"] }, {"name":"sendPixels","parameterTypes":["int","int","int","int","byte[]","java.awt.image.ColorModel"] }]
+},
+{
   "name":"sun.awt.image.ImageRepresentation",
   "fields":[{"name":"numSrcLUT"}, {"name":"srcLUTtransIndex"}]
 },
@@ -248,6 +261,15 @@
 {
   "name":"sun.awt.image.VolatileSurfaceManager",
   "fields":[{"name":"sdCurrent"}]
+},
+{
+  "name":"sun.awt.shell.ShellFolderColumnInfo",
+  "methods":[{"name":"<init>","parameterTypes":["java.lang.String","int","int","boolean"] }]
+},
+{
+  "name":"sun.awt.shell.Win32ShellFolder2",
+  "fields":[{"name":"FDATE"}, {"name":"FNAME"}, {"name":"FSIZE"}, {"name":"FTYPE"}, {"name":"displayName"}, {"name":"folderType"}, {"name":"pIShellIcon"}],
+  "methods":[{"name":"setIShellFolder","parameterTypes":["long"] }, {"name":"setRelativePIDL","parameterTypes":["long"] }]
 },
 {
   "name":"sun.awt.windows.WComponentPeer",
@@ -474,6 +496,10 @@
 {
   "name":"sun.java2d.pipe.RegionIterator",
   "fields":[{"name":"curIndex"}, {"name":"numXbands"}, {"name":"region"}]
+},
+{
+  "name":"sun.java2d.pipe.ShapeSpanIterator",
+  "fields":[{"name":"pData"}]
 },
 {
   "name":"sun.java2d.windows.WindowsFlags",

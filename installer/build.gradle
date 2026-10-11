@@ -127,10 +127,18 @@ tasks.register('copyNativeLibs') {
 // client-intermediary.jar от уже запускавшейся игры; если его нет или сборка упала — не ломаем сборку
 // якоря, он просто поставит один лоадер (copyClientMod копирует то, что есть).
 tasks.register('buildClientMod', Exec) {
+	// клиент компилируется против классов лоадера (экран каталога вызывает движок Modrinth), поэтому лоадер собираем первым
+	dependsOn rootProject.tasks.named('classes')
 	workingDir rootProject.file('argentum-client')
 	def wrapper = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'gradlew.bat' : 'gradlew'
-	commandLine rootProject.file(wrapper).absolutePath, 'build', '--console=plain', '-q'
-	ignoreExitValue = true
+	def command = [rootProject.file(wrapper).absolutePath, 'build', '--console=plain', '-q']
+
+	// релизный номер сборки передаём и клиенту, чтобы внутри установщика лежал мод той же версии
+	if (rootProject.hasProperty('argentumRelease')) {
+		command.add("-PargentumRelease=${rootProject.property('argentumRelease')}".toString())
+	}
+
+	commandLine command
 	outputs.upToDateWhen { false }
 }
 

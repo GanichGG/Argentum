@@ -2,6 +2,11 @@
 
 Release notes are taken from the section whose heading matches the version (see `tools/release_notes.py`).
 
+## [0.19.5+argentum.2] - 2026-10-11 (pre-release)
+
+Same code as 0.19.5+argentum.1, now **with the Windows installer** (`ArgentumAnchor.exe`). The CI that builds the installer
+and the client mod was fixed; the installer is built on GitHub, so its checksum is in `SHA256SUMS.txt`.
+
 ## [0.19.5+argentum.1] - 2026-10-11 (pre-release)
 
 First public build of ArgentumLoader (a fork of Fabric Loader 0.19.5).

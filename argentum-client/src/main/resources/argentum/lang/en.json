@@ -217,5 +217,9 @@
  "Транспорт": "Transportation",
  "Утилиты": "Utility",
  "Генерация мира": "World generation",
- "Квесты": "Quests"
+ "Квесты": "Quests",
+ "Диагностика": "Diagnostics",
+ "Собираю диагностику": "Collecting diagnostics",
+ "Диагностика сохранена: ": "Diagnostics saved: ",
+ "Не удалось собрать диагностику": "Could not collect diagnostics"
 }

@@ -1,0 +1,42 @@
+name: Bug report / Сообщение об ошибке
+description: Something does not work / Что-то не работает
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please attach the **diagnostics bundle** (catalog -> "Diagnostics" button) - it has your versions, mod list and logs.
+        Пожалуйста, приложите **пакет диагностики** (каталог -> кнопка «Диагностика»): в нём версии, список модов и журналы.
+  - type: input
+    id: version
+    attributes:
+      label: ArgentumLoader version / Версия
+      placeholder: 0.19.5+argentum.1
+    validations:
+      required: true
+  - type: input
+    id: minecraft
+    attributes:
+      label: Minecraft version and launcher / Версия игры и лаунчер
+      placeholder: 1.21.1, Prism Launcher
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / Что произошло?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / Как воспроизвести
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect? / Что ожидали?
+  - type: textarea
+    id: extra
+    attributes:
+      label: Logs, screenshots, mod list / Журналы, скриншоты, список модов
+      description: Drag files here. Do not post tokens or passwords. / Перетащите файлы сюда. Не публикуйте токены и пароли.

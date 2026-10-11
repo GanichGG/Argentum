@@ -22,6 +22,7 @@ import java.util.Map;
 
 import net.fabricmc.loader.api.Version;
 import net.fabricmc.loader.api.VersionParsingException;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.SystemProperties;
 import net.fabricmc.loader.impl.util.version.VersionParser;
 
@@ -34,7 +35,7 @@ public final class VersionOverrides {
 
 		for (String entry : property.split(",")) {
 			int pos = entry.indexOf(":");
-			if (pos <= 0 || pos >= entry.length() - 1) throw new RuntimeException("недопустимая запись замены версии: "+entry);
+			if (pos <= 0 || pos >= entry.length() - 1) throw new RuntimeException(Lang.tr("недопустимая запись замены версии: ")+entry);
 
 			String id = entry.substring(0, pos);
 			String rawVersion = entry.substring(pos + 1);
@@ -43,7 +44,7 @@ public final class VersionOverrides {
 			try {
 				version = VersionParser.parse(rawVersion, false);
 			} catch (VersionParsingException e) {
-				throw new RuntimeException(String.format("Недопустимая версия замены для мода %s: %s", id, rawVersion), e);
+				throw new RuntimeException(String.format(Lang.tr("Недопустимая версия замены для мода %s: %s"), id, rawVersion), e);
 			}
 
 			replacements.put(id, version);

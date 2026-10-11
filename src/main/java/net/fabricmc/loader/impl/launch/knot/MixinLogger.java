@@ -47,7 +47,7 @@ final class MixinLogger extends LoggerAdapterAbstract {
 
 	@Override
 	public String getType() {
-		return "Fabric Mixin Logger";
+		return "Argentum Mixin Logger";
 	}
 
 	@Override

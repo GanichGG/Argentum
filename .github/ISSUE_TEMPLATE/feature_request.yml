@@ -1,0 +1,20 @@
+name: Feature request / Предложение
+description: An idea for ArgentumLoader / Идея для ArgentumLoader
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does it solve? / Какую проблему решает?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to see? / Что бы вы хотели видеть?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered / Какие есть альтернативы

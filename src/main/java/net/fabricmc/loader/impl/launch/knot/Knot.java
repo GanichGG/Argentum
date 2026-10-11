@@ -41,7 +41,9 @@ import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.FormattedException;
 import net.fabricmc.loader.impl.game.GameProvider;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
+import net.fabricmc.loader.impl.profile.StartupProfile;
 import net.fabricmc.loader.impl.launch.FabricMixinBootstrap;
 import net.fabricmc.loader.impl.util.LoaderUtil;
 import net.fabricmc.loader.impl.util.SystemProperties;
@@ -127,7 +129,7 @@ public final class Knot extends FabricLauncherBase {
 
 		provider = createGameProvider(args);
 		Log.finishBuiltinConfig();
-		Log.info(LogCategory.GAME_PROVIDER, "Loading %s %s with Fabric Loader %s", provider.getGameName(), provider.getRawGameVersion(), FabricLoaderImpl.VERSION);
+		Log.info(LogCategory.GAME_PROVIDER, "Loading %s %s with ArgentumLoader %s", provider.getGameName(), provider.getRawGameVersion(), FabricLoaderImpl.VERSION);
 
 		// Setup classloader
 		// TODO: Provide KnotCompatibilityClassLoader in non-exclusive-Fabric pre-1.13 environments?
@@ -144,7 +146,9 @@ public final class Knot extends FabricLauncherBase {
 
 		FabricLoaderImpl.INSTANCE.loadClassTweakers();
 
+		long profileStart = System.nanoTime();
 		FabricMixinBootstrap.init(getEnvironmentType(), loader);
+		StartupProfile.phase(Lang.tr("настройка миксинов"), System.nanoTime() - profileStart);
 		FabricLauncherBase.finishMixinBootstrapping();
 
 		classLoader.initializeTransformers();
@@ -257,6 +261,7 @@ public final class Knot extends FabricLauncherBase {
 
 	@Override
 	public void addToClassPath(Path path, String... allowedPrefixes) {
+		Lang.invalidate(); // у нового jar могут быть свои таблицы перевода
 		Log.debug(LogCategory.KNOT, "Adding " + path + " to classpath.");
 
 		classLoader.setAllowedPrefixes(path, allowedPrefixes);

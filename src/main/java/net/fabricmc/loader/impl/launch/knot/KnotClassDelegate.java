@@ -52,6 +52,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.game.GameProvider;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
+import net.fabricmc.loader.impl.profile.StartupProfile;
 import net.fabricmc.loader.impl.launch.knot.KnotClassDelegate.ClassLoaderAccess;
 import net.fabricmc.loader.impl.transformer.FabricTransformer;
 import net.fabricmc.loader.impl.util.ExceptionUtil;
@@ -431,6 +432,8 @@ final class KnotClassDelegate<T extends ClassLoader & ClassLoaderAccess> impleme
 			return transformedClassArray;
 		}
 
+		long mixinStart = StartupProfile.mixinStart();
+
 		try {
 			return getMixinTransformer().transformClassBytes(name, name, transformedClassArray);
 		} catch (Throwable t) {
@@ -438,6 +441,8 @@ final class KnotClassDelegate<T extends ClassLoader & ClassLoaderAccess> impleme
 			if (LOG_TRANSFORM_ERRORS) Log.warn(LogCategory.KNOT, msg, t);
 
 			throw new RuntimeException(msg, t);
+		} finally {
+			StartupProfile.mixinEnd(mixinStart);
 		}
 	}
 

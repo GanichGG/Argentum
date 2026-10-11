@@ -45,6 +45,7 @@ import net.fabricmc.classtweaker.api.ClassTweakerWriter;
 import net.fabricmc.classtweaker.visitors.ClassTweakerRemapperVisitor;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.FormattedException;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.launch.FabricLauncher;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.loader.impl.launch.MappingConfiguration;
@@ -99,7 +100,7 @@ public final class RuntimeModRemapper {
 
 				if (mod.hasPath()) {
 					List<Path> paths = mod.getPaths();
-					if (paths.size() != 1) throw new UnsupportedOperationException("несколько путей для "+mod);
+					if (paths.size() != 1) throw new UnsupportedOperationException(Lang.tr("несколько путей для ")+mod);
 
 					info.inputPath = paths.get(0);
 				} else {
@@ -119,7 +120,7 @@ public final class RuntimeModRemapper {
 						FileSystem fs = jarFs.get();
 						info.classTweaker = Files.readAllBytes(fs.getPath(classTweaker));
 					} catch (Throwable t) {
-						throw new RuntimeException("Ошибка чтения class tweaker для мода '" +mod.getId()+ "'!", t);
+						throw new RuntimeException(Lang.tr("Ошибка чтения class tweaker для мода '") +mod.getId()+ "'!", t);
 					}
 
 					ClassTweakerReader.create(mergedClassTweaker).read(info.classTweaker, modNs);
@@ -137,7 +138,7 @@ public final class RuntimeModRemapper {
 			try {
 				remapper.readClassPathAsync(getRemapClasspath().toArray(new Path[0]));
 			} catch (IOException e) {
-				throw new RuntimeException("Не удалось собрать classpath для ремаппинга", e);
+				throw new RuntimeException(Lang.tr("Не удалось собрать classpath для ремаппинга"), e);
 			}
 
 			String defaultMixinRemapType = System.getProperty(SystemProperties.DEFAULT_MIXIN_REMAP_TYPE, REMAP_TYPE_MIXIN);
@@ -163,7 +164,7 @@ public final class RuntimeModRemapper {
 				FileSystemUtil.FileSystemDelegate delegate = FileSystemUtil.getJarFileSystem(info.inputPath, false);
 
 				if (delegate.get() == null) {
-					throw new RuntimeException("Не удалось открыть JAR-файл " + info.inputPath.getFileName() + " для чтения через NIO!");
+					throw new RuntimeException(Lang.tr("Не удалось открыть JAR-файл ") + info.inputPath.getFileName() + Lang.tr(" для чтения через NIO!"));
 				}
 
 				Path inputJar = delegate.get().getRootDirectories().iterator().next();
@@ -218,7 +219,7 @@ public final class RuntimeModRemapper {
 				}
 			}
 
-			throw new FormattedException("Не удалось ремаппнуть моды!", t);
+			throw new FormattedException(Lang.tr("Не удалось ремаппнуть моды!"), t);
 		} finally {
 			for (RemapInfo info : infoMap.values()) {
 				try {
@@ -242,7 +243,7 @@ public final class RuntimeModRemapper {
 		String remapClasspathFile = System.getProperty(SystemProperties.REMAP_CLASSPATH_FILE);
 
 		if (remapClasspathFile == null) {
-			throw new RuntimeException("Не указан remapClasspathFile");
+			throw new RuntimeException(Lang.tr("Не указан remapClasspathFile"));
 		}
 
 		String content = new String(Files.readAllBytes(Paths.get(remapClasspathFile)), StandardCharsets.UTF_8);

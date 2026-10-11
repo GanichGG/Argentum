@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "argentum-client",
+  "version": "${version}",
+  "name": "ArgentumLoader Client",
+  "description": "Встроенная клиентская часть ArgentumLoader: надписи, экраны, релоадер.",
+  "authors": ["GanichGG"],
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "mixins": ["argentum-client.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "argentumloader": ">=0.19.5",
+    "minecraft": "~1.21.1",
+    "java": ">=21"
+  }
+}

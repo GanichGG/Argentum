@@ -22,6 +22,8 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
+import net.fabricmc.loader.impl.i18n.Lang;
+import net.fabricmc.loader.impl.profile.StartupProfile;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 
@@ -30,16 +32,22 @@ public final class Hooks {
 
 	public static String appletMainClass;
 
-	public static final String FABRIC = "fabric";
+	// Машиночитаемый идентификатор бренда (используется другими модами для проверки
+	// совместимости через FabricLoader/brand API) остаётся коротким и латиницей.
+	public static final String FABRIC = "argentum";
 	public static final String VANILLA = "vanilla";
+
+	// Отдельно — то, что реально видно в левом нижнем углу главного меню и на экране
+	// отладки (F3): человекочитаемая надпись вместо голого идентификатора бренда.
+	public static final String DISPLAY_BRAND = "Argentum — спасибо за использование!";
 
 	public static String insertBranding(final String brand) {
 		if (brand == null || brand.isEmpty()) {
 			Log.warn(LogCategory.GAME_PROVIDER, "Null or empty branding found!", new IllegalStateException());
-			return FABRIC;
+			return DISPLAY_BRAND;
 		}
 
-		return VANILLA.equals(brand) ? FABRIC : brand + ',' + FABRIC;
+		return VANILLA.equals(brand) ? DISPLAY_BRAND : brand + ',' + DISPLAY_BRAND;
 	}
 
 	public static void startClient(File runDir, Object gameInstance) {
@@ -48,6 +56,7 @@ public final class Hooks {
 		}
 
 		FabricLoaderImpl loader = FabricLoaderImpl.INSTANCE;
+		StartupProfile.mark(Lang.tr("игра создана, запуск модов"));
 		loader.prepareModInit(runDir.toPath(), gameInstance);
 		loader.invokeEntrypoints("main", ModInitializer.class, ModInitializer::onInitialize);
 		loader.invokeEntrypoints("client", ClientModInitializer.class, ClientModInitializer::onInitializeClient);

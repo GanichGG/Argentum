@@ -27,6 +27,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 
 import net.fabricmc.loader.api.metadata.CustomValue;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 
 abstract class CustomValueImpl implements CustomValue {
@@ -85,7 +86,7 @@ abstract class CustomValueImpl implements CustomValue {
 		if (this instanceof ObjectImpl) {
 			return (ObjectImpl) this;
 		} else {
-			throw new ClassCastException("невозможно преобразовать "+getType().name()+" в Object");
+			throw new ClassCastException(Lang.tr("невозможно преобразовать ")+getType().name()+Lang.tr(" в Object"));
 		}
 	}
 
@@ -94,7 +95,7 @@ abstract class CustomValueImpl implements CustomValue {
 		if (this instanceof ArrayImpl) {
 			return (ArrayImpl) this;
 		} else {
-			throw new ClassCastException("невозможно преобразовать "+getType().name()+" в Array");
+			throw new ClassCastException(Lang.tr("невозможно преобразовать ")+getType().name()+Lang.tr(" в Array"));
 		}
 	}
 
@@ -103,7 +104,7 @@ abstract class CustomValueImpl implements CustomValue {
 		if (this instanceof StringImpl) {
 			return ((StringImpl) this).value;
 		} else {
-			throw new ClassCastException("невозможно преобразовать "+getType().name()+" в String");
+			throw new ClassCastException(Lang.tr("невозможно преобразовать ")+getType().name()+Lang.tr(" в String"));
 		}
 	}
 
@@ -112,7 +113,7 @@ abstract class CustomValueImpl implements CustomValue {
 		if (this instanceof NumberImpl) {
 			return ((NumberImpl) this).value;
 		} else {
-			throw new ClassCastException("невозможно преобразовать "+getType().name()+" в Number");
+			throw new ClassCastException(Lang.tr("невозможно преобразовать ")+getType().name()+Lang.tr(" в Number"));
 		}
 	}
 
@@ -121,7 +122,7 @@ abstract class CustomValueImpl implements CustomValue {
 		if (this instanceof BooleanImpl) {
 			return ((BooleanImpl) this).value;
 		} else {
-			throw new ClassCastException("невозможно преобразовать "+getType().name()+" в Boolean");
+			throw new ClassCastException(Lang.tr("невозможно преобразовать ")+getType().name()+Lang.tr(" в Boolean"));
 		}
 	}
 

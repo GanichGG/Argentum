@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.fabricmc.loader.impl.FabricLoaderImpl;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.Arguments;
 import net.fabricmc.loader.impl.util.LoaderUtil;
 import net.fabricmc.loader.impl.util.SystemProperties;
@@ -74,7 +75,7 @@ public class ArgumentModCandidateFinder implements ModCandidateFinder {
 						addMod(line, fileSource, out);
 					}
 				} catch (IOException e) {
-					throw new RuntimeException(String.format("Ошибка чтения файла списка модов %s (%s)", path, source), e);
+					throw new RuntimeException(String.format(Lang.tr("Ошибка чтения файла списка модов %s (%s)"), path, source), e);
 				}
 			} else {
 				addMod(pathStr, source, out);

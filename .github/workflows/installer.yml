@@ -1,0 +1,41 @@
+name: Installer
+
+# Builds the native Windows installer (ArgentumAnchor.exe) so that problems show up in a pull request, not on release day.
+on:
+  pull_request:
+    paths:
+      - 'installer/**'
+      - 'argentum-client/**'
+      - 'src/main/**'
+      - 'build.gradle'
+      - '.github/workflows/installer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: graalvm-community
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.gradle/argentum-minecraft
+          key: argentum-minecraft-${{ hashFiles('argentum-client/gradle.properties') }}
+      - name: Installer
+        shell: bash
+        run: ./gradlew :installer:nativeCompile --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ArgentumAnchor
+          path: installer/build/native/nativeCompile/ArgentumAnchor.exe
+          if-no-files-found: error

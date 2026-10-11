@@ -20,7 +20,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - uses: actions/cache@v4
@@ -68,7 +68,7 @@ jobs:
           java-version: '21'
           distribution: graalvm-community
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Installer

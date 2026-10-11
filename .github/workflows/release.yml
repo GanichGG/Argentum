@@ -38,7 +38,7 @@ jobs:
 
       - run: python tools/check_translations.py
       - name: Loader
-        run: ./gradlew -PargentumRelease=${{ steps.meta.outputs.build }} checkstyleMain checkstyleTest test finalJar --stacktrace
+        run: ./gradlew -PargentumRelease=${{ steps.meta.outputs.build }} :checkstyleMain :checkstyleTest :minecraft:checkstyleMain :test :finalJar --stacktrace
       - name: Client mod
         working-directory: argentum-client
         run: ../gradlew -PargentumRelease=${{ steps.meta.outputs.build }} build --stacktrace

@@ -54,7 +54,7 @@ allprojects {
 	}
 
 	dependencies {
-		compileOnly 'org.jetbrains:annotations:23.0.0'
+		compileOnly 'org.jetbrains:annotations:26.1.0'
 	}
 }
 
@@ -121,7 +121,7 @@ dependencies {
 
 	development "io.github.llamalad7:mixinextras-fabric:$mixin_extras_version"
 
-	testCompileOnly 'org.jetbrains:annotations:23.0.0'
+	testCompileOnly 'org.jetbrains:annotations:26.1.0'
 
 	// Unit testing for mod metadata
 	testImplementation('org.junit.jupiter:junit-jupiter:5.9.2')

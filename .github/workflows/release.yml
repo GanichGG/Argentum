@@ -98,6 +98,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           name: ArgentumLoader ${{ needs.jars.outputs.version }}
+          prerelease: true   # until the manual checklist in docs/RELEASING.md has been completed on a clean instance
           body_path: dist/NOTES.md
           files: |
             dist/*.jar

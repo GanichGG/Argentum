@@ -1,10 +1,11 @@
 version: 2
 updates:
+  # Only GitHub Actions: Gradle dependencies come from the Fabric Loader fork and are pinned on purpose.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
-  - package-ecosystem: gradle
-    directory: /
-    schedule:
-      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ['*']

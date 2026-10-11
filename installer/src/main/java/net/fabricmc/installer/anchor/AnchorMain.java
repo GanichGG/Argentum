@@ -237,6 +237,7 @@ public final class AnchorMain {
 		Path librariesDir = instanceDir.resolve("libraries");
 		String ownCoordinate = loaderGroup + ":" + loaderArtifact + ":" + loaderVersion;
 		installOwnJarFlat(librariesDir, loaderArtifact, loaderVersion);
+		removeOldLoaderJars(librariesDir, loaderArtifact, loaderArtifact + "-" + loaderVersion + ".jar");
 
 		// Игровая папка инстанса Prism — ".minecraft" (по умолчанию в новых версиях "minecraft"); берём существующую.
 		Path gameFolder = Files.isDirectory(instanceDir.resolve(".minecraft")) ? instanceDir.resolve(".minecraft") : instanceDir.resolve("minecraft");
@@ -261,8 +262,17 @@ public final class AnchorMain {
 			extraComponents.append(",{\"uid\":\"").append(escape(uid)).append("\",\"version\":\"").append(escape(loaderVersion)).append("\"}");
 		}
 
+		String updatedMmcPack = mmcPack;
+
+		if (hasComponent(mmcPack, uid)) {
+			updatedMmcPack = withComponentVersion(updatedMmcPack, uid, loaderVersion); // переустановка: новая версия вместо прежней
+		}
+
 		if (extraComponents.length() > 0) {
-			String updatedMmcPack = insertIntoComponentsArray(mmcPack, extraComponents.toString());
+			updatedMmcPack = insertIntoComponentsArray(updatedMmcPack, extraComponents.toString());
+		}
+
+		if (!updatedMmcPack.equals(mmcPack)) {
 			Files.write(mmcPackPath, updatedMmcPack.getBytes(StandardCharsets.UTF_8));
 		}
 
@@ -605,6 +615,42 @@ public final class AnchorMain {
 		return result;
 	}
 
+	/** Меняет "version" у компонента с указанным uid, остальное в mmc-pack.json не трогает. */
+	private static String withComponentVersion(String mmcPackJson, String uid, String version) {
+		String needle = "\"uid\":\"" + uid + "\"";
+
+		for (String component : splitTopLevelObjects(mmcPackJson)) {
+			if (!component.replaceAll("\\s", "").contains(needle)) continue;
+
+			Matcher m = Pattern.compile("(\"version\"\\s*:\\s*\")[^\"]*(\")").matcher(component);
+
+			if (m.find()) {
+				String updated = component.substring(0, m.start()) + m.group(1) + escape(version) + m.group(2) + component.substring(m.end());
+
+				return mmcPackJson.replace(component, updated);
+			}
+		}
+
+		return mmcPackJson;
+	}
+
+	/** Предыдущие версии загрузчика в libraries инстанса больше не нужны (патч ссылается только на новую). */
+	private static void removeOldLoaderJars(Path librariesDir, String artifact, String keepName) {
+		try (DirectoryStream<Path> files = Files.newDirectoryStream(librariesDir, artifact + "-*.jar")) {
+			for (Path f : files) {
+				if (!f.getFileName().toString().equals(keepName)) {
+					try {
+						Files.deleteIfExists(f);
+					} catch (IOException ignored) {
+						// файл занят (игра запущена) — останется до следующей установки
+					}
+				}
+			}
+		} catch (IOException ignored) {
+			// папки ещё нет или она недоступна — чистить нечего
+		}
+	}
+
 	private static boolean hasComponent(String mmcPackJson, String uid) {
 		String needle = "\"uid\":\"" + uid + "\"";
 
@@ -714,6 +760,19 @@ public final class AnchorMain {
 			}
 
 			Files.createDirectories(modsDir);
+
+			// копии мода под другими именами (например, ручная dev-установка) дали бы два мода с одним id — убираем
+			try (DirectoryStream<Path> old = Files.newDirectoryStream(modsDir, "argentum-client*.jar")) {
+				for (Path f : old) {
+					if (!f.getFileName().toString().equals("argentum-client.jar")) {
+						try {
+							Files.deleteIfExists(f);
+						} catch (IOException ignored) {
+							// занят запущенной игрой — останется
+						}
+					}
+				}
+			}
 
 			try (OutputStream os = Files.newOutputStream(modsDir.resolve("argentum-client.jar"))) {
 				byte[] buf = new byte[8192];

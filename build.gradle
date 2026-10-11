@@ -35,8 +35,19 @@ allprojects {
 	def constantsSource = rootProject.file("src/main/java/net/fabricmc/loader/impl/FabricLoaderImpl.java").text
 	// ArgentumLoader: релизная сборка получает версию «0.19.5+argentum.N» (gradle -PargentumRelease=N, это делает CI по тегу),
 	// локальная остаётся «+local», чтобы не путать её с выпущенной.
+	// Версия продукта записана один раз — в ArgentumVersion.DISPLAY (формат 0.1B1); SemVer-запись для загрузчика выводится из неё.
+	def argentumSource = rootProject.file("src/main/java/net/fabricmc/loader/impl/ArgentumVersion.java").text
+	def argentumDisplay = (argentumSource =~ /DISPLAY\s*=\s*"(.*)";/)[0][1]
+	def argentumParts = (argentumDisplay =~ /^(\d+)\.(\d+)(?:([AB])(\d+))?$/)
+
+	if (!argentumParts.matches()) {
+		throw new GradleException("ArgentumVersion.DISPLAY must look like 0.1, 0.1A3 or 0.1B1, got: ${argentumDisplay}")
+	}
+
+	rootProject.ext.argentumDisplay = argentumDisplay
+	rootProject.ext.argentumSemver = "${argentumParts.group(1)}.${argentumParts.group(2)}.0" + (argentumParts.group(3) ? "-${argentumParts.group(3).toLowerCase()}.${argentumParts.group(4)}" : "")
 	def argentumRelease = rootProject.findProperty('argentumRelease')
-	version = (constantsSource =~ /\s+VERSION\s*=\s*"(.*)";/)[0][1] + (argentumRelease ? "+argentum.${argentumRelease}" : "+local")
+	version = (constantsSource =~ /\s+VERSION\s*=\s*"(.*)";/)[0][1] + (argentumRelease ? "+argentum.${argentumDisplay}" : "+local")
 
 	repositories {
 		maven {
@@ -347,7 +358,7 @@ allprojects {
 	spotless {
 		java {
 			licenseHeaderFile(rootProject.file("HEADER"))
-			targetExclude '**/lib/gson/*.java', 'src/main/java/net/fabricmc/loader/impl/modrinth/**', 'src/main/java/net/fabricmc/loader/impl/hotload/**', 'src/main/java/net/fabricmc/loader/impl/failsafe/**', 'src/main/java/net/fabricmc/loader/impl/profile/**', 'src/main/java/net/fabricmc/loader/impl/discovery/HotModDiscovery.java', 'src/main/java/net/fabricmc/loader/impl/discovery/Preflight.java', 'src/test/java/net/fabricmc/test/modrinth/**'
+			targetExclude '**/lib/gson/*.java', 'src/main/java/net/fabricmc/loader/impl/modrinth/**', 'src/main/java/net/fabricmc/loader/impl/hotload/**', 'src/main/java/net/fabricmc/loader/impl/failsafe/**', 'src/main/java/net/fabricmc/loader/impl/profile/**', 'src/main/java/net/fabricmc/loader/impl/ArgentumVersion.java', 'src/main/java/net/fabricmc/loader/impl/discovery/HotModDiscovery.java', 'src/main/java/net/fabricmc/loader/impl/discovery/Preflight.java', 'src/test/java/net/fabricmc/test/modrinth/**'
 		}
 	}
 }

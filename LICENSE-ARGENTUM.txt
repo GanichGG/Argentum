@@ -18,6 +18,7 @@ Covered files:
   src/main/java/net/fabricmc/loader/impl/hotload/
   src/main/java/net/fabricmc/loader/impl/failsafe/
   src/main/java/net/fabricmc/loader/impl/profile/
+  src/main/java/net/fabricmc/loader/impl/ArgentumVersion.java
   src/main/java/net/fabricmc/loader/impl/discovery/HotModDiscovery.java
   src/main/java/net/fabricmc/loader/impl/discovery/Preflight.java
   src/test/java/net/fabricmc/test/modrinth/

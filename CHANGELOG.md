@@ -2,7 +2,7 @@
 
 Release notes are taken from the section whose heading matches the version (see `tools/release_notes.py`).
 
-## [0.19.5+argentum.1] - unreleased
+## [0.19.5+argentum.1] - 2026-10-11 (pre-release)
 
 First public build of ArgentumLoader (a fork of Fabric Loader 0.19.5).
 

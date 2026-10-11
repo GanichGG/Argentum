@@ -90,6 +90,31 @@ public final class InstalledModsIndex {
 		return new InstalledModsIndex(file, entries);
 	}
 
+	/** Содержимое файла реестра (null — файла нет): нужно, чтобы откатить реестр, если применение изменений не удалось. */
+	public static byte[] snapshot(Path modsDir) {
+		try {
+			Path file = modsDir.resolve(FILE_NAME);
+
+			return Files.isRegularFile(file) ? Files.readAllBytes(file) : null;
+		} catch (IOException e) {
+			return null;
+		}
+	}
+
+	public static void restore(Path modsDir, byte[] snapshot) {
+		try {
+			Path file = modsDir.resolve(FILE_NAME);
+
+			if (snapshot == null) {
+				Files.deleteIfExists(file);
+			} else {
+				Files.write(file, snapshot);
+			}
+		} catch (IOException e) {
+			Log.warn(LogCategory.MODRINTH, "Не удалось вернуть реестр установленных модов: %s", e);
+		}
+	}
+
 	public boolean contains(String projectId) {
 		return entries.containsKey(projectId);
 	}

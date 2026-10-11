@@ -37,6 +37,8 @@ import com.ganichgg.argentum.client.ui.ModConfigs;
 import com.ganichgg.argentum.client.ui.PixelIcons;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.impl.discovery.ModResolutionException;
+import net.fabricmc.loader.impl.discovery.Preflight;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.modrinth.DependencyResolver;
 import net.fabricmc.loader.impl.modrinth.CrashDiagnoser;
@@ -236,6 +238,7 @@ public final class CatalogScreen extends class_437 {
 	private int gearW;
 	private int applyX;
 	private volatile String applyMessage = "";
+	private volatile String preflightText;
 	private int applyW;
 
 	// отключение, обновления, фильтры, выбор версии, диагностика
@@ -980,13 +983,17 @@ public final class CatalogScreen extends class_437 {
 	}
 
 	private void runApply(List<ChangeQueue.Change> todo) {
+		Path mods = modsDir();
+		byte[] indexBackup = InstalledModsIndex.snapshot(mods);
+		List<Path> added = new ArrayList<>(); // файлы, которых раньше не было: при откате удаляются
+		Map<String, ModUpdates.Staged> staged = new HashMap<>();
+		List<ChangeQueue.Change> ready = new ArrayList<>(); // изменения, которые удалось подготовить
 		int total = todo.size();
-		int done = 0;
 		int failed = 0;
 		String lastError = null;
-		Set<String> applied = new HashSet<>();
 
 		try {
+			// 1. Скачивание: только добавляем файлы, ничего не удаляем и не отключаем — набор можно проверить и откатить
 			for (int i = 0; i < total; i++) {
 				ChangeQueue.Change c = todo.get(i);
 				final int index = i;
@@ -995,38 +1002,79 @@ public final class CatalogScreen extends class_437 {
 				setStatus(applyLabel(c), C_GRAY);
 
 				try {
-					executeChange(c, (fileNo, count, name, bytes, size) -> {
-						float inner = size > 0 ? (fileNo + (float) bytes / size) / count : (float) fileNo / count;
-						ChangeQueue.setWork((index + inner) / total);
-						this.progressById.put(c.project.id, inner);
-					});
-					ChangeQueue.remove(c.project.id);
-					applied.add(c.project.id);
-					done++;
+					if (c.kind == ChangeQueue.Kind.INSTALL || c.kind == ChangeQueue.Kind.VERSION) {
+						stageChange(c, staged, added, (fileNo, count, name, bytes, size) -> {
+							float inner = size > 0 ? (fileNo + (float) bytes / size) / count : (float) fileNo / count;
+							ChangeQueue.setWork((index + inner) / total * 0.8F);
+							this.progressById.put(c.project.id, inner);
+						});
+					}
+
+					ready.add(c);
 				} catch (Exception e) {
 					failed++;
 					lastError = shortError(e);
-					Log.warn(LogCategory.MODRINTH, "Не удалось применить изменение «" + c.project.title + "»", e);
+					Log.warn(LogCategory.MODRINTH, "Не удалось подготовить изменение «" + c.project.title + "»", e);
 				} finally {
 					this.busyIds.remove(c.project.id);
 					this.progressById.remove(c.project.id);
-					ChangeQueue.setWork((index + 1F) / total);
+					ChangeQueue.setWork((index + 1F) / total * 0.8F);
 				}
 			}
 
-			refreshInstalledIndex();
-			refreshLocalMods();
-
-			Map<String, ModrinthVersion> up = new HashMap<>(this.updates);
-			up.keySet().removeAll(applied);
-			this.updates = up;
-
-			if (done == 0 && failed > 0 && !ChangeQueue.dirty()) {
+			if (ready.isEmpty() && !ChangeQueue.dirty()) {
+				rollback(added, mods, indexBackup);
 				setStatus("Не удалось применить: " + lastError, C_RED);
 				ChangeQueue.end();
 
 				return;
 			}
+
+			// 2. Предпроверка: настоящий разрешитель зависимостей лоадера на том наборе, который получится после применения
+			setStatus("Проверяю совместимость", C_GRAY);
+			ModResolutionException problem = Preflight.check(plannedJars(ready, staged));
+
+			if (problem != null) {
+				Log.warn(LogCategory.MODRINTH, "Предпроверка набора модов не прошла: %s", problem.getMessage());
+				rollback(added, mods, indexBackup);
+				showPreflightError(problem);
+				setStatus("Применение отменено: моды несовместимы", C_RED);
+				ChangeQueue.end();
+
+				return;
+			}
+
+			// 3. Фиксация: удаления, отключения, включения и вторая половина замены версий
+			int done = 0;
+
+			for (int i = 0; i < ready.size(); i++) {
+				ChangeQueue.Change c = ready.get(i);
+
+				try {
+					commitChange(c, staged.get(c.project.id));
+					ChangeQueue.remove(c.project.id);
+					done++;
+				} catch (Exception e) {
+					failed++;
+					lastError = shortError(e);
+					Log.warn(LogCategory.MODRINTH, "Не удалось применить изменение «" + c.project.title + "»", e);
+				}
+
+				ChangeQueue.setWork(0.8F + (i + 1F) / ready.size() * 0.2F);
+			}
+
+			refreshInstalledIndex();
+			refreshLocalMods();
+
+			Set<String> appliedIds = new HashSet<>();
+
+			for (ChangeQueue.Change c : ready) {
+				appliedIds.add(c.project.id);
+			}
+
+			Map<String, ModrinthVersion> up = new HashMap<>(this.updates);
+			up.keySet().removeAll(appliedIds);
+			this.updates = up;
 
 			this.applyMessage = failed == 0 ? "Изменения применены: " + done : "Применено " + done + ", с ошибкой " + failed;
 			setStatus(failed == 0 ? "Готовлю клиент" : "С ошибкой: " + failed + " — " + lastError, failed == 0 ? C_GRAY : C_WARN);
@@ -1034,35 +1082,112 @@ public final class CatalogScreen extends class_437 {
 			ChangeQueue.filesDone();
 		} catch (Throwable t) {
 			Log.warn(LogCategory.MODRINTH, "Применение изменений оборвалось", t);
+			rollback(added, mods, indexBackup);
 			setStatus("Не удалось применить изменения", C_RED);
 			ChangeQueue.end();
 		}
 	}
 
-	private void executeChange(ChangeQueue.Change c, ModInstaller.Progress progress) throws Exception {
+	/** Скачивает файлы для установки или смены версии; старые файлы остаются на месте до фиксации. */
+	private void stageChange(ChangeQueue.Change c, Map<String, ModUpdates.Staged> staged, List<Path> added, ModInstaller.Progress progress) throws Exception {
 		ModrinthProject p = c.project;
-		String file = this.installedFiles.get(p.id);
 
-		switch (c.kind) {
-		case INSTALL:
-		case VERSION:
-			if (c.version != null) {
-				ModUpdates.apply(modsDir(), c.version, LOADER, this.gameVersion, progress);
-			} else {
-				List<ModrinthVersion> plan = DependencyResolver.resolve(p.id, LOADER, this.gameVersion, InstalledModsIndex.load(modsDir()));
+		if (c.version != null) {
+			ModUpdates.Staged st = ModUpdates.stage(modsDir(), c.version, LOADER, this.gameVersion, progress);
+			staged.put(p.id, st);
+			added.addAll(st.result.installedFiles);
+		} else {
+			List<ModrinthVersion> plan = DependencyResolver.resolve(p.id, LOADER, this.gameVersion, InstalledModsIndex.load(modsDir()));
 
-				if (plan.isEmpty()) {
-					throw new IOException("нет версии под " + this.gameVersion);
-				}
-
-				ModInstaller.install(modsDir(), plan, progress);
+			if (plan.isEmpty()) {
+				throw new IOException("нет версии под " + this.gameVersion);
 			}
 
-			this.cache.putProjects(Collections.singletonList(p)); // карточка нужна вкладке «Установленные» без сети
-			this.cache.save();
-			break;
+			added.addAll(ModInstaller.install(modsDir(), plan, progress).installedFiles);
+		}
+
+		this.cache.putProjects(Collections.singletonList(p)); // карточка нужна вкладке «Установленные» без сети
+		this.cache.save();
+	}
+
+	/** Итоговый набор jar после применения: то, что лежит в mods, без удаляемого, отключаемого и заменяемого, плюс включаемое. */
+	private List<Path> plannedJars(List<ChangeQueue.Change> ready, Map<String, ModUpdates.Staged> staged) {
+		Path mods = modsDir();
+		Set<String> exclude = new HashSet<>();
+		List<Path> jars = new ArrayList<>();
+
+		for (ChangeQueue.Change c : ready) {
+			String file = this.installedFiles.get(c.project.id);
+
+			switch (c.kind) {
+			case REMOVE:
+			case DISABLE:
+				if (file != null) {
+					exclude.add(file);
+				}
+
+				break;
+			case ENABLE:
+				if (file != null && Files.isRegularFile(mods.resolve(file + LocalMods.DISABLED_SUFFIX))) {
+					jars.add(mods.resolve(file + LocalMods.DISABLED_SUFFIX));
+				}
+
+				break;
+			case VERSION: {
+				ModUpdates.Staged st = staged.get(c.project.id);
+
+				if (st != null) {
+					if (st.oldFile != null) {
+						exclude.add(st.oldFile);
+					}
+
+					if (st.wasDisabled && st.newFile != null) {
+						exclude.add(st.newFile); // после замены мод снова отключится
+					}
+				}
+
+				break;
+			}
+			default:
+				break;
+			}
+		}
+
+		try (java.util.stream.Stream<Path> files = Files.list(mods)) {
+			for (Path f : (Iterable<Path>) files::iterator) {
+				String name = f.getFileName().toString();
+
+				if (name.endsWith(".jar") && !name.startsWith(".") && !exclude.contains(name) && !PendingRemovals.isPending(name) && Files.isRegularFile(f)) {
+					jars.add(f);
+				}
+			}
+		} catch (IOException e) {
+			Log.warn(LogCategory.MODRINTH, "Не удалось просмотреть папку mods для предпроверки", e);
+		}
+
+		return jars;
+	}
+
+	/** Откат до проверки: скачанное удаляется, реестр возвращается — установленное не пострадало. */
+	private void rollback(List<Path> added, Path mods, byte[] indexBackup) {
+		for (Path f : added) {
+			try {
+				Files.deleteIfExists(f);
+			} catch (IOException e) {
+				Log.warn(LogCategory.MODRINTH, "Не удалось убрать скачанный файл " + f.getFileName(), e);
+			}
+		}
+
+		InstalledModsIndex.restore(mods, indexBackup);
+		refreshInstalledIndex();
+	}
+
+	private void commitChange(ChangeQueue.Change c, ModUpdates.Staged st) throws Exception {
+		String file = this.installedFiles.get(c.project.id);
+
+		switch (c.kind) {
 		case REMOVE:
-			removeMod(p, file);
+			removeMod(c.project, file);
 			break;
 		case DISABLE:
 			if (file == null) {
@@ -1078,9 +1203,67 @@ public final class CatalogScreen extends class_437 {
 
 			LocalMods.enable(modsDir(), file);
 			break;
+		case VERSION:
+			if (st != null) {
+				ModUpdates.finish(modsDir(), st);
+			}
+
+			break;
 		default:
 			break;
 		}
+	}
+
+	/** Причина отказа предпроверки: короткое объяснение в окне, полный отчёт — в файле рядом с кэшем. */
+	private void showPreflightError(ModResolutionException e) {
+		try {
+			Path report = FabricLoader.getInstance().getGameDir().resolve(".argentum").resolve("preflight-report.txt");
+			Files.createDirectories(report.getParent());
+			Files.write(report, e.getFullReport().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		} catch (IOException ex) {
+			Log.warn(LogCategory.MODRINTH, "Не удалось записать отчёт предпроверки", ex);
+		}
+
+		this.preflightText = summarize(e.getFullReport(), e.getMessage());
+	}
+
+	/** Из полного отчёта лоадера берём суть: что сделать и первые причины (остальное — «и ещё N» и файл отчёта). */
+	private static String summarize(String full, String fallback) {
+		if (full == null || !full.contains("Подробности")) {
+			return fallback;
+		}
+
+		List<String> out = new ArrayList<>();
+		boolean details = false;
+		int shownDetails = 0;
+		int extra = 0;
+
+		for (String line : full.split("\n")) {
+			String t = line.trim();
+
+			if (t.isEmpty()) {
+				continue;
+			}
+
+			if (t.startsWith("Подробности")) {
+				details = true;
+				out.add("");
+				out.add("Почему:");
+			} else if (!details) {
+				out.add(t);
+			} else if (shownDetails < 4) {
+				out.add(t);
+				shownDetails++;
+			} else {
+				extra++;
+			}
+		}
+
+		if (extra > 0) {
+			out.add("…и ещё " + extra + " (см. полный отчёт)");
+		}
+
+		return String.join("\n", out);
 	}
 
 	private void removeMod(ModrinthProject p, String fileName) throws IOException {
@@ -1390,6 +1573,11 @@ public final class CatalogScreen extends class_437 {
 
 		int w = this.field_22789;
 		int h = this.field_22790;
+
+		// окно с причиной отказа предпроверки перехватывает всё
+		if (this.preflightText != null) {
+			return preflightClick(mx, my);
+		}
 
 		// окно диагностики перехватывает всё
 		if (this.diag != null && this.modalOpen) {
@@ -1920,6 +2108,7 @@ public final class CatalogScreen extends class_437 {
 		drawStatusBar(ctx, mx, my, w, h);
 		drawPopup(ctx, mx, my);
 		drawModal(ctx, mx, my, w, h);
+		drawPreflight(ctx, mx, my, w, h);
 	}
 
 	private void drawHeader(class_332 ctx, int mx, int my, int w) {
@@ -3187,5 +3376,74 @@ public final class CatalogScreen extends class_437 {
 		this.modalHits.add(new Hit("close", null, bx + bw - 90, fy, 80, 18, false));
 		button(ctx, "m-report", bx + 10, fy, 110, 18, "Открыть отчёт", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 10, fy, 110, 18), C_TEXT);
 		this.modalHits.add(new Hit("report", null, bx + 10, fy, 110, 18, false));
+	}
+
+	// ---- окно «Нельзя применить»: причина отказа предпроверки
+
+	private final List<Hit> preflightHits = new ArrayList<>();
+
+	private boolean preflightClick(double mx, double my) {
+		for (int i = this.preflightHits.size() - 1; i >= 0; i--) {
+			Hit hit = this.preflightHits.get(i);
+
+			if (inside(mx, my, hit.x, hit.y, hit.w, hit.h)) {
+				press("pf-" + hit.id);
+
+				if (hit.id.equals("close")) {
+					this.preflightText = null;
+				} else if (hit.id.equals("report")) {
+					QUICK.submit(() -> {
+						try {
+							ModConfigs.openExternally(FabricLoader.getInstance().getGameDir().resolve(".argentum").resolve("preflight-report.txt"));
+						} catch (IOException e) {
+							setStatus("Не удалось открыть отчёт", C_RED);
+						}
+					});
+				}
+
+				return true;
+			}
+		}
+
+		return true; // окно модальное
+	}
+
+	private void drawPreflight(class_332 ctx, int mx, int my, int w, int h) {
+		this.preflightHits.clear();
+		String message = this.preflightText;
+
+		if (message == null) {
+			return;
+		}
+
+		ctx.method_25294(0, 0, w, h, 0xB0000000);
+
+		int bw = Math.min(w - 24, 420);
+		List<String> lines = wrap(message, bw - 24);
+		int shown = Math.min(lines.size(), 12);
+		int bh = 78 + shown * LINE_H;
+		int bx = (w - bw) / 2;
+		int by = Math.max(8, (h - bh) / 2);
+		frame(ctx, bx, by, bw, bh, C_HEADER, lighter(C_HEADER, 0.1F), darker(C_HEADER, 0.35F), false);
+		ctx.method_25294(bx + 1, by + 1, bx + bw - 1, by + 2, C_RED);
+
+		text(ctx, "Нельзя применить изменения", bx + 12, by + 12, C_WHITE);
+		text(ctx, "Игра не тронута — всё осталось как было.", bx + 12, by + 26, C_GRAY);
+
+		for (int i = 0; i < shown; i++) {
+			String line = lines.get(i);
+
+			if (i == shown - 1 && lines.size() > shown) {
+				line = fit(line + " …", bw - 24);
+			}
+
+			text(ctx, line, bx + 12, by + 46 + i * LINE_H, C_TEXT);
+		}
+
+		int fy = by + bh - 28;
+		button(ctx, "pf-close", bx + bw - 90, fy, 80, 18, "Закрыть", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + bw - 90, fy, 80, 18), C_TEXT);
+		this.preflightHits.add(new Hit("close", null, bx + bw - 90, fy, 80, 18, false));
+		button(ctx, "pf-report", bx + 10, fy, 110, 18, "Полный отчёт", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 10, fy, 110, 18), C_TEXT);
+		this.preflightHits.add(new Hit("report", null, bx + 10, fy, 110, 18, false));
 	}
 }

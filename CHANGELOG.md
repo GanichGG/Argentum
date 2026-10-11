@@ -2,6 +2,12 @@
 
 Release notes are taken from the section whose heading matches the version (see `tools/release_notes.py`).
 
+## [0.19.5+argentum.3] - 2026-10-11 (pre-release)
+
+- Installer: Prism instances are now recognised when `ArgentumAnchor.exe` is placed in the instance's `minecraft` folder
+  (the one Prism's *Folder* button opens), not only in the instance root. Before, it was treated as a vanilla `.minecraft`
+  and ArgentumLoader did not appear in Prism's *Version* list.
+
 ## [0.19.5+argentum.2] - 2026-10-11 (pre-release)
 
 Same code as 0.19.5+argentum.1, now **with the Windows installer** (`ArgentumAnchor.exe`). The CI that builds the installer

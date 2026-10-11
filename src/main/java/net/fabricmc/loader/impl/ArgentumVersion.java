@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  */
 public final class ArgentumVersion {
 	/** Версия для людей: имена файлов, теги, Prism, заголовки журнала изменений. */
-	public static final String DISPLAY = "0.1B2";
+	public static final String DISPLAY = "0.1B3";
 
 	private static final Pattern FORMAT = Pattern.compile("(\\d+)\\.(\\d+)(?:([AB])(\\d+))?");
 

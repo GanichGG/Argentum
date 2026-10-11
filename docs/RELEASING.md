@@ -21,7 +21,8 @@
 ```
 ./gradlew -PargentumRelease=N checkstyleMain checkstyleTest test finalJar
 cd argentum-client && ../gradlew -PargentumRelease=N build && cd ..
-./gradlew -PargentumRelease=N :installer:nativeCompile      # needs GraalVM Community 21 + MSVC; result: installer/build/native/nativeCompile/ArgentumAnchor.exe
+export JAVA_HOME=<path to GraalVM Community 21> GRAALVM_HOME=<same path>   # e.g. ~/.gradle/jdks/graalvm_community-21-amd64-windows.2
+./gradlew -PargentumRelease=N :installer:nativeCompile      # needs MSVC (Visual Studio Build Tools); result: installer/build/native/nativeCompile/ArgentumAnchor.exe
 ```
 
 Rebuild the installer **every time** the loader or the client changes - it embeds both jars.

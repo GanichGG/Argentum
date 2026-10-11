@@ -45,7 +45,8 @@ Catalog (the bundled `argentum-client` mod, shown as **Argentum Mods** on the ti
 
 1. Download `ArgentumAnchor.exe` from the [latest release](https://github.com/GanichGG/ArgentumLoader/releases/latest)
    and check it against `SHA256SUMS.txt`.
-2. Put it into your game folder (`.minecraft`, or the Prism instance folder that contains `instance.cfg`) and run it once.
+2. Put it into your game folder and run it once: for the official launcher that is `.minecraft`; for Prism it is the instance
+   folder (the one with `instance.cfg`) **or** its `minecraft` subfolder - the *Folder* button in Prism opens the latter, both work.
 3. Prism: open *Edit Instance -> Version* - **ArgentumLoader** is there. Official launcher: choose the **ArgentumLoader**
    profile. Libraries are downloaded by the launcher on first start.
 4. Start the game and press **Argentum Mods** on the title screen.
@@ -134,7 +135,8 @@ Fabric-совместимый загрузчик модов со встроен�
 
 1. Скачай `ArgentumAnchor.exe` из [последнего релиза](https://github.com/GanichGG/ArgentumLoader/releases/latest) и
    сверь с `SHA256SUMS.txt`.
-2. Положи его в папку игры (`.minecraft` или папку инстанса Prism, где лежит `instance.cfg`) и запусти один раз.
+2. Положи его в папку игры и запусти один раз: для официального лаунчера это `.minecraft`; для Prism - папка инстанса (где
+   `instance.cfg`) **или** его подпапка `minecraft` (её открывает кнопка *Folder* в Prism), подойдёт любая.
 3. Prism: *Edit Instance -> Version* - там появится **ArgentumLoader**. Официальный лаунчер: профиль **ArgentumLoader**.
 4. Запусти игру и нажми **«Моды Argentum»** на главном экране.
 

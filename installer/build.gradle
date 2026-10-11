@@ -131,7 +131,8 @@ tasks.register('buildClientMod', Exec) {
 	dependsOn rootProject.tasks.named('classes')
 	workingDir rootProject.file('argentum-client')
 	def wrapper = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'gradlew.bat' : 'gradlew'
-	def command = [rootProject.file(wrapper).absolutePath, 'build', '--console=plain', '-q']
+	// clean: после смены версии в build/libs остаётся старый jar мода, и в установщик попал бы не тот
+	def command = [rootProject.file(wrapper).absolutePath, 'clean', 'build', '--console=plain', '-q']
 
 	// релизный номер сборки передаём и клиенту, чтобы внутри установщика лежал мод той же версии
 	if (rootProject.hasProperty('argentumRelease')) {

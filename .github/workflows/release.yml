@@ -23,6 +23,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.gradle/argentum-minecraft
+          key: argentum-minecraft-${{ hashFiles('argentum-client/gradle.properties') }}
 
       - id: meta
         run: |
@@ -34,7 +38,7 @@ jobs:
 
       - run: python tools/check_translations.py
       - name: Loader
-        run: ./gradlew -PargentumRelease=${{ steps.meta.outputs.build }} checkstyleMain checkstyleTest test finalJar --stacktrace
+        run: ./gradlew -PargentumRelease=${{ steps.meta.outputs.build }} :checkstyleMain :checkstyleTest :minecraft:checkstyleMain :test :finalJar --stacktrace
       - name: Client mod
         working-directory: argentum-client
         run: ../gradlew -PargentumRelease=${{ steps.meta.outputs.build }} build --stacktrace

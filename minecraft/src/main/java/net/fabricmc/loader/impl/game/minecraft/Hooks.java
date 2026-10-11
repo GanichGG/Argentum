@@ -22,6 +22,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
+import net.fabricmc.loader.impl.profile.StartupProfile;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 
@@ -54,6 +55,7 @@ public final class Hooks {
 		}
 
 		FabricLoaderImpl loader = FabricLoaderImpl.INSTANCE;
+		StartupProfile.mark("игра создана, запуск модов");
 		loader.prepareModInit(runDir.toPath(), gameInstance);
 		loader.invokeEntrypoints("main", ModInitializer.class, ModInitializer::onInitialize);
 		loader.invokeEntrypoints("client", ClientModInitializer.class, ClientModInitializer::onInitializeClient);

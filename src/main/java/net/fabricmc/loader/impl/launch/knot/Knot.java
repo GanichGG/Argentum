@@ -42,6 +42,7 @@ import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.FormattedException;
 import net.fabricmc.loader.impl.game.GameProvider;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
+import net.fabricmc.loader.impl.profile.StartupProfile;
 import net.fabricmc.loader.impl.launch.FabricMixinBootstrap;
 import net.fabricmc.loader.impl.util.LoaderUtil;
 import net.fabricmc.loader.impl.util.SystemProperties;
@@ -144,7 +145,9 @@ public final class Knot extends FabricLauncherBase {
 
 		FabricLoaderImpl.INSTANCE.loadClassTweakers();
 
+		long profileStart = System.nanoTime();
 		FabricMixinBootstrap.init(getEnvironmentType(), loader);
+		StartupProfile.phase("настройка миксинов", System.nanoTime() - profileStart);
 		FabricLauncherBase.finishMixinBootstrapping();
 
 		classLoader.initializeTransformers();

@@ -74,6 +74,7 @@ public abstract class TitleScreenMixin extends class_437 {
 	// Скрытая фоновая копия игры ждёт здесь команды «показаться» (бесшовное применение модов)
 	@Inject(method = "method_25394", at = @At("HEAD"))
 	private void argentum$handoffPoll(net.minecraft.class_332 ctx, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+		net.fabricmc.loader.impl.profile.StartupProfile.titleReached(net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir());
 		java.util.Properties go = com.ganichgg.argentum.client.handoff.Handoff.childPoll(this.field_22787);
 
 		if (go != null && Boolean.parseBoolean(go.getProperty("openCatalog"))) {

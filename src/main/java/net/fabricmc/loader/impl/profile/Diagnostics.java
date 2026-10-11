@@ -25,6 +25,7 @@ import java.util.zip.ZipOutputStream;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.metadata.ModMetadata;
+import net.fabricmc.loader.impl.ArgentumVersion;
 import net.fabricmc.loader.impl.failsafe.FailSafe;
 import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
@@ -64,7 +65,8 @@ public final class Diagnostics {
 	private static String info(Path gameDir) {
 		StringBuilder sb = new StringBuilder();
 		FabricLoader loader = FabricLoader.getInstance();
-		sb.append("ArgentumLoader: ").append(loader.getModContainer("fabricloader").map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("?")).append('\n');
+		sb.append("ArgentumLoader: ").append(ArgentumVersion.DISPLAY).append('\n');
+		sb.append("Fabric Loader base: ").append(loader.getModContainer("fabricloader").map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("?")).append('\n');
 		sb.append("Minecraft: ").append(loader.getModContainer("minecraft").map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("?")).append('\n');
 		sb.append("Language: ").append(Lang.language()).append('\n');
 		sb.append("Java: ").append(System.getProperty("java.version")).append(" (").append(System.getProperty("java.vendor")).append(")\n");

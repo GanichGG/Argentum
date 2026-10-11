@@ -49,6 +49,7 @@ import java.util.zip.ZipInputStream;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.SemanticVersion;
 import net.fabricmc.loader.api.metadata.ModMetadata;
+import net.fabricmc.loader.impl.ArgentumVersion;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.FormattedException;
 import net.fabricmc.loader.impl.discovery.ModCandidateFinder.ModCandidateConsumer;
@@ -133,6 +134,9 @@ public final class ModDiscoverer {
 
 		// Add the current Java version
 		candidates.add(MetadataVerifier.verifyIndev(createJavaMod(), loader.isDevelopmentEnvironment()));
+
+		// ArgentumLoader: собственная версия (ArgentumVersion), отдельная от версии fabricloader, которую видят моды
+		candidates.add(MetadataVerifier.verifyIndev(createArgentumMod(), loader.isDevelopmentEnvironment()));
 
 		ModResolutionException exception = null;
 
@@ -236,6 +240,21 @@ public final class ModDiscoverer {
 				.collect(Collectors.toSet());
 		Log.debug(LogCategory.DISCOVERY, "Disabled mod ids: %s", disabledModIds);
 		return disabledModIds;
+	}
+
+	private ModCandidateImpl createArgentumMod() {
+		ModMetadata metadata = new BuiltinModMetadata.Builder("argentumloader", ArgentumVersion.semver())
+				.setName("ArgentumLoader " + ArgentumVersion.DISPLAY)
+				.build();
+		Path origin;
+
+		try {
+			origin = Paths.get(ArgentumVersion.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+		} catch (Exception e) {
+			origin = Paths.get(System.getProperty("java.home"));
+		}
+
+		return ModCandidateImpl.createBuiltin(new BuiltinMod(Collections.singletonList(origin), metadata), versionOverrides, depOverrides);
 	}
 
 	private ModCandidateImpl createJavaMod() {

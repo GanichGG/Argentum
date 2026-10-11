@@ -13,6 +13,18 @@
   }, {
     "pattern":"java.base:\\Qsun/text/resources/LineBreakIteratorData\\E"
   }, {
+    "pattern":"java.desktop:\\Qcom/sun/java/swing/plaf/windows/icons/Computer.gif\\E"
+  }, {
+    "pattern":"java.desktop:\\Qcom/sun/java/swing/plaf/windows/icons/Directory.gif\\E"
+  }, {
+    "pattern":"java.desktop:\\Qcom/sun/java/swing/plaf/windows/icons/File.gif\\E"
+  }, {
+    "pattern":"java.desktop:\\Qcom/sun/java/swing/plaf/windows/icons/FloppyDrive.gif\\E"
+  }, {
+    "pattern":"java.desktop:\\Qcom/sun/java/swing/plaf/windows/icons/HardDrive.gif\\E"
+  }, {
+    "pattern":"java.desktop:\\Qcom/sun/java/swing/plaf/windows/icons/HomeFolder.gif\\E"
+  }, {
     "pattern":"java.desktop:\\Qjavax/swing/plaf/metal/icons/ocean/info.png\\E"
   }, {
     "pattern":"java.desktop:\\Qjavax/swing/plaf/metal/icons/ocean/question.png\\E"
@@ -22,6 +34,9 @@
     "pattern":"java.desktop:\\Qjavax/swing/text/html/parser/html32.bdtd\\E"
   }]},
   "bundles":[{
+    "name":"com.sun.java.swing.plaf.windows.resources.windows",
+    "classNames":["com.sun.java.swing.plaf.windows.resources.windows"]
+  }, {
     "name":"com.sun.swing.internal.plaf.basic.resources.basic",
     "classNames":["com.sun.swing.internal.plaf.basic.resources.basic"]
   }, {

@@ -38,12 +38,18 @@ export JAVA_HOME=<path to GraalVM Community 21> GRAALVM_HOME=<same path>   # e.g
 
 Rebuild the installer **every time** the loader or the client changes - it embeds both jars.
 
+If the installer window changes (new Swing components, dialogs), regenerate the GraalVM reflection config so the native
+exe keeps the Windows look: build the installer jar (`./gradlew :installer:jar`), then run it with the GraalVM tracing agent -
+`<GraalVM>/bin/java -agentlib:native-image-agent=config-merge-dir=installer/src/main/resources/META-INF/native-image/net.fabricmc.installer/argentum-anchor -cp installer/build/libs/argentum-anchor-*.jar net.fabricmc.installer.anchor.AnchorMain --trace-ui`
+(the flag opens the window, the lists and the dialogs by itself and exits). Delete the empty `predefined-classes-config.json`
+the agent adds.
+
 ## Ручная проверка перед релизом (чистый инстанс Prism, Minecraft 1.21.1)
 
 Бета- и альфа-версии (`0.1B1`, `0.1A3`) публикуются как пре-релизы автоматически. Когда все пункты отмечены и выходит
 стабильная версия (`0.1`), она публикуется как обычный релиз.
 
-- [x] **Установка с нуля.** Положить `ArgentumAnchor.exe` в папку нового инстанса и запустить. В Prism
+- [x] **Установка с нуля.** Запустить `ArgentumAnchor.exe` (откуда угодно), выбрать инстанс в списке, «Установить». В Prism
   *Edit Instance -> Version* появился **ArgentumLoader**, игра доходит до главного экрана.
 - [x] **Каталог.** Открывается кнопкой «Моды Argentum»; работают поиск, фильтры и сортировка; иконки подгружаются.
 - [x] **Установка мода с зависимостью.** «Установить», затем «Применить изменения»: окно само переключается на новую

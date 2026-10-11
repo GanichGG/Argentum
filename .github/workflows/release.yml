@@ -50,7 +50,7 @@ jobs:
           cp argentum-client/build/libs/argentum-client-*.jar dist/
           python tools/release_notes.py "${{ steps.meta.outputs.version }}" > dist/NOTES.md
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist-jars
           path: dist/
@@ -76,7 +76,7 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME}"
           ./gradlew -PargentumRelease="${tag##*.}" :installer:nativeCompile --stacktrace
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist-installer
           path: installer/build/native/nativeCompile/ArgentumAnchor.exe

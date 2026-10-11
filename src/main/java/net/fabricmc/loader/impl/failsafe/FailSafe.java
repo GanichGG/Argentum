@@ -107,7 +107,8 @@ public final class FailSafe {
 					return false; // вложенный или встроенный мод — оставляем как было
 				}
 
-				record(mod, stage, "Не запускался: зависит от «" + dep.getModId() + "», который не запустился", file, true);
+				String depName = FabricLoaderImpl.INSTANCE.getModContainer(dep.getModId()).map(c -> c.getMetadata().getName()).orElse(dep.getModId());
+				record(mod, stage, "Зависит от «" + depName + "», он не запустился", file, true);
 
 				return true;
 			}

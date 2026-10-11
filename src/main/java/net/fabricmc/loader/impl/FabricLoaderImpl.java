@@ -59,6 +59,7 @@ import net.fabricmc.loader.impl.discovery.ModResolver;
 import net.fabricmc.loader.impl.discovery.RuntimeModRemapper;
 import net.fabricmc.loader.impl.entrypoint.EntrypointStorage;
 import net.fabricmc.loader.impl.game.GameProvider;
+import net.fabricmc.loader.impl.failsafe.FailSafe;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.loader.impl.launch.MappingConfiguration;
@@ -436,9 +437,17 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 		Log.debug(LogCategory.ENTRYPOINT, "Iterating over entrypoint '%s'", key);
 
 		for (EntrypointContainer<T> container : entrypoints) {
+			if (FailSafe.skipDependent(key, container.getProvider())) {
+				continue; // ArgentumLoader: мод уже отключён из-за ошибки запуска, зависимые от него не запускаем
+			}
+
 			try {
 				invoker.accept(container.getEntrypoint());
 			} catch (Throwable t) {
+				if (FailSafe.handle(key, container.getProvider(), t)) {
+					continue; // ArgentumLoader: мод отключён, игра продолжает запуск
+				}
+
 				exception = ExceptionUtil.gatherExceptions(t,
 						exception,
 						exc -> new RuntimeException(String.format("Could not execute entrypoint stage '%s' due to errors, provided by '%s' at '%s'!",

@@ -19,7 +19,7 @@ Loader level (things a regular Fabric mod cannot do):
 - **Readable errors**, in English and Russian, instead of raw exceptions.
 - **Startup profile** (`.argentum/startup-profile.txt`): where the launch time goes - loader phases, slowest mods,
   Mixin time.
-- The loader provides the mod id `argentumloader`, so a mod can require it: `"depends": {"argentumloader": ">=0.19.5"}`.
+- The loader provides the mod id `argentumloader`, so a mod can require it: `"depends": {"argentumloader": ">=0.1.0-b.1"}`.
 
 Catalog (the bundled `argentum-client` mod, shown as **Argentum Mods** on the title screen):
 
@@ -31,6 +31,11 @@ Catalog (the bundled `argentum-client` mod, shown as **Argentum Mods** on the ti
 - Crash diagnosis: after a crash it names the likely mod and offers to disable it.
 - A built-in editor for mod settings (JSON, JSON5, TOML, properties).
 - Languages: English and Russian (follows the game language).
+
+## Versions
+
+`0.1B1` = global version 0, sub-version 1, **B**eta build 1 (`A` alpha, no letter - stable). Mods see the same version as
+SemVer `0.1.0-b.1` under the id `argentumloader`; `fabricloader` stays at the Fabric Loader version this fork is based on.
 
 ## Compatibility
 
@@ -113,7 +118,7 @@ Fabric-совместимый загрузчик модов со встроен�
   запуске новой копии игры.
 - **Читаемые ошибки** на английском и русском.
 - **Профиль запуска** (`.argentum/startup-profile.txt`): куда уходит время запуска.
-- Загрузчик предоставляет идентификатор `argentumloader`, мод может требовать его: `"depends": {"argentumloader": ">=0.19.5"}`.
+- Загрузчик предоставляет идентификатор `argentumloader`, мод может требовать его: `"depends": {"argentumloader": ">=0.1.0-b.1"}`.
 
 Каталог (встроенный мод `argentum-client`, кнопка **«Моды Argentum»** на главном экране):
 

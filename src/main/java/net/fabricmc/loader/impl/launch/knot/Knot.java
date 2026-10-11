@@ -38,6 +38,7 @@ import java.util.zip.ZipFile;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
+import net.fabricmc.loader.impl.ArgentumVersion;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.FormattedException;
 import net.fabricmc.loader.impl.game.GameProvider;
@@ -129,7 +130,7 @@ public final class Knot extends FabricLauncherBase {
 
 		provider = createGameProvider(args);
 		Log.finishBuiltinConfig();
-		Log.info(LogCategory.GAME_PROVIDER, "Loading %s %s with ArgentumLoader %s", provider.getGameName(), provider.getRawGameVersion(), FabricLoaderImpl.VERSION);
+		Log.info(LogCategory.GAME_PROVIDER, "Loading %s %s with ArgentumLoader %s (Fabric Loader %s)", provider.getGameName(), provider.getRawGameVersion(), ArgentumVersion.DISPLAY, FabricLoaderImpl.VERSION);
 
 		// Setup classloader
 		// TODO: Provide KnotCompatibilityClassLoader in non-exclusive-Fabric pre-1.13 environments?

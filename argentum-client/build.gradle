@@ -12,7 +12,17 @@ plugins {
 // Код пишется в intermediary-именах (Yarn — в комментариях).
 // Отдельная независимая сборка (свой settings.gradle) — корневой проект её не включает.
 
-version = project.mod_version
+// Версия мода выводится из ArgentumVersion.DISPLAY корневого проекта (формат 0.1B1): в манифесте SemVer-запись, в имени файла — для людей.
+def argentumSource = file("${rootDir}/../src/main/java/net/fabricmc/loader/impl/ArgentumVersion.java").text
+def argentumDisplay = (argentumSource =~ /DISPLAY\s*=\s*"(.*)";/)[0][1]
+def argentumParts = (argentumDisplay =~ /^(\d+)\.(\d+)(?:([AB])(\d+))?$/)
+
+if (!argentumParts.matches()) {
+	throw new GradleException("ArgentumVersion.DISPLAY must look like 0.1, 0.1A3 or 0.1B1, got: ${argentumDisplay}")
+}
+
+def argentumSemver = "${argentumParts.group(1)}.${argentumParts.group(2)}.0" + (argentumParts.group(3) ? "-${argentumParts.group(3).toLowerCase()}.${argentumParts.group(4)}" : "")
+version = "${argentumSemver}+mc${project.minecraft_version}"
 
 repositories {
 	maven {
@@ -129,9 +139,10 @@ dependencies {
 
 processResources {
 	inputs.property 'version', project.version
+	inputs.property 'argentumloader_min', argentumSemver
 
 	filesMatching('fabric.mod.json') {
-		expand 'version': project.version
+		expand 'version': project.version, 'argentumloader_min': argentumSemver
 	}
 }
 
@@ -142,4 +153,5 @@ tasks.withType(JavaCompile).configureEach {
 
 jar {
 	archiveBaseName = 'argentum-client'
+	archiveVersion = "${argentumDisplay}+mc${project.minecraft_version}"
 }

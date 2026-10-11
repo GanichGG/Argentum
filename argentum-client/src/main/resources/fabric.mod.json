@@ -10,7 +10,7 @@
   "mixins": ["argentum-client.mixins.json"],
   "depends": {
     "fabricloader": ">=0.15.0",
-    "argentumloader": ">=0.19.5",
+    "argentumloader": ">=${argentumloader_min}",
     "minecraft": "~1.21.1",
     "java": ">=21"
   }

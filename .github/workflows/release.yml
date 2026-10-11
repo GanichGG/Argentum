@@ -1,7 +1,8 @@
 name: Release
 
-# A release is cut by pushing a tag like v0.19.5-argentum.1 (the number after "argentum." is the build number).
-# Before tagging: add a section [0.19.5+argentum.1] to CHANGELOG.md - the release notes are taken from it.
+# A release is cut by pushing a tag "v" + the version from ArgentumVersion.DISPLAY, for example v0.1B1.
+# Versions with a stage letter (A = alpha, B = beta) are published as pre-releases, a plain x.y is a stable release.
+# Before tagging: add a section [0.1B1] to CHANGELOG.md - the release notes are taken from it.
 on:
   push:
     tags: ['v*']
@@ -14,6 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.meta.outputs.version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -30,23 +32,29 @@ jobs:
 
       - id: meta
         run: |
-          tag="${GITHUB_REF_NAME}"                 # v0.19.5-argentum.1
-          build="${tag##*.}"                       # 1
-          base="${tag#v}"; base="${base%%-*}"      # 0.19.5
-          echo "build=${build}" >> "$GITHUB_OUTPUT"
-          echo "version=${base}+argentum.${build}" >> "$GITHUB_OUTPUT"
+          tag="${GITHUB_REF_NAME}"                   # v0.1B1
+          ver="${tag#v}"                             # 0.1B1
+          declared=$(grep -oP 'DISPLAY = "\K[^"]+' src/main/java/net/fabricmc/loader/impl/ArgentumVersion.java)
+          if [ "$ver" != "$declared" ]; then
+            echo "::error::Tag $tag does not match ArgentumVersion.DISPLAY ($declared)"
+            exit 1
+          fi
+          base=$(grep -oP 'VERSION = "\K[^"]+' src/main/java/net/fabricmc/loader/impl/FabricLoaderImpl.java)
+          echo "version=${ver}" >> "$GITHUB_OUTPUT"
+          echo "loaderjar=fabric-loader-${base}+argentum.${ver}.jar" >> "$GITHUB_OUTPUT"
+          if [[ "$ver" =~ [AB][0-9]+$ ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
 
       - run: python tools/check_translations.py
       - name: Loader
-        run: ./gradlew -PargentumRelease=${{ steps.meta.outputs.build }} :checkstyleMain :checkstyleTest :minecraft:checkstyleMain :test :finalJar --stacktrace
+        run: ./gradlew -PargentumRelease=1 :checkstyleMain :checkstyleTest :minecraft:checkstyleMain :test :finalJar --stacktrace
       - name: Client mod
         working-directory: argentum-client
-        run: ../gradlew -PargentumRelease=${{ steps.meta.outputs.build }} build --stacktrace
+        run: ../gradlew build --stacktrace
 
       - name: Collect
         run: |
           mkdir dist
-          cp build/libs/fabric-loader-${{ steps.meta.outputs.version }}.jar dist/argentum-loader-${{ steps.meta.outputs.version }}.jar
+          cp "build/libs/${{ steps.meta.outputs.loaderjar }}" "dist/argentum-loader-${{ steps.meta.outputs.version }}.jar"
           cp argentum-client/build/libs/argentum-client-*.jar dist/
           python tools/release_notes.py "${{ steps.meta.outputs.version }}" > dist/NOTES.md
 
@@ -71,14 +79,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.gradle/argentum-minecraft
+          key: argentum-minecraft-${{ hashFiles('argentum-client/gradle.properties') }}
       - name: Tools for the icon and subsystem steps
         shell: bash
         run: python -m pip install pywin32
       - name: Installer
         shell: bash
-        run: |
-          tag="${GITHUB_REF_NAME}"
-          ./gradlew -PargentumRelease="${tag##*.}" :installer:nativeCompile --stacktrace
+        run: ./gradlew -PargentumRelease=1 :installer:nativeCompile --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: dist-installer
@@ -101,7 +111,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           name: ArgentumLoader ${{ needs.jars.outputs.version }}
-          prerelease: true   # until the manual checklist in docs/RELEASING.md has been completed on a clean instance
+          prerelease: ${{ needs.jars.outputs.prerelease == 'true' }}   # alpha/beta versions are pre-releases
           body_path: dist/NOTES.md
           files: |
             dist/*.jar

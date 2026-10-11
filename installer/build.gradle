@@ -76,7 +76,7 @@ tasks.register('generateAnchorLibraries') {
 		sb << "mainClass=net.fabricmc.loader.impl.launch.knot.KnotClient\n"
 		sb << "loader.group=${rootProject.group}\n"
 		sb << "loader.artifact=argentum-loader\n"
-		sb << "loader.version=${rootProject.version}\n"
+		sb << "loader.version=${rootProject.ext.argentumDisplay}\n"
 
 		outFile.get().asFile.text = sb.toString()
 	}

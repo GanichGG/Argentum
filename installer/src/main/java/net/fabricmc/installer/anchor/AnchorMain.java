@@ -142,6 +142,16 @@ public final class AnchorMain {
 			return installPrism(gameDir, mmcPack, location.leftovers);
 		}
 
+		// Кнопка «Folder» в Prism открывает папку игры (minecraft/ или .minecraft/) внутри инстанса — файл часто кладут туда,
+		// а mmc-pack.json лежит на уровень выше. Это тоже инстанс Prism, а не обычный .minecraft.
+		Path parent = gameDir.getParent();
+		String folderName = gameDir.getFileName() == null ? "" : gameDir.getFileName().toString();
+
+		if (parent != null && (folderName.equals("minecraft") || folderName.equals(".minecraft"))
+				&& Files.exists(parent.resolve("mmc-pack.json")) && Files.exists(parent.resolve("instance.cfg"))) {
+			return installPrism(parent, parent.resolve("mmc-pack.json"), location.leftovers);
+		}
+
 		String mcVersion = presetVersion;
 
 		if (mcVersion == null) {

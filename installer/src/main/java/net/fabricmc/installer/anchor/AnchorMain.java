@@ -39,6 +39,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
+
 /**
  * Одноразовый установщик ArgentumLoader ("якорь").
  *
@@ -93,14 +94,14 @@ public final class AnchorMain {
 		try {
 			InstallResult result = install(presetVersion);
 			String message = result.prismInstance
-					? "<html><b>ArgentumLoader установлен!</b><br><br>"
-							+ "Компонент записан в:<br>" + escapeHtml(result.profilePath.toString()) + "<br><br>"
-							+ "Открой Prism Launcher, зайди в <b>Edit Instance → Version</b> — там уже должен быть<br>"
-							+ "ArgentumLoader. Недостающие библиотеки Prism скачает сам при запуске.</html>"
-					: "<html><b>ArgentumLoader установлен!</b><br><br>"
-							+ "Профиль записан в:<br>" + escapeHtml(result.profilePath.toString()) + "<br><br>"
-							+ "Теперь выберите профиль <b>ArgentumLoader</b> в лаунчере Minecraft и нажмите «Играть» —<br>"
-							+ "недостающие библиотеки лаунчер скачает сам.</html>";
+					? AnchorLang.tr("<html><b>ArgentumLoader установлен!</b><br><br>")
+							+ AnchorLang.tr("Компонент записан в:<br>") + escapeHtml(result.profilePath.toString()) + "<br><br>"
+							+ AnchorLang.tr("Открой Prism Launcher, зайди в <b>Edit Instance → Version</b> — там уже должен быть<br>")
+							+ AnchorLang.tr("ArgentumLoader. Недостающие библиотеки Prism скачает сам при запуске.</html>")
+					: AnchorLang.tr("<html><b>ArgentumLoader установлен!</b><br><br>")
+							+ AnchorLang.tr("Профиль записан в:<br>") + escapeHtml(result.profilePath.toString()) + "<br><br>"
+							+ AnchorLang.tr("Теперь выберите профиль <b>ArgentumLoader</b> в лаунчере Minecraft и нажмите «Играть» —<br>")
+							+ AnchorLang.tr("недостающие библиотеки лаунчер скачает сам.</html>");
 
 			if (HEADLESS) {
 				System.out.println(result.profilePath);
@@ -117,7 +118,7 @@ public final class AnchorMain {
 			System.exit(0);
 		} catch (Exception e) {
 			e.printStackTrace();
-			String message = "<html><b>Не удалось установить ArgentumLoader</b><br><br>" + escapeHtml(String.valueOf(e)) + "</html>";
+			String message = AnchorLang.tr("<html><b>Не удалось установить ArgentumLoader</b><br><br>") + escapeHtml(String.valueOf(e)) + "</html>";
 
 			if (!HEADLESS) {
 				JOptionPane.showMessageDialog(null, message, "ArgentumLoader", JOptionPane.ERROR_MESSAGE);
@@ -145,20 +146,20 @@ public final class AnchorMain {
 
 		if (mcVersion == null) {
 			if (HEADLESS) {
-				throw new IOException("нет окна для выбора версии — укажите версию Minecraft первым аргументом командной строки");
+				throw new IOException(AnchorLang.tr("нет окна для выбора версии — укажите версию Minecraft первым аргументом командной строки"));
 			}
 
 			mcVersion = askVersion(gameDir);
 
 			if (mcVersion == null) {
-				throw new IOException("установка отменена");
+				throw new IOException(AnchorLang.tr("установка отменена"));
 			}
 		}
 
 		mcVersion = mcVersion.trim();
 
 		if (!isSupported(mcVersion)) {
-			throw new IOException("версия " + mcVersion + " пока не поддерживается ArgentumLoader (сейчас доступна: "
+			throw new IOException(AnchorLang.tr("версия ") + mcVersion + AnchorLang.tr(" пока не поддерживается ArgentumLoader (сейчас доступна: ")
 					+ String.join(", ", SUPPORTED_VERSIONS) + ")");
 		}
 
@@ -207,12 +208,12 @@ public final class AnchorMain {
 		String mcVersion = extractComponentVersion(mmcPack, "net.minecraft");
 
 		if (mcVersion == null) {
-			throw new IOException("не удалось найти версию Minecraft (компонент net.minecraft) в " + mmcPackPath);
+			throw new IOException(AnchorLang.tr("не удалось найти версию Minecraft (компонент net.minecraft) в ") + mmcPackPath);
 		}
 
 		if (!isSupported(mcVersion)) {
-			throw new IOException("версия " + mcVersion + " (из этого инстанса Prism) пока не поддерживается ArgentumLoader "
-					+ "(сейчас доступна: " + String.join(", ", SUPPORTED_VERSIONS) + ")");
+			throw new IOException(AnchorLang.tr("версия ") + mcVersion + AnchorLang.tr(" (из этого инстанса Prism) пока не поддерживается ArgentumLoader ")
+					+ AnchorLang.tr("(сейчас доступна: ") + String.join(", ", SUPPORTED_VERSIONS) + ")");
 		}
 
 		Properties props = loadLibraryList();
@@ -511,15 +512,15 @@ public final class AnchorMain {
 		JComboBox<String> versionBox = new JComboBox<>(SUPPORTED_VERSIONS);
 		versionBox.setSelectedIndex(0);
 
-		JLabel info = new JLabel("<html>Папка установки:<br><b>" + escapeHtml(gameDir.toString()) + "</b><br><br>"
-				+ "Версия Minecraft:</html>");
+		JLabel info = new JLabel(AnchorLang.tr("<html>Папка установки:<br><b>") + escapeHtml(gameDir.toString()) + "</b><br><br>"
+				+ AnchorLang.tr("Версия Minecraft:</html>"));
 		info.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
 
 		JPanel panel = new JPanel(new BorderLayout());
 		panel.add(info, BorderLayout.NORTH);
 		panel.add(versionBox, BorderLayout.CENTER);
 
-		int result = JOptionPane.showConfirmDialog(null, panel, "ArgentumLoader — установка",
+		int result = JOptionPane.showConfirmDialog(null, panel, AnchorLang.tr("ArgentumLoader — установка"),
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
 
 		if (result != JOptionPane.OK_OPTION) {
@@ -536,7 +537,7 @@ public final class AnchorMain {
 	private static Properties loadLibraryList() throws IOException {
 		try (InputStream is = AnchorMain.class.getResourceAsStream(LIBRARIES_RESOURCE)) {
 			if (is == null) {
-				throw new IOException("не найден " + LIBRARIES_RESOURCE + " внутри якоря — сборка повреждена");
+				throw new IOException(AnchorLang.tr("не найден ") + LIBRARIES_RESOURCE + AnchorLang.tr(" внутри якоря — сборка повреждена"));
 			}
 
 			Properties props = new Properties();
@@ -549,7 +550,7 @@ public final class AnchorMain {
 		String value = props.getProperty(key);
 
 		if (value == null || value.isEmpty()) {
-			throw new IOException("отсутствует обязательный ключ '" + key + "' в " + LIBRARIES_RESOURCE);
+			throw new IOException(AnchorLang.tr("отсутствует обязательный ключ '") + key + AnchorLang.tr("' в ") + LIBRARIES_RESOURCE);
 		}
 
 		return value;
@@ -626,7 +627,7 @@ public final class AnchorMain {
 		int componentsKeyIdx = mmcPackJson.indexOf("\"components\"");
 
 		if (componentsKeyIdx < 0) {
-			throw new IllegalStateException("в mmc-pack.json не найден ключ \"components\"");
+			throw new IllegalStateException(AnchorLang.tr("в mmc-pack.json не найден ключ \"components\""));
 		}
 
 		int arrStart = mmcPackJson.indexOf('[', componentsKeyIdx);
@@ -649,7 +650,7 @@ public final class AnchorMain {
 		}
 
 		if (arrEnd < 0) {
-			throw new IllegalStateException("не удалось найти конец массива \"components\" в mmc-pack.json");
+			throw new IllegalStateException(AnchorLang.tr("не удалось найти конец массива \"components\" в mmc-pack.json"));
 		}
 
 		return mmcPackJson.substring(0, arrEnd) + extraComponentsJson + mmcPackJson.substring(arrEnd);
@@ -720,7 +721,7 @@ public final class AnchorMain {
 
 		try (InputStream is = AnchorMain.class.getResourceAsStream(LOADER_JAR_RESOURCE)) {
 			if (is == null) {
-				throw new IOException("не найден " + LOADER_JAR_RESOURCE + " внутри якоря — сборка повреждена");
+				throw new IOException(AnchorLang.tr("не найден ") + LOADER_JAR_RESOURCE + AnchorLang.tr(" внутри якоря — сборка повреждена"));
 			}
 
 			try (OutputStream os = Files.newOutputStream(targetJar)) {
@@ -772,7 +773,7 @@ public final class AnchorMain {
 
 			return sb.toString();
 		} catch (NoSuchAlgorithmException e) {
-			throw new IOException("SHA-1 недоступен в этой JVM", e);
+			throw new IOException(AnchorLang.tr("SHA-1 недоступен в этой JVM"), e);
 		}
 	}
 

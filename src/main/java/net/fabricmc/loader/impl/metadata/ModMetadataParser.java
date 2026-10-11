@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 import net.fabricmc.loader.impl.lib.gson.JsonToken;
 import net.fabricmc.loader.impl.util.log.Log;
@@ -80,7 +81,7 @@ public final class ModMetadataParser {
 			reader.setRewindEnabled(true);
 
 			if (reader.peek() != JsonToken.BEGIN_OBJECT) {
-				throw new ParseMetadataException("Корень fabric.mod.json должен быть объектом", reader);
+				throw new ParseMetadataException(Lang.tr("Корень fabric.mod.json должен быть объектом"), reader);
 			}
 
 			reader.beginObject();
@@ -93,7 +94,7 @@ public final class ModMetadataParser {
 
 				if (key.equals("schemaVersion")) {
 					if (reader.peek() != JsonToken.NUMBER) {
-						throw new ParseMetadataException("Значение \"schemaVersion\" должно быть числом.", reader);
+						throw new ParseMetadataException(Lang.tr("Значение \"schemaVersion\" должно быть числом."), reader);
 					}
 
 					schemaVersion = reader.nextInt();
@@ -143,11 +144,11 @@ public final class ModMetadataParser {
 			return V0ModMetadataParser.parse(reader);
 		default:
 			if (schemaVersion > 0) {
-				throw new ParseMetadataException(String.format("Эта версия ArgentumLoader не поддерживает более новую версию схемы \"%s\"."
-						+ "\nОбновите ArgentumLoader, чтобы прочитать этот файл.", schemaVersion));
+				throw new ParseMetadataException(String.format(Lang.tr("Эта версия ArgentumLoader не поддерживает более новую версию схемы \"%s\".")
+						+ Lang.tr("\nОбновите ArgentumLoader, чтобы прочитать этот файл."), schemaVersion));
 			}
 
-			throw new ParseMetadataException(String.format("Указана недопустимая/неподдерживаемая версия схемы \"%s\"", schemaVersion));
+			throw new ParseMetadataException(String.format(Lang.tr("Указана недопустимая/неподдерживаемая версия схемы \"%s\""), schemaVersion));
 		}
 	}
 

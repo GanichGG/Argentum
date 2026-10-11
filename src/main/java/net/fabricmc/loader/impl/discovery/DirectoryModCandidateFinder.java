@@ -25,6 +25,8 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.EnumSet;
 
+import net.fabricmc.loader.impl.hotload.PendingRemovals;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.LoaderUtil;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
@@ -45,19 +47,19 @@ public class DirectoryModCandidateFinder implements ModCandidateFinder {
 				Files.createDirectory(path);
 				return;
 			} catch (IOException e) {
-				throw new RuntimeException("Не удалось создать директорию " + path, e);
+				throw new RuntimeException(Lang.tr("Не удалось создать директорию ") + path, e);
 			}
 		}
 
 		if (!Files.isDirectory(path)) {
-			throw new RuntimeException(path + " не является директорией!");
+			throw new RuntimeException(path + Lang.tr(" не является директорией!"));
 		}
 
 		try {
 			Files.walkFileTree(this.path, EnumSet.of(FileVisitOption.FOLLOW_LINKS), 1, new SimpleFileVisitor<Path>() {
 				@Override
 				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-					if (isValidFile(file)) {
+					if (isValidFile(file) && !PendingRemovals.isPending(file.getFileName().toString())) {
 						out.accept(file, requiresRemap);
 					}
 
@@ -65,7 +67,7 @@ public class DirectoryModCandidateFinder implements ModCandidateFinder {
 				}
 			});
 		} catch (IOException e) {
-			throw new RuntimeException("Ошибка при поиске модов в '" + path + "'!", e);
+			throw new RuntimeException(Lang.tr("Ошибка при поиске модов в '") + path + "'!", e);
 		}
 	}
 

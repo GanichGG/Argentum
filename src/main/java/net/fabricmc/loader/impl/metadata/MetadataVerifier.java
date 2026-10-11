@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import net.fabricmc.loader.api.SemanticVersion;
 import net.fabricmc.loader.api.VersionParsingException;
 import net.fabricmc.loader.impl.discovery.ModCandidateImpl;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 
@@ -41,7 +42,7 @@ public final class MetadataVerifier {
 				MetadataVerifier.verify(mod.getMetadata(), isDevelopment);
 			} catch (ParseMetadataException e) {
 				e.setModPaths(mod.getLocalPath(), Collections.emptyList());
-				throw new RuntimeException("Недопустимые метаданные мода", e);
+				throw new RuntimeException(Lang.tr("Недопустимые метаданные мода"), e);
 			}
 		}
 
@@ -49,10 +50,10 @@ public final class MetadataVerifier {
 	}
 
 	static void verify(LoaderModMetadata metadata, boolean isDevelopment) throws ParseMetadataException {
-		checkModId(metadata.getId(), "id мода");
+		checkModId(metadata.getId(), Lang.tr("id мода"));
 
 		for (String providesDecl : metadata.getProvides()) {
-			checkModId(providesDecl, "запись \"provides\"");
+			checkModId(providesDecl, Lang.tr("запись \"provides\""));
 		}
 
 		// TODO: verify mod id and version decls in deps
@@ -90,18 +91,18 @@ public final class MetadataVerifier {
 
 		// A more useful error list for MOD_ID_PATTERN
 		if (id.isEmpty()) {
-			errorList.add("пуст!");
+			errorList.add(Lang.tr("пуст!"));
 		} else {
 			if (id.length() == 1) {
-				errorList.add("состоит из одного символа! (должно быть не менее 2 символов)!");
+				errorList.add(Lang.tr("состоит из одного символа! (должно быть не менее 2 символов)!"));
 			} else if (id.length() > 64) {
-				errorList.add("содержит более 64 символов!");
+				errorList.add(Lang.tr("содержит более 64 символов!"));
 			}
 
 			char first = id.charAt(0);
 
 			if (first < 'a' || first > 'z') {
-				errorList.add("начинается с недопустимого символа '" + first + "' (должна быть строчная латинская буква a-z — заглавные буквы в id не допускаются)");
+				errorList.add(Lang.tr("начинается с недопустимого символа '") + first + Lang.tr("' (должна быть строчная латинская буква a-z — заглавные буквы в id не допускаются)"));
 			}
 
 			Set<Character> invalidChars = null;
@@ -121,7 +122,7 @@ public final class MetadataVerifier {
 			}
 
 			if (invalidChars != null) {
-				StringBuilder error = new StringBuilder("содержит недопустимые символы: ");
+				StringBuilder error = new StringBuilder(Lang.tr("содержит недопустимые символы: "));
 				error.append(invalidChars.stream().map(value -> "'" + value + "'").collect(Collectors.joining(", ")));
 				errorList.add(error.append("!").toString());
 			}
@@ -132,13 +133,13 @@ public final class MetadataVerifier {
 		StringWriter sw = new StringWriter();
 
 		try (PrintWriter pw = new PrintWriter(sw)) {
-			pw.printf("Недопустимый %s \"%s\":", name, id);
+			pw.printf(Lang.tr("Недопустимый %s \"%s\":"), name, id);
 
 			if (errorList.size() == 1) {
-				pw.printf(" Он %s", errorList.get(0));
+				pw.printf(Lang.tr(" Он %s"), errorList.get(0));
 			} else {
 				for (String error : errorList) {
-					pw.printf("\n\t- Он %s", error);
+					pw.printf(Lang.tr("\n\t- Он %s"), error);
 				}
 			}
 		}

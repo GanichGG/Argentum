@@ -25,11 +25,25 @@ import java.util.Locale;
 import java.util.PropertyResourceBundle;
 import java.util.ResourceBundle;
 
+import net.fabricmc.loader.impl.i18n.Lang;
+
 public final class Localization {
-	// ArgentumLoader: force root bundle (Messages.properties, translated to Russian) regardless of
-	// the OS locale, instead of following Locale.getDefault() like upstream Fabric Loader does.
-	public static final ResourceBundle BUNDLE = createBundle("net.fabricmc.loader.Messages", Locale.ROOT);
+	// ArgentumLoader: the bundle follows the language of the game (see Lang): Messages_ru is the Russian original, the
+	// root bundle is English and is also used for languages without a translation. Never falls back to the OS locale.
+	public static final ResourceBundle BUNDLE = createBundle("net.fabricmc.loader.Messages", gameLocale());
 	public static final ResourceBundle ROOT_LOCALE_BUNDLE = createBundle("net.fabricmc.loader.Messages", Locale.ROOT);
+
+	private static Locale gameLocale() {
+		String code = Lang.language(); // например ru_ru, en_us, ja_jp
+
+		String[] parts = code.split("_");
+
+		if (parts.length >= 2) {
+			return new Locale(parts[0], parts[1].toUpperCase(Locale.ROOT));
+		}
+
+		return parts.length == 1 && !parts[0].isEmpty() ? new Locale(parts[0]) : Locale.ROOT;
+	}
 
 	public static String format(String key, Object... args) {
 		String pattern = BUNDLE.getString(key);
@@ -55,6 +69,11 @@ public final class Localization {
 		if (System.getProperty("java.version", "").startsWith("1.")) { // below java 9
 			return ResourceBundle.getBundle(name, locale, new ResourceBundle.Control() {
 				@Override
+				public Locale getFallbackLocale(String baseName, Locale locale) {
+					return null; // не подменять язык игры языком системы
+				}
+
+				@Override
 				public ResourceBundle newBundle(String baseName, Locale locale, String format, ClassLoader loader, boolean reload)
 						throws IllegalAccessException, InstantiationException, IOException {
 					if (format.equals("java.properties")) {
@@ -71,7 +90,7 @@ public final class Localization {
 				};
 			});
 		} else { // java 9 and later
-			return ResourceBundle.getBundle(name, locale);
+			return ResourceBundle.getBundle(name, locale, ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_DEFAULT));
 		}
 	}
 }

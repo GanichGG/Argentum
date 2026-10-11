@@ -111,7 +111,7 @@ public class MixinServiceKnot implements IMixinService, IClassProvider, IClassBy
 
 	@Override
 	public String getName() {
-		return FabricLauncherBase.getLauncher() instanceof Knot ? "Knot/Fabric" : "Launchwrapper/Fabric";
+		return FabricLauncherBase.getLauncher() instanceof Knot ? "Knot/Argentum" : "Launchwrapper/Argentum";
 	}
 
 	@Override

@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.ganichgg.argentum.client.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "SplashOverlayMixin",
+    "TitleScreenMixin",
+    "WindowMixin",
+    "SoundManagerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

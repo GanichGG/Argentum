@@ -1,17 +1,9 @@
 /*
- * Copyright 2016 FabricMC
+ * Copyright (c) 2026 GanichGG. All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This file is part of ArgentumLoader. It is not licensed for use, copying,
+ * modification or distribution except with the written permission of the
+ * copyright holder. See LICENSE-ARGENTUM.txt.
  */
 
 package net.fabricmc.installer.anchor;
@@ -28,6 +20,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.CodeSource;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -45,6 +39,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
+
 /**
  * Одноразовый установщик ArgentumLoader ("якорь").
  *
@@ -60,6 +55,7 @@ import javax.swing.JPanel;
 public final class AnchorMain {
 	private static final String LIBRARIES_RESOURCE = "/anchor-libraries.properties";
 	private static final String LOADER_JAR_RESOURCE = "/argentumloader.jar";
+	private static final String CLIENT_MOD_RESOURCE = "/argentum-client.jar";
 
 	// AWT/Swing под GraalVM native-image не встраиваются в сам .exe целиком — эти маленькие
 	// нативные библиотеки собраны как встроенные ресурсы (см. installer/build.gradle,
@@ -98,14 +94,14 @@ public final class AnchorMain {
 		try {
 			InstallResult result = install(presetVersion);
 			String message = result.prismInstance
-					? "<html><b>ArgentumLoader установлен!</b><br><br>"
-							+ "Компонент записан в:<br>" + escapeHtml(result.profilePath.toString()) + "<br><br>"
-							+ "Открой Prism Launcher, зайди в <b>Edit Instance → Version</b> — там уже должен быть<br>"
-							+ "ArgentumLoader. Недостающие библиотеки Prism скачает сам при запуске.</html>"
-					: "<html><b>ArgentumLoader установлен!</b><br><br>"
-							+ "Профиль записан в:<br>" + escapeHtml(result.profilePath.toString()) + "<br><br>"
-							+ "Теперь выберите профиль <b>ArgentumLoader</b> в лаунчере Minecraft и нажмите «Играть» —<br>"
-							+ "недостающие библиотеки лаунчер скачает сам.</html>";
+					? AnchorLang.tr("<html><b>ArgentumLoader установлен!</b><br><br>")
+							+ AnchorLang.tr("Компонент записан в:<br>") + escapeHtml(result.profilePath.toString()) + "<br><br>"
+							+ AnchorLang.tr("Открой Prism Launcher, зайди в <b>Edit Instance → Version</b> — там уже должен быть<br>")
+							+ AnchorLang.tr("ArgentumLoader. Недостающие библиотеки Prism скачает сам при запуске.</html>")
+					: AnchorLang.tr("<html><b>ArgentumLoader установлен!</b><br><br>")
+							+ AnchorLang.tr("Профиль записан в:<br>") + escapeHtml(result.profilePath.toString()) + "<br><br>"
+							+ AnchorLang.tr("Теперь выберите профиль <b>ArgentumLoader</b> в лаунчере Minecraft и нажмите «Играть» —<br>")
+							+ AnchorLang.tr("недостающие библиотеки лаунчер скачает сам.</html>");
 
 			if (HEADLESS) {
 				System.out.println(result.profilePath);
@@ -122,7 +118,7 @@ public final class AnchorMain {
 			System.exit(0);
 		} catch (Exception e) {
 			e.printStackTrace();
-			String message = "<html><b>Не удалось установить ArgentumLoader</b><br><br>" + escapeHtml(String.valueOf(e)) + "</html>";
+			String message = AnchorLang.tr("<html><b>Не удалось установить ArgentumLoader</b><br><br>") + escapeHtml(String.valueOf(e)) + "</html>";
 
 			if (!HEADLESS) {
 				JOptionPane.showMessageDialog(null, message, "ArgentumLoader", JOptionPane.ERROR_MESSAGE);
@@ -150,20 +146,20 @@ public final class AnchorMain {
 
 		if (mcVersion == null) {
 			if (HEADLESS) {
-				throw new IOException("нет окна для выбора версии — укажите версию Minecraft первым аргументом командной строки");
+				throw new IOException(AnchorLang.tr("нет окна для выбора версии — укажите версию Minecraft первым аргументом командной строки"));
 			}
 
 			mcVersion = askVersion(gameDir);
 
 			if (mcVersion == null) {
-				throw new IOException("установка отменена");
+				throw new IOException(AnchorLang.tr("установка отменена"));
 			}
 		}
 
 		mcVersion = mcVersion.trim();
 
 		if (!isSupported(mcVersion)) {
-			throw new IOException("версия " + mcVersion + " пока не поддерживается ArgentumLoader (сейчас доступна: "
+			throw new IOException(AnchorLang.tr("версия ") + mcVersion + AnchorLang.tr(" пока не поддерживается ArgentumLoader (сейчас доступна: ")
 					+ String.join(", ", SUPPORTED_VERSIONS) + ")");
 		}
 
@@ -174,8 +170,12 @@ public final class AnchorMain {
 		String loaderVersion = require(props, "loader.version");
 		String mainClass = require(props, "mainClass");
 
+		Path librariesDir = gameDir.resolve("libraries");
 		String ownCoordinate = loaderGroup + ":" + loaderArtifact + ":" + loaderVersion;
-		installOwnJar(gameDir.resolve("libraries"), loaderGroup, loaderArtifact, loaderVersion);
+		String relativePath = mavenPath(loaderGroup, loaderArtifact, loaderVersion);
+		installOwnJar(librariesDir, loaderGroup, loaderArtifact, loaderVersion);
+		installClientMod(gameDir.resolve("mods"));
+		String ownLibraryJson = libraryJsonVanillaLocal(librariesDir.resolve(relativePath), ownCoordinate, relativePath);
 
 		List<String> thirdPartyLibraries = readThirdPartyLibraries(props);
 
@@ -184,7 +184,7 @@ public final class AnchorMain {
 		Files.createDirectories(versionDir);
 
 		Path profileJson = versionDir.resolve(profileId + ".json");
-		String json = buildProfileJson(profileId, mcVersion, mainClass, ownCoordinate, thirdPartyLibraries);
+		String json = buildProfileJson(profileId, mcVersion, mainClass, ownLibraryJson, thirdPartyLibraries);
 		Files.write(profileJson, json.getBytes(StandardCharsets.UTF_8));
 
 		return new InstallResult(profileJson, location.leftovers, false);
@@ -195,8 +195,12 @@ public final class AnchorMain {
 	 * спрашиваем — она у инстанса уже одна конкретная), дописываем туда компоненты
 	 * intermediary (если его ещё нет — Prism сам подтянет для него метаданные при запуске) и
 	 * сам загрузчик, плюс пишем сам патч-файл по образцу официального Fabric-патча для
-	 * MultiMC. Собственный jar кладём в общую для всех инстансов libraries/ папку Prism
-	 * (на два уровня выше — из "корень Prism/instances/имя/" в "корень Prism/libraries/").
+	 * MultiMC. Собственный jar кладём в libraries/ папку САМОГО инстанса (не общую
+	 * Prism-папку) — только так работает официально задокументированный хинт
+	 * "MMC-hint": "local", которым мы помечаем библиотеку как локальную, без скачивания
+	 * (см. github.com/MultiMC/Launcher/wiki/Jar-Modding). Без этого хинта Prism при каждом
+	 * запуске всё равно пытается резолвить/скачивать библиотеку по указанному url, даже
+	 * если локальный файл уже на месте и совпадает по хэшу.
 	 */
 	private static InstallResult installPrism(Path instanceDir, Path mmcPackPath, List<Path> leftovers) throws IOException {
 		String mmcPack = new String(Files.readAllBytes(mmcPackPath), StandardCharsets.UTF_8);
@@ -204,12 +208,12 @@ public final class AnchorMain {
 		String mcVersion = extractComponentVersion(mmcPack, "net.minecraft");
 
 		if (mcVersion == null) {
-			throw new IOException("не удалось найти версию Minecraft (компонент net.minecraft) в " + mmcPackPath);
+			throw new IOException(AnchorLang.tr("не удалось найти версию Minecraft (компонент net.minecraft) в ") + mmcPackPath);
 		}
 
 		if (!isSupported(mcVersion)) {
-			throw new IOException("версия " + mcVersion + " (из этого инстанса Prism) пока не поддерживается ArgentumLoader "
-					+ "(сейчас доступна: " + String.join(", ", SUPPORTED_VERSIONS) + ")");
+			throw new IOException(AnchorLang.tr("версия ") + mcVersion + AnchorLang.tr(" (из этого инстанса Prism) пока не поддерживается ArgentumLoader ")
+					+ AnchorLang.tr("(сейчас доступна: ") + String.join(", ", SUPPORTED_VERSIONS) + ")");
 		}
 
 		Properties props = loadLibraryList();
@@ -220,20 +224,21 @@ public final class AnchorMain {
 		String mainClass = require(props, "mainClass");
 		String uid = loaderGroup; // com.ganichgg.argentumloader — в стиле Java-пакета, как принято у Prism
 
-		Path prismRoot = instanceDir.getParent() != null && instanceDir.getParent().getParent() != null
-				? instanceDir.getParent().getParent()
-				: instanceDir;
-		Path librariesDir = prismRoot.resolve("libraries");
-
+		Path librariesDir = instanceDir.resolve("libraries");
 		String ownCoordinate = loaderGroup + ":" + loaderArtifact + ":" + loaderVersion;
-		installOwnJar(librariesDir, loaderGroup, loaderArtifact, loaderVersion);
+		installOwnJarFlat(librariesDir, loaderArtifact, loaderVersion);
+
+		// Игровая папка инстанса Prism — ".minecraft" (по умолчанию в новых версиях "minecraft"); берём существующую.
+		Path gameFolder = Files.isDirectory(instanceDir.resolve(".minecraft")) ? instanceDir.resolve(".minecraft") : instanceDir.resolve("minecraft");
+		installClientMod(gameFolder.resolve("mods"));
+		String ownLibraryJson = libraryJsonMmcLocal(ownCoordinate);
 
 		List<String> thirdPartyLibraries = readThirdPartyLibraries(props);
 
 		Path patchesDir = instanceDir.resolve("patches");
 		Files.createDirectories(patchesDir);
 		Path patchFile = patchesDir.resolve(uid + ".json");
-		String patchJson = buildPrismPatchJson(uid, loaderVersion, mainClass, ownCoordinate, thirdPartyLibraries);
+		String patchJson = buildPrismPatchJson(uid, loaderVersion, mainClass, ownLibraryJson, thirdPartyLibraries);
 		Files.write(patchFile, patchJson.getBytes(StandardCharsets.UTF_8));
 
 		StringBuilder extraComponents = new StringBuilder();
@@ -507,15 +512,15 @@ public final class AnchorMain {
 		JComboBox<String> versionBox = new JComboBox<>(SUPPORTED_VERSIONS);
 		versionBox.setSelectedIndex(0);
 
-		JLabel info = new JLabel("<html>Папка установки:<br><b>" + escapeHtml(gameDir.toString()) + "</b><br><br>"
-				+ "Версия Minecraft:</html>");
+		JLabel info = new JLabel(AnchorLang.tr("<html>Папка установки:<br><b>") + escapeHtml(gameDir.toString()) + "</b><br><br>"
+				+ AnchorLang.tr("Версия Minecraft:</html>"));
 		info.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
 
 		JPanel panel = new JPanel(new BorderLayout());
 		panel.add(info, BorderLayout.NORTH);
 		panel.add(versionBox, BorderLayout.CENTER);
 
-		int result = JOptionPane.showConfirmDialog(null, panel, "ArgentumLoader — установка",
+		int result = JOptionPane.showConfirmDialog(null, panel, AnchorLang.tr("ArgentumLoader — установка"),
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
 
 		if (result != JOptionPane.OK_OPTION) {
@@ -532,7 +537,7 @@ public final class AnchorMain {
 	private static Properties loadLibraryList() throws IOException {
 		try (InputStream is = AnchorMain.class.getResourceAsStream(LIBRARIES_RESOURCE)) {
 			if (is == null) {
-				throw new IOException("не найден " + LIBRARIES_RESOURCE + " внутри якоря — сборка повреждена");
+				throw new IOException(AnchorLang.tr("не найден ") + LIBRARIES_RESOURCE + AnchorLang.tr(" внутри якоря — сборка повреждена"));
 			}
 
 			Properties props = new Properties();
@@ -545,7 +550,7 @@ public final class AnchorMain {
 		String value = props.getProperty(key);
 
 		if (value == null || value.isEmpty()) {
-			throw new IOException("отсутствует обязательный ключ '" + key + "' в " + LIBRARIES_RESOURCE);
+			throw new IOException(AnchorLang.tr("отсутствует обязательный ключ '") + key + AnchorLang.tr("' в ") + LIBRARIES_RESOURCE);
 		}
 
 		return value;
@@ -622,7 +627,7 @@ public final class AnchorMain {
 		int componentsKeyIdx = mmcPackJson.indexOf("\"components\"");
 
 		if (componentsKeyIdx < 0) {
-			throw new IllegalStateException("в mmc-pack.json не найден ключ \"components\"");
+			throw new IllegalStateException(AnchorLang.tr("в mmc-pack.json не найден ключ \"components\""));
 		}
 
 		int arrStart = mmcPackJson.indexOf('[', componentsKeyIdx);
@@ -645,15 +650,15 @@ public final class AnchorMain {
 		}
 
 		if (arrEnd < 0) {
-			throw new IllegalStateException("не удалось найти конец массива \"components\" в mmc-pack.json");
+			throw new IllegalStateException(AnchorLang.tr("не удалось найти конец массива \"components\" в mmc-pack.json"));
 		}
 
 		return mmcPackJson.substring(0, arrEnd) + extraComponentsJson + mmcPackJson.substring(arrEnd);
 	}
 
-	private static String buildPrismPatchJson(String uid, String version, String mainClass, String ownCoordinate, List<String> thirdPartyLibraries) {
+	private static String buildPrismPatchJson(String uid, String version, String mainClass, String ownLibraryJson, List<String> thirdPartyLibraries) {
 		StringBuilder libs = new StringBuilder();
-		libs.append(libraryJsonNoUrl(ownCoordinate)); // собственный jar уже на диске, url не нужен
+		libs.append(ownLibraryJson);
 
 		for (String lib : thirdPartyLibraries) {
 			libs.append(',').append(lib);
@@ -664,6 +669,12 @@ public final class AnchorMain {
 				+ "  \"name\": \"ArgentumLoader\",\n"
 				+ "  \"uid\": \"" + escape(uid) + "\",\n"
 				+ "  \"version\": \"" + escape(version) + "\",\n"
+				// Слово в левом нижнем углу главного меню ("Minecraft 1.21.1/Fabric") — это НЕ
+				// бренд из ClientBrandRetriever, а буквально аргумент запуска --versionType,
+				// который лаунчер передаёт из этого поля (у ванильного Fabric оно равно "Fabric",
+				// по умолчанию у Mojang — "release"). Подтверждено разбором байткода реального
+				// клиента 1.21.1 (net.minecraft.client.main.Main — опция jopt-simple "versionType").
+				+ "  \"type\": \"Argentum\",\n"
 				+ "  \"mainClass\": \"" + escape(mainClass) + "\",\n"
 				+ "  \"libraries\": [" + libs + "],\n"
 				+ "  \"requires\": [{\"uid\": \"net.fabricmc.intermediary\"}]\n"
@@ -671,12 +682,46 @@ public final class AnchorMain {
 	}
 
 	private static void installOwnJar(Path librariesDir, String group, String artifact, String version) throws IOException {
-		Path targetJar = librariesDir.resolve(mavenPath(group, artifact, version));
+		extractLoaderJar(librariesDir.resolve(mavenPath(group, artifact, version)));
+	}
+
+	// Prism при "MMC-hint": "local" ищет файл НЕ по maven-пути (group/artifact/version/...),
+	// а плоско прямо в libraries/ инстанса, как показала реальная ошибка при тесте:
+	// "libraries/argentum-loader-0.19.5+local.jar" — без вложенных папок group/artifact/version.
+	// Схема из wiki MultiMC (с вложенными папками) для этого случая не подтвердилась.
+	private static void installOwnJarFlat(Path librariesDir, String artifact, String version) throws IOException {
+		extractLoaderJar(librariesDir.resolve(artifact + "-" + version + ".jar"));
+	}
+
+	/**
+	 * Клиентская часть (надпись на экране загрузки и т.п.) — обычный мод в mods/. Ресурса может не
+	 * быть, если якорь собран без argentum-client — тогда это не ошибка, просто ставим один лоадер.
+	 */
+	private static void installClientMod(Path modsDir) throws IOException {
+		try (InputStream is = AnchorMain.class.getResourceAsStream(CLIENT_MOD_RESOURCE)) {
+			if (is == null) {
+				return;
+			}
+
+			Files.createDirectories(modsDir);
+
+			try (OutputStream os = Files.newOutputStream(modsDir.resolve("argentum-client.jar"))) {
+				byte[] buf = new byte[8192];
+				int read;
+
+				while ((read = is.read(buf)) >= 0) {
+					os.write(buf, 0, read);
+				}
+			}
+		}
+	}
+
+	private static void extractLoaderJar(Path targetJar) throws IOException {
 		Files.createDirectories(targetJar.getParent());
 
 		try (InputStream is = AnchorMain.class.getResourceAsStream(LOADER_JAR_RESOURCE)) {
 			if (is == null) {
-				throw new IOException("не найден " + LOADER_JAR_RESOURCE + " внутри якоря — сборка повреждена");
+				throw new IOException(AnchorLang.tr("не найден ") + LOADER_JAR_RESOURCE + AnchorLang.tr(" внутри якоря — сборка повреждена"));
 			}
 
 			try (OutputStream os = Files.newOutputStream(targetJar)) {
@@ -690,6 +735,48 @@ public final class AnchorMain {
 		}
 	}
 
+	/**
+	 * Для ВАНИЛЬНОГО лаунчера: без блока "downloads" с известным размером/sha1 он всё равно
+	 * пытается скачать библиотеку с libraries.minecraft.net. Кладём сюда sha1+size только
+	 * что записанного файла — тогда лаунчер видит, что локальный файл уже совпадает с
+	 * ожидаемым, и не лезет в сеть. (Для Prism это НЕ работает — см. libraryJsonMmcLocal.)
+	 */
+	private static String libraryJsonVanillaLocal(Path jarFile, String coordinate, String relativePath) throws IOException {
+		String sha1 = sha1Hex(jarFile);
+		long size = Files.size(jarFile);
+
+		return "{\"name\":\"" + escape(coordinate) + "\",\"downloads\":{\"artifact\":{"
+				+ "\"path\":\"" + escape(relativePath) + "\","
+				+ "\"url\":\"" + escape(DUMMY_LIBRARY_HOST + relativePath) + "\","
+				+ "\"sha1\":\"" + escape(sha1) + "\","
+				+ "\"size\":" + size
+				+ "}}}";
+	}
+
+	// Для PRISM/MULTIMC: официально задокументированный хинт, помечающий библиотеку как
+	// локальную — она читается из libraries/ папки инстанса и НИКОГДА не резолвится по сети,
+	// в отличие от ванильного формата (github.com/MultiMC/Launcher/wiki/Jar-Modding).
+	private static String libraryJsonMmcLocal(String coordinate) {
+		return "{\"name\":\"" + escape(coordinate) + "\",\"MMC-hint\":\"local\"}";
+	}
+
+	private static String sha1Hex(Path file) throws IOException {
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-1");
+			digest.update(Files.readAllBytes(file));
+			byte[] hash = digest.digest();
+			StringBuilder sb = new StringBuilder(hash.length * 2);
+
+			for (byte b : hash) {
+				sb.append(String.format("%02x", b));
+			}
+
+			return sb.toString();
+		} catch (NoSuchAlgorithmException e) {
+			throw new IOException(AnchorLang.tr("SHA-1 недоступен в этой JVM"), e);
+		}
+	}
+
 	private static String mavenPath(String group, String artifact, String version) {
 		return group.replace('.', '/') + "/" + artifact + "/" + version + "/" + artifact + "-" + version + ".jar";
 	}
@@ -698,13 +785,16 @@ public final class AnchorMain {
 		return "{\"name\":\"" + escape(coordinate) + "\",\"url\":\"" + escape(url) + "\"}";
 	}
 
-	private static String libraryJsonNoUrl(String coordinate) {
-		return "{\"name\":\"" + escape(coordinate) + "\"}";
-	}
+	// И полное отсутствие "url" ("url's parent does not contain 'url'" — Prism требует само
+	// поле структурно при разборе JSON), и пустая строка ("Protocol "" is unknown" — Prism
+	// всё же пытается разобрать её как URI) ломают Prism. Решение — синтаксически валидный,
+	// но фиктивный URL: скачивание по нему реально никогда не происходит, потому что
+	// совпадающих локально path+sha1+size лаунчеру достаточно, чтобы посчитать файл на месте.
+	private static final String DUMMY_LIBRARY_HOST = "https://files.argentumloader.local/";
 
-	private static String buildProfileJson(String profileId, String mcVersion, String mainClass, String ownCoordinate, List<String> thirdPartyLibraries) {
+	private static String buildProfileJson(String profileId, String mcVersion, String mainClass, String ownLibraryJson, List<String> thirdPartyLibraries) {
 		StringBuilder libs = new StringBuilder();
-		libs.append(libraryJsonNoUrl(ownCoordinate)); // собственный jar уже на диске, url не нужен
+		libs.append(ownLibraryJson);
 
 		for (String lib : thirdPartyLibraries) {
 			libs.append(',').append(lib);
@@ -715,7 +805,11 @@ public final class AnchorMain {
 		return "{\n"
 				+ "  \"id\": \"" + escape(profileId) + "\",\n"
 				+ "  \"inheritsFrom\": \"" + escape(mcVersion) + "\",\n"
-				+ "  \"type\": \"release\",\n"
+				// "type" тут двойного назначения: лаунчер использует его для группировки в
+				// списке версий (обычно "release"), а игра передаёт это же значение себе в виде
+				// --versionType и показывает его в левом нижнем углу главного меню вместо "release"
+				// (см. подробный комментарий в buildPrismPatchJson). Меняем ради второго эффекта.
+				+ "  \"type\": \"Argentum\",\n"
 				+ "  \"time\": \"" + now + "\",\n"
 				+ "  \"releaseTime\": \"" + now + "\",\n"
 				+ "  \"mainClass\": \"" + escape(mainClass) + "\",\n"

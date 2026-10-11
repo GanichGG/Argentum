@@ -126,7 +126,7 @@ public final class FabricGuiEntry {
 		GameProvider provider = FabricLoaderImpl.INSTANCE.tryGetGameProvider();
 
 		if (!isCI && !isNoGui && !GraphicsEnvironment.isHeadless() && (provider == null || provider.canOpenErrorGui())) {
-			String title = "Fabric Loader " + FabricLoaderImpl.VERSION;
+			String title = "ArgentumLoader " + FabricLoaderImpl.VERSION;
 			FabricStatusTree tree = new FabricStatusTree(title, mainText);
 			FabricStatusTab crashTab = tree.addTab(Localization.format("gui.tab.crash"));
 

@@ -61,13 +61,28 @@ public final class ModUpdates {
 		return updates;
 	}
 
+	/** Результат первой половины замены: новые файлы уже скачаны, старый ещё на месте. */
+	public static final class Staged {
+		public final ModInstaller.InstallResult result;
+		/** Имя старого файла этого мода (null — мод не был установлен). */
+		public final String oldFile;
+		/** Имя нового основного файла мода. */
+		public final String newFile;
+		public final boolean wasDisabled;
+
+		Staged(ModInstaller.InstallResult result, String oldFile, String newFile, boolean wasDisabled) {
+			this.result = result;
+			this.oldFile = oldFile;
+			this.newFile = newFile;
+			this.wasDisabled = wasDisabled;
+		}
+	}
+
 	/**
-	 * Ставит указанную версию (с недостающими зависимостями) вместо установленной и убирает старый файл.
-	 *
-	 * @return итог установки; файлы — в {@code installedFiles}
+	 * Первая половина замены: скачивает указанную версию (с недостающими зависимостями) рядом со старым файлом, ничего
+	 * не удаляя и не отключая. Так набор можно проверить, а при неудаче откатить, не потеряв установленное.
 	 */
-	public static ModInstaller.InstallResult apply(Path modsDir, ModrinthVersion target, String loader, String gameVersion,
-			ModInstaller.Progress progress) throws ModrinthApiException {
+	public static Staged stage(Path modsDir, ModrinthVersion target, String loader, String gameVersion, ModInstaller.Progress progress) throws ModrinthApiException {
 		InstalledModsIndex index = InstalledModsIndex.load(modsDir);
 		InstalledModsIndex.Entry old = index.entries().get(target.projectId);
 		List<ModrinthVersion> plan = DependencyResolver.resolveFor(target, loader, gameVersion, index);
@@ -82,19 +97,35 @@ public final class ModUpdates {
 		ModInstaller.InstallResult result = ModInstaller.install(modsDir, plan, progress, avoid);
 		InstalledModsIndex.Entry fresh = InstalledModsIndex.load(modsDir).entries().get(target.projectId);
 
-		if (old != null && (fresh == null || !fresh.fileName.equals(old.fileName))) {
-			removeFile(modsDir, old.fileName);
+		return new Staged(result, old != null ? old.fileName : null, fresh != null ? fresh.fileName : null, wasDisabled);
+	}
+
+	/** Вторая половина замены: убирает старый файл и возвращает «отключён», если мод был отключён. */
+	public static void finish(Path modsDir, Staged staged) throws ModrinthApiException {
+		if (staged.oldFile != null && (staged.newFile == null || !staged.newFile.equals(staged.oldFile))) {
+			removeFile(modsDir, staged.oldFile);
 		}
 
-		if (wasDisabled && fresh != null) {
+		if (staged.wasDisabled && staged.newFile != null) {
 			try {
-				LocalMods.disable(modsDir, fresh.fileName);
+				LocalMods.disable(modsDir, staged.newFile);
 			} catch (IOException e) {
 				throw new ModrinthApiException("Мод обновлён, но снова отключить его не удалось: " + e.getMessage(), e);
 			}
 		}
+	}
 
-		return result;
+	/**
+	 * Ставит указанную версию (с недостающими зависимостями) вместо установленной и убирает старый файл.
+	 *
+	 * @return итог установки; файлы — в {@code installedFiles}
+	 */
+	public static ModInstaller.InstallResult apply(Path modsDir, ModrinthVersion target, String loader, String gameVersion,
+			ModInstaller.Progress progress) throws ModrinthApiException {
+		Staged staged = stage(modsDir, target, loader, gameVersion, progress);
+		finish(modsDir, staged);
+
+		return staged.result;
 	}
 
 	/** Убирает файл мода (включённый или отключённый вид); занятый игрой — при следующем запуске. */

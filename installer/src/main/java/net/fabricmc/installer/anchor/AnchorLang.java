@@ -113,8 +113,6 @@ final class AnchorLang {
 			Map.entry("Установщик ArgentumLoader",
 					"ArgentumLoader installer"));
 
-	private static final boolean RUSSIAN = isRussian();
-
 	private AnchorLang() { }
 
 	private static boolean isRussian() {
@@ -125,6 +123,8 @@ final class AnchorLang {
 	}
 
 	static String tr(String original) {
-		return RUSSIAN ? original : EN.getOrDefault(original, original);
+		// язык читаем при каждом вызове, в момент работы программы: в нативном exe значение, посчитанное при сборке, осталось бы
+		// языком машины, на которой собирали (на GitHub — английским), а не языком игрока
+		return isRussian() ? original : EN.getOrDefault(original, original);
 	}
 }

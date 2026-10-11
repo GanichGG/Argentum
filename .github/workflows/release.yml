@@ -95,7 +95,7 @@ jobs:
         run: |
           cd dist
           sha256sum $(ls | grep -v NOTES.md) > SHA256SUMS.txt
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           name: ArgentumLoader ${{ needs.jars.outputs.version }}
           prerelease: true   # until the manual checklist in docs/RELEASING.md has been completed on a clean instance

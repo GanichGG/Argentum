@@ -53,6 +53,7 @@ import net.fabricmc.loader.impl.modrinth.ModrinthClient;
 import net.fabricmc.loader.impl.modrinth.ModrinthProject;
 import net.fabricmc.loader.impl.modrinth.ModrinthVersion;
 import net.fabricmc.loader.impl.modrinth.MrpackImporter;
+import net.fabricmc.loader.impl.profile.Diagnostics;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 import org.lwjgl.PointerBuffer;
@@ -227,6 +228,7 @@ public final class CatalogScreen extends class_437 {
 	private boolean devQueued;
 	private boolean devApplyStarted;
 	private boolean devReloaded;
+	private boolean devDiag;
 	private boolean devConfigOpened;
 	private int[] devMouse;
 	private long devNextShot;
@@ -441,6 +443,12 @@ public final class CatalogScreen extends class_437 {
 				this.devApplyStarted = true;
 				startApply();
 			}
+		}
+
+		// Dev: с флагом .argentum-diag-dev на 7-й секунде собираем пакет диагностики (как по кнопке)
+		if (!this.devDiag && t > 7000 && java.nio.file.Files.exists(FabricLoader.getInstance().getGameDir().resolve(".argentum-diag-dev"))) {
+			this.devDiag = true;
+			createDiagnostics();
 		}
 
 		// Dev: пока готовится копия, открываем «Установленные» заново — удалённый мод не должен вернуться
@@ -2213,10 +2221,12 @@ public final class CatalogScreen extends class_437 {
 		if (this.tab == Tab.CATALOG) {
 			buttons.add(new String[] {"filter", Lang.tr("Фильтры") + (this.categoryFilter.isEmpty() ? "" : " (" + this.categoryFilter.size() + ")"), "1"});
 			buttons.add(new String[] {"sort", Lang.tr("Сортировка: ") + sortLabel(), "1"});
+			buttons.add(new String[] {"diag", Lang.tr("Диагностика"), "0"});
 		} else {
 			buttons.add(new String[] {"import", Lang.tr("Импорт сборки"), "0"});
 			buttons.add(new String[] {"updall", this.updates.isEmpty() ? (this.checkingUpdates ? Lang.tr("Проверяю...") : Lang.tr("Проверить обновления")) : Lang.tr("Обновить всё (") + this.updates.size() + ")", "0"});
 			buttons.add(new String[] {"instfilter", Lang.tr(INSTALLED_FILTERS[this.installedFilter]), "1"});
+			buttons.add(new String[] {"diag", Lang.tr("Диагностика"), "0"});
 		}
 
 		int right = w - PAD;
@@ -2933,7 +2943,7 @@ public final class CatalogScreen extends class_437 {
 	private void handleHit(Hit hit) {
 		ModrinthProject p = hit.p;
 
-		if (ChangeQueue.applying() && !hit.id.equals("gear") && !hit.id.equals("close")) {
+		if (ChangeQueue.applying() && !hit.id.equals("gear") && !hit.id.equals("close") && !hit.id.equals("diag")) {
 			setStatus(Lang.tr("Подожди, применяю изменения"), C_GRAY);
 
 			return;
@@ -2985,6 +2995,9 @@ public final class CatalogScreen extends class_437 {
 			break;
 		case "import":
 			pickAndImport();
+			break;
+		case "diag":
+			createDiagnostics();
 			break;
 		default:
 			break;
@@ -3221,6 +3234,24 @@ public final class CatalogScreen extends class_437 {
 				}
 			}
 		}
+	}
+
+	// ---- пакет диагностики
+
+	/** Собирает пакет для сообщения об ошибке (версии, моды, журнал; личное убрано) и открывает папку с ним. */
+	private void createDiagnostics() {
+		setStatus(Lang.tr("Собираю диагностику"), C_GRAY);
+
+		QUICK.submit(() -> {
+			try {
+				Path zip = Diagnostics.create(FabricLoader.getInstance().getGameDir());
+				setStatus(Lang.tr("Диагностика сохранена: ") + zip.getFileName(), C_OK);
+				ModConfigs.openExternally(zip.getParent());
+			} catch (IOException | RuntimeException e) {
+				Log.warn(LogCategory.MODRINTH, "Не удалось собрать диагностику", e);
+				setStatus(Lang.tr("Не удалось собрать диагностику"), C_RED);
+			}
+		});
 	}
 
 	// ---- импорт сборки .mrpack

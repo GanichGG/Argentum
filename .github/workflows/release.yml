@@ -1,32 +1,101 @@
 name: Release
-on: [workflow_dispatch] # Manual trigger
+
+# A release is cut by pushing a tag like v0.19.5-argentum.1 (the number after "argentum." is the build number).
+# Before tagging: add a section [0.19.5+argentum.1] to CHANGELOG.md - the release notes are taken from it.
+on:
+  push:
+    tags: ['v*']
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  jars:
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '25'
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
-          fetch-depth: 0
-      - uses: FabricMC/fabric-action-scripts@v2
-        id: changelog
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
         with:
-          context: changelog
-          workflow_id: release.yml
-      - run: ./gradlew checkVersion build publish github --stacktrace
-        env:
-          MAVEN_URL: ${{ secrets.MAVEN_URL }}
-          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
-          CHANGELOG: ${{ steps.changelog.outputs.changelog }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_SERVER: ${{ secrets.SIGNING_SERVER }}
-          SIGNING_PGP_KEY: ${{ secrets.SIGNING_PGP_KEY }}
-          SIGNING_JAR_KEY: ${{ secrets.SIGNING_JAR_KEY }}
+          python-version: '3.12'
+
+      - id: meta
+        run: |
+          tag="${GITHUB_REF_NAME}"                 # v0.19.5-argentum.1
+          build="${tag##*.}"                       # 1
+          base="${tag#v}"; base="${base%%-*}"      # 0.19.5
+          echo "build=${build}" >> "$GITHUB_OUTPUT"
+          echo "version=${base}+argentum.${build}" >> "$GITHUB_OUTPUT"
+
+      - run: python tools/check_translations.py
+      - name: Loader
+        run: ./gradlew -PargentumRelease=${{ steps.meta.outputs.build }} checkstyleMain checkstyleTest test finalJar --stacktrace
+      - name: Client mod
+        working-directory: argentum-client
+        run: ../gradlew -PargentumRelease=${{ steps.meta.outputs.build }} build --stacktrace
+
+      - name: Collect
+        run: |
+          mkdir dist
+          cp build/libs/fabric-loader-${{ steps.meta.outputs.version }}.jar dist/argentum-loader-${{ steps.meta.outputs.version }}.jar
+          cp argentum-client/build/libs/argentum-client-*.jar dist/
+          python tools/release_notes.py "${{ steps.meta.outputs.version }}" > dist/NOTES.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-jars
+          path: dist/
+          if-no-files-found: error
+
+  installer:
+    # Native Windows installer (GraalVM native-image). If it fails, the release still goes out with the jars.
+    runs-on: windows-2022
+    needs: jars
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: graalvm-community
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Installer
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          ./gradlew -PargentumRelease="${tag##*.}" :installer:nativeCompile --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-installer
+          path: installer/build/native/nativeCompile/ArgentumAnchor.exe
+          if-no-files-found: warn
+
+  release:
+    runs-on: ubuntu-24.04
+    needs: [jars, installer]
+    if: always() && needs.jars.result == 'success'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum $(ls | grep -v NOTES.md) > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ArgentumLoader ${{ needs.jars.outputs.version }}
+          body_path: dist/NOTES.md
+          files: |
+            dist/*.jar
+            dist/*.exe
+            dist/SHA256SUMS.txt

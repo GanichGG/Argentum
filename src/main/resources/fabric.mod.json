@@ -1,9 +1,6 @@
 {
   "schemaVersion": 1,
   "id": "fabricloader",
-  "provides": [
-    "argentumloader"
-  ],
   "name": "ArgentumLoader",
   "version": "${version}",
   "environment": "*",

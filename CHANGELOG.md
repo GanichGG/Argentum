@@ -2,20 +2,18 @@
 
 Release notes are taken from the section whose heading matches the version (see `tools/release_notes.py`).
 
-## [0.19.5+argentum.3] - 2026-10-11 (pre-release)
+## [0.1B1] - 2026-10-11 (beta)
 
-- Installer: Prism instances are now recognised when `ArgentumAnchor.exe` is placed in the instance's `minecraft` folder
-  (the one Prism's *Folder* button opens), not only in the instance root. Before, it was treated as a vanilla `.minecraft`
-  and ArgentumLoader did not appear in Prism's *Version* list.
+First public build of ArgentumLoader, a fork of Fabric Loader 0.19.5 (that is the version mods see as `fabricloader`).
 
-## [0.19.5+argentum.2] - 2026-10-11 (pre-release)
+Versions look like `0.1B1`: `x` global version, `y` sub-version, then a stage letter (`A` alpha, `B` beta, none for a stable
+release) and a build number. Mods and the loader see the SemVer form of the same version (`0.1.0-b.1`) under the mod id
+`argentumloader`, so a mod can require it: `"depends": {"argentumloader": ">=0.1.0-b.1"}`.
 
-Same code as 0.19.5+argentum.1, now **with the Windows installer** (`ArgentumAnchor.exe`). The CI that builds the installer
-and the client mod was fixed; the installer is built on GitHub, so its checksum is in `SHA256SUMS.txt`.
-
-## [0.19.5+argentum.1] - 2026-10-11 (pre-release)
-
-First public build of ArgentumLoader (a fork of Fabric Loader 0.19.5).
+### Installer
+- Prism: ArgentumLoader is recognised when `ArgentumAnchor.exe` is run from the instance folder **or** from its `minecraft`
+  folder (the one Prism's *Folder* button opens); re-running it updates the component and removes older loader jars.
+- Unsigned for now: Windows SmartScreen may warn ("More info" -> "Run anyway").
 
 ### Loader
 - Fail-safe startup: a mod whose entrypoint fails is disabled (also for the next launch) instead of crashing the game;

@@ -79,5 +79,10 @@ public abstract class TitleScreenMixin extends class_437 {
 		if (go != null && Boolean.parseBoolean(go.getProperty("openCatalog"))) {
 			this.field_22787.method_1507(new CatalogScreen(this).afterApply(go.getProperty("message", "")));
 		}
+
+		// моды, которые не запустились и были отключены, — сразу показываем, не дожидаясь, пока игрок откроет каталог
+		else if (go == null && !com.ganichgg.argentum.client.handoff.Handoff.isHiddenChild() && CatalogScreen.failuresPending()) {
+			this.field_22787.method_1507(new CatalogScreen(this));
+		}
 	}
 }

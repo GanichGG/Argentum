@@ -38,6 +38,7 @@ import com.ganichgg.argentum.client.ui.PixelIcons;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.impl.discovery.ModResolutionException;
+import net.fabricmc.loader.impl.failsafe.FailSafe;
 import net.fabricmc.loader.impl.discovery.Preflight;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.modrinth.DependencyResolver;
@@ -239,6 +240,8 @@ public final class CatalogScreen extends class_437 {
 	private int applyX;
 	private volatile String applyMessage = "";
 	private volatile String preflightText;
+	private static boolean failuresAcknowledged;
+	private boolean failedModal;
 	private int applyW;
 
 	// отключение, обновления, фильтры, выбор версии, диагностика
@@ -349,6 +352,11 @@ public final class CatalogScreen extends class_437 {
 		this.initialStatus = message == null || message.isEmpty() ? "Моды применены" : message;
 
 		return this;
+	}
+
+	/** Есть отключённые из-за ошибки запуска моды, о которых игроку ещё не сказали (один раз за запуск игры). */
+	public static boolean failuresPending() {
+		return !failuresAcknowledged && !FailSafe.failures().isEmpty();
 	}
 
 	/** Dev: включает сценарий самопроверки (панель, вкладки, подгрузка) — запускается файлом .argentum-open-catalog. */
@@ -516,6 +524,11 @@ public final class CatalogScreen extends class_437 {
 		if (!this.started) {
 			this.started = true;
 			refreshInstalledIndex();
+
+			if (failuresPending()) { // моды не запустились и были отключены — явно сообщаем игроку
+				failuresAcknowledged = true;
+				this.failedModal = true;
+			}
 
 			// если игра в прошлый раз упала — выясняем вероятного виновника (в фоне) и предлагаем его отключить
 			WORKER.submit(() -> {
@@ -1574,6 +1587,11 @@ public final class CatalogScreen extends class_437 {
 		int w = this.field_22789;
 		int h = this.field_22790;
 
+		// окно «моды не запустились» перехватывает всё
+		if (this.failedModal) {
+			return failedClick(mx, my);
+		}
+
 		// окно с причиной отказа предпроверки перехватывает всё
 		if (this.preflightText != null) {
 			return preflightClick(mx, my);
@@ -2108,6 +2126,7 @@ public final class CatalogScreen extends class_437 {
 		drawStatusBar(ctx, mx, my, w, h);
 		drawPopup(ctx, mx, my);
 		drawModal(ctx, mx, my, w, h);
+		drawFailed(ctx, mx, my, w, h);
 		drawPreflight(ctx, mx, my, w, h);
 	}
 
@@ -2461,6 +2480,12 @@ public final class CatalogScreen extends class_437 {
 		}
 
 		int used = 0;
+		String own = this.installedFiles.get(p.id);
+
+		if (own != null && FailSafe.failureForFile(own) != null) {
+			used += badge(ctx, "Не запустился", C_RED, x + used, y, maxWidth - used);
+		}
+
 		ChangeQueue.Change q = ChangeQueue.get(p.id);
 
 		if (q != null) {
@@ -3445,5 +3470,92 @@ public final class CatalogScreen extends class_437 {
 		this.preflightHits.add(new Hit("close", null, bx + bw - 90, fy, 80, 18, false));
 		button(ctx, "pf-report", bx + 10, fy, 110, 18, "Полный отчёт", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 10, fy, 110, 18), C_TEXT);
 		this.preflightHits.add(new Hit("report", null, bx + 10, fy, 110, 18, false));
+	}
+
+	// ---- окно «Не запустились и отключены»
+
+	private final List<Hit> failedHits = new ArrayList<>();
+
+	private boolean failedClick(double mx, double my) {
+		for (int i = this.failedHits.size() - 1; i >= 0; i--) {
+			Hit hit = this.failedHits.get(i);
+
+			if (inside(mx, my, hit.x, hit.y, hit.w, hit.h)) {
+				press("fm-" + hit.id);
+
+				if (hit.id.equals("close")) {
+					this.failedModal = false;
+				} else if (hit.id.equals("restart")) {
+					this.failedModal = false;
+					ChangeQueue.markDirty(); // мод уже помечен на отключение — остаётся чистый перезапуск без него
+					startApply();
+				} else if (hit.id.equals("log")) {
+					QUICK.submit(() -> {
+						try {
+							ModConfigs.openExternally(FabricLoader.getInstance().getGameDir().resolve("logs").resolve("latest.log"));
+						} catch (IOException e) {
+							setStatus("Не удалось открыть журнал", C_RED);
+						}
+					});
+				}
+
+				return true;
+			}
+		}
+
+		return true; // окно модальное
+	}
+
+	private void drawFailed(class_332 ctx, int mx, int my, int w, int h) {
+		this.failedHits.clear();
+
+		if (!this.failedModal) {
+			return;
+		}
+
+		List<FailSafe.Failure> list = FailSafe.failures();
+
+		if (list.isEmpty()) {
+			this.failedModal = false;
+
+			return;
+		}
+
+		ctx.method_25294(0, 0, w, h, 0xB0000000);
+
+		int rows = Math.min(list.size(), 5);
+		int bw = Math.min(w - 24, 420);
+		int bh = 66 + rows * 34 + (list.size() > rows ? 12 : 0) + 34;
+		int bx = (w - bw) / 2;
+		int by = Math.max(8, (h - bh) / 2);
+		frame(ctx, bx, by, bw, bh, C_HEADER, lighter(C_HEADER, 0.1F), darker(C_HEADER, 0.35F), false);
+		ctx.method_25294(bx + 1, by + 1, bx + bw - 1, by + 2, C_RED);
+
+		text(ctx, list.size() == 1 ? "Мод не запустился и отключён" : "Не запустились и отключены: " + list.size(), bx + 12, by + 12, C_WHITE);
+		text(ctx, fit("Игра запущена без них. Перезапуск без них даёт чистый запуск.", bw - 24), bx + 12, by + 26, C_GRAY);
+
+		int y = by + 44;
+
+		for (int i = 0; i < rows; i++) {
+			FailSafe.Failure f = list.get(i);
+			frame(ctx, bx + 10, y, bw - 20, 30, C_PANEL, lighter(C_PANEL, 0.07F), darker(C_PANEL, 0.3F), false);
+			text(ctx, fit(f.name + " " + f.version, bw - 130), bx + 18, y + 6, C_WHITE);
+			text(ctx, fit(f.reason, bw - 130), bx + 18, y + 17, C_GRAY);
+			button(ctx, "fm-off-" + i, bx + bw - 10 - 92, y + 6, 84, 18, "Отключён", null, false, C_DISABLED, C_DISABLED, false, C_GRAY);
+			y += 34;
+		}
+
+		if (list.size() > rows) {
+			text(ctx, "…и ещё " + (list.size() - rows), bx + 18, y, C_GRAY);
+		}
+
+		int fy = by + bh - 28;
+		int restartW = 150;
+		button(ctx, "fm-restart", bx + 10, fy, restartW, 18, "Перезапустить без них", null, false, C_ACCENT, C_ACCENT_HOVER, inside(mx, my, bx + 10, fy, restartW, 18), C_ACCENT_TEXT);
+		this.failedHits.add(new Hit("restart", null, bx + 10, fy, restartW, 18, false));
+		button(ctx, "fm-log", bx + 10 + restartW + 6, fy, 70, 18, "Журнал", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + 16 + restartW, fy, 70, 18), C_TEXT);
+		this.failedHits.add(new Hit("log", null, bx + 16 + restartW, fy, 70, 18, false));
+		button(ctx, "fm-close", bx + bw - 10 - 80, fy, 80, 18, "Продолжить", null, false, C_SECONDARY, C_SECONDARY_HOVER, inside(mx, my, bx + bw - 90, fy, 80, 18), C_TEXT);
+		this.failedHits.add(new Hit("close", null, bx + bw - 90, fy, 80, 18, false));
 	}
 }

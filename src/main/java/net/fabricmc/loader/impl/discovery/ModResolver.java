@@ -37,6 +37,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.metadata.ModDependency;
 import net.fabricmc.loader.api.metadata.ModDependency.Kind;
 import net.fabricmc.loader.impl.discovery.ModSolver.InactiveReason;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.metadata.ModDependencyImpl;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
@@ -101,7 +102,7 @@ public class ModResolver {
 
 			if (mods.size() > 1) {
 				mods.remove(builtinMod);
-				throw new ModResolutionException("Моды используют тот же id, что и встроенный мод %s: %s", builtinMod, mods);
+				throw new ModResolutionException(Lang.tr("Моды используют тот же id, что и встроенный мод %s: %s"), builtinMod, mods);
 			}
 
 			preselectedMods.add(builtinMod);
@@ -122,7 +123,7 @@ public class ModResolver {
 			result = ModSolver.solve(allModsSorted, modsById,
 					selectedMods, uniqueSelectedMods);
 		} catch (ContradictionException | TimeoutException e) {
-			throw new ModResolutionException("Не удалось разрешить зависимости", e);
+			throw new ModResolutionException(Lang.tr("Не удалось разрешить зависимости"), e);
 		}
 
 		if (!result.success) {
@@ -147,7 +148,7 @@ public class ModResolver {
 			}
 
 			throw ModResolutionException.withFullReport(
-					"Некоторые из ваших модов несовместимы с игрой или друг с другом!",
+					Lang.tr("Некоторые из ваших модов несовместимы с игрой или друг с другом!"),
 					ResultAnalyzer.gatherErrors(result, selectedMods, modsById, envDisabledMods, envType));
 		}
 
@@ -222,11 +223,11 @@ public class ModResolver {
 
 	static void selectMod(ModCandidateImpl mod, Map<String, ModCandidateImpl> selectedMods, List<ModCandidateImpl> uniqueSelectedMods) throws ModResolutionException {
 		ModCandidateImpl prev = selectedMods.put(mod.getId(), mod);
-		if (prev != null) throw new ModResolutionException("повторяющийся мод %s", mod.getId());
+		if (prev != null) throw new ModResolutionException(Lang.tr("повторяющийся мод %s"), mod.getId());
 
 		for (String provided : mod.getProvides()) {
 			prev = selectedMods.put(provided, mod);
-			if (prev != null) throw new ModResolutionException("повторяющийся мод %s", provided);
+			if (prev != null) throw new ModResolutionException(Lang.tr("повторяющийся мод %s"), provided);
 		}
 
 		uniqueSelectedMods.add(mod);

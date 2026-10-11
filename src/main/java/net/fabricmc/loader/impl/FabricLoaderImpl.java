@@ -60,6 +60,7 @@ import net.fabricmc.loader.impl.discovery.RuntimeModRemapper;
 import net.fabricmc.loader.impl.entrypoint.EntrypointStorage;
 import net.fabricmc.loader.impl.game.GameProvider;
 import net.fabricmc.loader.impl.failsafe.FailSafe;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.profile.StartupProfile;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
@@ -230,7 +231,7 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 
 		try {
 			Files.write(reportPath, fullReport.getBytes(StandardCharsets.UTF_8));
-			return shortMessage + "\nПолный список конфликтующих модов и версий сохранён в файл: " + reportPath;
+			return shortMessage + Lang.tr("\nПолный список конфликтующих модов и версий сохранён в файл: ") + reportPath;
 		} catch (IOException e) {
 			Log.warn(LogCategory.GENERAL, "Не удалось сохранить подробный отчёт о несовместимости модов", e);
 			return shortMessage + fullReport; // fall back to the old behavior rather than losing the details
@@ -254,7 +255,7 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 		Map<String, Set<ModCandidateImpl>> envDisabledMods = new HashMap<>();
 		long profileStart = System.nanoTime();
 		modCandidates = discoverer.discoverMods(this, envDisabledMods);
-		StartupProfile.phase("поиск и чтение модов", System.nanoTime() - profileStart);
+		StartupProfile.phase(Lang.tr("поиск и чтение модов"), System.nanoTime() - profileStart);
 
 		// dump version and dependency overrides info
 
@@ -270,7 +271,7 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 
 		profileStart = System.nanoTime();
 		modCandidates = ModResolver.resolve(modCandidates, getEnvironmentType(), envDisabledMods);
-		StartupProfile.phase("разрешение зависимостей", System.nanoTime() - profileStart);
+		StartupProfile.phase(Lang.tr("разрешение зависимостей"), System.nanoTime() - profileStart);
 
 		dumpModList(modCandidates);
 		dumpNonFabricMods(discoverer.getNonFabricMods());

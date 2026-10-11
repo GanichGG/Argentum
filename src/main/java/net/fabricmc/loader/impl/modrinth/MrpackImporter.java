@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 import net.fabricmc.loader.impl.lib.gson.JsonToken;
 import net.fabricmc.loader.impl.util.log.Log;
@@ -48,7 +49,7 @@ public final class MrpackImporter {
 
 	/** Разобранный индекс сборки. */
 	public static final class Pack {
-		public String name = "сборка";
+		public String name = Lang.tr("сборка");
 		public String minecraft;
 		public String fabricLoader;
 		public String otherLoader;
@@ -89,7 +90,7 @@ public final class MrpackImporter {
 			ZipEntry entry = zip.getEntry("modrinth.index.json");
 
 			if (entry == null) {
-				throw new IOException("в архиве нет modrinth.index.json — это не сборка Modrinth");
+				throw new IOException(Lang.tr("в архиве нет modrinth.index.json — это не сборка Modrinth"));
 			}
 
 			return parse(zip.getInputStream(entry));
@@ -204,11 +205,11 @@ public final class MrpackImporter {
 	/** Проверка совместимости; бросает понятную ошибку, если сборку ставить нельзя. */
 	public static void check(Pack pack, String gameVersion) throws IOException {
 		if (pack.minecraft != null && !pack.minecraft.equals(gameVersion)) {
-			throw new IOException("Сборка «" + pack.name + "» сделана для Minecraft " + pack.minecraft + ", а у тебя " + gameVersion);
+			throw new IOException(Lang.tr("Сборка «") + pack.name + Lang.tr("» сделана для Minecraft ") + pack.minecraft + Lang.tr(", а у тебя ") + gameVersion);
 		}
 
 		if (pack.fabricLoader == null) {
-			throw new IOException("Сборка «" + pack.name + "» не для Fabric" + (pack.otherLoader != null ? " (" + pack.otherLoader + ")" : ""));
+			throw new IOException(Lang.tr("Сборка «") + pack.name + Lang.tr("» не для Fabric") + (pack.otherLoader != null ? " (" + pack.otherLoader + ")" : ""));
 		}
 	}
 
@@ -251,7 +252,7 @@ public final class MrpackImporter {
 		}
 
 		if (progress != null) {
-			progress.update(step, total, "файлы из сборки");
+			progress.update(step, total, Lang.tr("файлы из сборки"));
 		}
 
 		int overrides = extractOverrides(mrpack, gameDir, newMods);
@@ -264,13 +265,13 @@ public final class MrpackImporter {
 		Path target = root.resolve(relative).normalize();
 
 		if (!target.startsWith(root)) {
-			throw new IOException("сборка пытается записать файл вне папки игры: " + relative);
+			throw new IOException(Lang.tr("сборка пытается записать файл вне папки игры: ") + relative);
 		}
 
 		Path rel = root.relativize(target);
 
 		if (rel.getNameCount() < 2 || !allowedDirs.contains(rel.getName(0).toString())) {
-			throw new IOException("сборка пытается записать файл вне разрешённых папок: " + relative);
+			throw new IOException(Lang.tr("сборка пытается записать файл вне разрешённых папок: ") + relative);
 		}
 
 		return target;
@@ -283,7 +284,7 @@ public final class MrpackImporter {
 			String host = java.net.URI.create(url).getHost();
 
 			if (host == null || !ALLOWED_HOSTS.contains(host.toLowerCase(Locale.ROOT))) {
-				last = new IOException("хост " + host + " не входит в разрешённые для сборок");
+				last = new IOException(Lang.tr("хост ") + host + Lang.tr(" не входит в разрешённые для сборок"));
 				continue;
 			}
 
@@ -308,7 +309,7 @@ public final class MrpackImporter {
 					}
 
 					if (item.sha1 != null && !item.sha1.equals(sha1(tmp))) {
-						throw new IOException("контрольная сумма " + item.path + " не совпала");
+						throw new IOException(Lang.tr("контрольная сумма ") + item.path + Lang.tr(" не совпала"));
 					}
 
 					Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
@@ -322,7 +323,7 @@ public final class MrpackImporter {
 			}
 		}
 
-		throw new IOException("не удалось скачать " + item.path + (last != null ? ": " + last.getMessage() : ""), last);
+		throw new IOException(Lang.tr("не удалось скачать ") + item.path + (last != null ? ": " + last.getMessage() : ""), last);
 	}
 
 	private static int extractOverrides(Path mrpack, Path gameDir, List<Path> newMods) throws IOException {

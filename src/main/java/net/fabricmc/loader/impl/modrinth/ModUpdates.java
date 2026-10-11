@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
+import net.fabricmc.loader.impl.i18n.Lang;
 
 /**
  * Обновление и смена версии установленных модов: проверка новых версий по SHA-1 файлов и замена файла.
@@ -110,7 +111,7 @@ public final class ModUpdates {
 			try {
 				LocalMods.disable(modsDir, staged.newFile);
 			} catch (IOException e) {
-				throw new ModrinthApiException("Мод обновлён, но снова отключить его не удалось: " + e.getMessage(), e);
+				throw new ModrinthApiException(Lang.tr("Мод обновлён, но снова отключить его не удалось: ") + e.getMessage(), e);
 			}
 		}
 	}

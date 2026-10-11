@@ -25,6 +25,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 import net.fabricmc.loader.impl.lib.gson.JsonToken;
 import net.fabricmc.loader.impl.util.log.Log;
@@ -182,7 +183,7 @@ public final class LocalMods {
 
 			return sb.toString();
 		} catch (NoSuchAlgorithmException e) {
-			throw new IOException("SHA-1 недоступен", e);
+			throw new IOException(Lang.tr("SHA-1 недоступен"), e);
 		}
 	}
 

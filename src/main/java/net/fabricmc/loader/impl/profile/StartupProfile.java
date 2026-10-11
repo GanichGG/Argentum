@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 
@@ -55,7 +56,7 @@ public final class StartupProfile {
 
 	/** Момент от старта JVM (например, «главное меню»). */
 	public static void mark(String name) {
-		PHASES.putIfAbsent("[с начала запуска] " + name, System.currentTimeMillis() - JVM_START_MS);
+		PHASES.putIfAbsent(Lang.tr("[с начала запуска] ") + name, System.currentTimeMillis() - JVM_START_MS);
 	}
 
 	/** Время, потраченное модом на запуск своей точки входа. */
@@ -82,7 +83,7 @@ public final class StartupProfile {
 	/** Игра дошла до главного меню: фиксируем момент и пишем отчёт (один раз за запуск). */
 	public static void titleReached(Path gameDir) {
 		if (!written) {
-			mark("главное меню");
+			mark(Lang.tr("главное меню"));
 			writeOnce(gameDir);
 		}
 	}
@@ -95,8 +96,8 @@ public final class StartupProfile {
 
 		written = true;
 		StringBuilder sb = new StringBuilder();
-		sb.append("Профиль запуска ArgentumLoader\n\n");
-		sb.append("Этапы (мс):\n");
+		sb.append(Lang.tr("Профиль запуска ArgentumLoader\n\n"));
+		sb.append(Lang.tr("Этапы (мс):\n"));
 
 		synchronized (PHASES) {
 			for (Map.Entry<String, Long> e : PHASES.entrySet()) {
@@ -104,8 +105,8 @@ public final class StartupProfile {
 			}
 		}
 
-		sb.append(String.format("%nПрименение миксинов: %d мс на %d классов%n", MIXIN_NANOS.get() / 1_000_000L, MIXIN_CLASSES.get()));
-		sb.append("\nЗапуск модов, самые долгие (мс):\n");
+		sb.append(String.format(Lang.tr("%nПрименение миксинов: %d мс на %d классов%n"), MIXIN_NANOS.get() / 1_000_000L, MIXIN_CLASSES.get()));
+		sb.append(Lang.tr("\nЗапуск модов, самые долгие (мс):\n"));
 
 		List<Map.Entry<String, Long>> mods = new ArrayList<>(MOD_NANOS.entrySet());
 		mods.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));

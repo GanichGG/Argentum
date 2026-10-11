@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 
@@ -46,7 +47,7 @@ public final class PendingRemovals {
 
 	private static void append(Path modsDir, String fileName, String line) throws IOException {
 		if (!isPlainName(fileName)) {
-			throw new IOException("недопустимое имя файла: " + fileName);
+			throw new IOException(Lang.tr("недопустимое имя файла: ") + fileName);
 		}
 
 		Files.createDirectories(modsDir);

@@ -3,7 +3,7 @@
  *
  * This file is part of ArgentumLoader. It is not licensed for use, copying,
  * modification or distribution except with the written permission of the
- * copyright holder. See LICENSE-ARGENTUM.txt.
+ * copyright holder. See LICENSE.
  */
 
 package net.fabricmc.loader.impl.i18n;

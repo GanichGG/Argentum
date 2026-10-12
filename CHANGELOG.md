@@ -2,6 +2,15 @@
 
 Release notes are taken from the section whose heading matches the version (see `tools/release_notes.py`).
 
+## [1.0] - 2026-10-12
+
+First stable release.
+
+- License: ArgentumLoader is now **All Rights Reserved** (c) 2026 GanichGG. The text is in `LICENSE`; the code that comes from
+  Fabric Loader keeps the Apache License 2.0 (`LICENSE-APACHE-2.0.txt`). Using the unmodified official builds is permitted.
+- The loader's `fabric.mod.json` and the jar list both licences.
+- Version 1.0 (SemVer `1.0.0` for mods): `"depends": {"argentumloader": ">=1.0.0"}`.
+
 ## [0.1B3] - 2026-10-11 (beta)
 
 - Installer: the language now follows the language of the system at run time (the downloaded exe was always English,

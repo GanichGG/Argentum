@@ -3,7 +3,7 @@
  *
  * This file is part of ArgentumLoader. It is not licensed for use, copying,
  * modification or distribution except with the written permission of the
- * copyright holder. See LICENSE-ARGENTUM.txt.
+ * copyright holder. See LICENSE.
  */
 
 package net.fabricmc.loader.impl;
@@ -20,6 +20,7 @@ public class ArgentumVersionTest {
 		Assertions.assertEquals("0.1.0-b.1", ArgentumVersion.toSemver("0.1B1"));
 		Assertions.assertEquals("0.1.0-a.3", ArgentumVersion.toSemver("0.1A3"));
 		Assertions.assertEquals("0.1.0", ArgentumVersion.toSemver("0.1"));
+		Assertions.assertEquals("1.0.0", ArgentumVersion.toSemver("1.0"));
 		Assertions.assertEquals("1.12.0-b.20", ArgentumVersion.toSemver("1.12B20"));
 	}
 

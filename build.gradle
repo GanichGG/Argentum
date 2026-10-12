@@ -203,6 +203,9 @@ tasks.register('fatJar', ShadowJar) {
 	from("LICENSE") {
 		rename { "${it}_${inputs.properties.archivesName}" }
 	}
+	from("LICENSE-APACHE-2.0.txt") {
+		rename { "${it}_${inputs.properties.archivesName}" }
+	}
 
 	manifest {
 		attributes(
@@ -358,7 +361,7 @@ allprojects {
 	spotless {
 		java {
 			licenseHeaderFile(rootProject.file("HEADER"))
-			targetExclude '**/lib/gson/*.java', 'src/main/java/net/fabricmc/loader/impl/modrinth/**', 'src/main/java/net/fabricmc/loader/impl/hotload/**', 'src/main/java/net/fabricmc/loader/impl/failsafe/**', 'src/main/java/net/fabricmc/loader/impl/profile/**', 'src/main/java/net/fabricmc/loader/impl/ArgentumVersion.java', 'src/main/java/net/fabricmc/loader/impl/discovery/HotModDiscovery.java', 'src/main/java/net/fabricmc/loader/impl/discovery/Preflight.java', 'src/test/java/net/fabricmc/test/modrinth/**'
+			targetExclude '**/lib/gson/*.java', 'src/main/java/net/fabricmc/loader/impl/modrinth/**', 'src/main/java/net/fabricmc/loader/impl/hotload/**', 'src/main/java/net/fabricmc/loader/impl/failsafe/**', 'src/main/java/net/fabricmc/loader/impl/profile/**', 'src/main/java/net/fabricmc/loader/impl/ArgentumVersion.java', 'src/main/java/net/fabricmc/loader/impl/discovery/HotModDiscovery.java', 'src/main/java/net/fabricmc/loader/impl/discovery/Preflight.java', 'src/main/java/net/fabricmc/loader/impl/i18n/Lang.java', 'src/test/java/net/fabricmc/test/modrinth/**', 'src/test/java/net/fabricmc/loader/impl/ArgentumVersionTest.java', 'src/test/java/net/fabricmc/loader/impl/i18n/**', 'src/test/java/net/fabricmc/loader/impl/modrinth/**', 'src/test/java/net/fabricmc/loader/impl/profile/**'
 		}
 	}
 }

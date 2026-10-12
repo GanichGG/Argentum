@@ -19,7 +19,7 @@ Loader level (things a regular Fabric mod cannot do):
 - **Readable errors**, in English and Russian, instead of raw exceptions.
 - **Startup profile** (`.argentum/startup-profile.txt`): where the launch time goes - loader phases, slowest mods,
   Mixin time.
-- The loader provides the mod id `argentumloader`, so a mod can require it: `"depends": {"argentumloader": ">=0.1.0-b.1"}`.
+- The loader provides the mod id `argentumloader`, so a mod can require it: `"depends": {"argentumloader": ">=1.0.0"}`.
 
 Catalog (the bundled `argentum-client` mod, shown as **Argentum Mods** on the title screen):
 
@@ -34,8 +34,8 @@ Catalog (the bundled `argentum-client` mod, shown as **Argentum Mods** on the ti
 
 ## Versions
 
-`0.1B1` = global version 0, sub-version 1, **B**eta build 1 (`A` alpha, no letter - stable). Mods see the same version as
-SemVer `0.1.0-b.1` under the id `argentumloader`; `fabricloader` stays at the Fabric Loader version this fork is based on.
+`1.0` = global version 1, sub-version 0, no stage letter - a stable release (`0.1B1` = global 0, sub-version 1, **B**eta
+build 1; `A` is alpha). Mods see the same version as SemVer `1.0.0` under the id `argentumloader`; `fabricloader` stays at the Fabric Loader version this fork is based on.
 
 ## Compatibility
 
@@ -92,11 +92,11 @@ User-visible text is written in Russian in the code as `Lang.tr("original")`; th
 
 ArgentumLoader is a fork of [FabricMC/fabric-loader](https://github.com/FabricMC/fabric-loader).
 
-- Original ArgentumLoader code (the catalog client, the Modrinth integration, the hot-loader, fail-safe startup,
-  preflight, the installer anchor) is **All Rights Reserved**, (c) 2026 GanichGG. The exact list of files is in
-  [LICENSE-ARGENTUM.txt](LICENSE-ARGENTUM.txt). Using the unmodified official builds is permitted.
-- The rest of the repository is derived from Fabric Loader and stays under the **Apache License 2.0** ([LICENSE](LICENSE));
-  that licence cannot be removed from upstream code.
+- ArgentumLoader is **All Rights Reserved**, (c) 2026 GanichGG ([LICENSE](LICENSE)): the catalog client, the Modrinth
+  integration, the hot-loader, fail-safe startup, preflight, the installer and everything else written for this project.
+  Using the unmodified official builds is permitted.
+- The code that comes from Fabric Loader stays under the **Apache License 2.0** ([LICENSE-APACHE-2.0.txt](LICENSE-APACHE-2.0.txt));
+  that licence cannot be removed from upstream code. [LICENSE](LICENSE) says which files these are.
 - Bundled third-party libraries and fonts keep their own licences.
 
 ---
@@ -119,7 +119,7 @@ Fabric-совместимый загрузчик модов со встроен�
   запуске новой копии игры.
 - **Читаемые ошибки** на английском и русском.
 - **Профиль запуска** (`.argentum/startup-profile.txt`): куда уходит время запуска.
-- Загрузчик предоставляет идентификатор `argentumloader`, мод может требовать его: `"depends": {"argentumloader": ">=0.1.0-b.1"}`.
+- Загрузчик предоставляет идентификатор `argentumloader`, мод может требовать его: `"depends": {"argentumloader": ">=1.0.0"}`.
 
 Каталог (встроенный мод `argentum-client`, кнопка **«Моды Argentum»** на главном экране):
 
@@ -155,5 +155,6 @@ Fabric-совместимый загрузчик модов со встроен�
 
 ## Приватность и лицензия
 
-Телеметрии нет, подробности в [PRIVACY.md](PRIVACY.md). Оригинальный код ArgentumLoader - **All Rights Reserved**, остальное
-(код форка Fabric Loader) остаётся под Apache 2.0: см. [LICENSE-ARGENTUM.txt](LICENSE-ARGENTUM.txt) и [LICENSE](LICENSE).
+Телеметрии нет, подробности в [PRIVACY.md](PRIVACY.md). ArgentumLoader - **All Rights Reserved** ([LICENSE](LICENSE)); код,
+пришедший из Fabric Loader, остаётся под Apache 2.0 ([LICENSE-APACHE-2.0.txt](LICENSE-APACHE-2.0.txt)), список файлов - в
+[LICENSE](LICENSE).

@@ -64,6 +64,18 @@ The installer is not code-signed yet, so Windows SmartScreen may warn about it (
 Prism: *Edit Instance -> Version*, remove **ArgentumLoader** and add Fabric Loader back; delete `argentum-client-*.jar`
 from `mods`. You may also delete the `.argentum` folder and the `.argentum-*` files in `mods`.
 
+## Roadmap
+
+Plans, not promises: the order and the contents can change.
+
+| Version | Theme | What is planned |
+|---|---|---|
+| **1.0** | Released | Fail-safe startup (incompatible mods are disabled by themselves); installer for instance launchers (Prism) and the official launcher. |
+| **1.1** | Shaders and resource packs | Download shader packs and resource packs from the catalog, with the same queue and "Apply changes". |
+| **2.0** | Convenience | Theme editor (customise the catalog interface); mod folders (grouping, enable / disable in bulk); folder manifest = modpack (`argentum-manifest.json`, instant switching); custom modpack CDN (your own update source for a build). |
+| **3.0** | Hybrid core | Own core (not a fork - an implementation written to the specification); Fabric, NeoForge and Forge mods side by side in one client. |
+| **4.0** | Ecosystem | Argentum mod API (plugins and loader extensions); server support (web panel, NeoForge / Forge on the server). |
+
 ## Privacy
 
 No telemetry. The catalog talks only to Modrinth (search, downloads, and file hashes of your mods to find updates). See
@@ -152,6 +164,18 @@ Fabric-совместимый загрузчик модов со встроен�
 
 Удаление: в Prism убери ArgentumLoader из *Edit Instance -> Version*, верни Fabric Loader и удали `argentum-client-*.jar` из
 `mods`. Папку `.argentum` и файлы `.argentum-*` в `mods` тоже можно удалить.
+
+## Планы
+
+Это планы, а не обещания: порядок и состав могут измениться.
+
+| Версия | Тема | Что планируется |
+|---|---|---|
+| **1.0** | Вышла | Безопасный запуск (несовместимые моды отключаются сами); установщик для инстанс-лаунчеров (Prism) и обычного лаунчера. |
+| **1.1** | Шейдеры и ресурспаки | Скачивание шейдеров и ресурспаков из каталога, с той же очередью и «Применить изменения». |
+| **2.0** | Удобство | Редактор тем (кастомизация интерфейса каталога); папки модов (группировка, массовое вкл/выкл); манифест папки = модпак (`argentum-manifest.json`, мгновенное переключение); кастомные CDN модпаков (свой источник обновлений для сборки). |
+| **3.0** | Гибридное ядро | Своё ядро (не форк, а реализация по спецификации); моды Fabric, NeoForge и Forge одновременно в одном клиенте. |
+| **4.0** | Экосистема | API модификации Argentum (плагины и расширения загрузчика); серверная поддержка (веб-панель, NeoForge / Forge на сервере). |
 
 ## Приватность и лицензия
 

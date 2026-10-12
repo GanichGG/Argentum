@@ -3,7 +3,7 @@
  *
  * This file is part of ArgentumLoader. It is not licensed for use, copying,
  * modification or distribution except with the written permission of the
- * copyright holder. See LICENSE-ARGENTUM.txt.
+ * copyright holder. See LICENSE.
  */
 
 package net.fabricmc.loader.impl;
@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  */
 public final class ArgentumVersion {
 	/** Версия для людей: имена файлов, теги, Prism, заголовки журнала изменений. */
-	public static final String DISPLAY = "0.1B3";
+	public static final String DISPLAY = "1.0";
 
 	private static final Pattern FORMAT = Pattern.compile("(\\d+)\\.(\\d+)(?:([AB])(\\d+))?");
 

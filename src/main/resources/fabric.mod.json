@@ -10,7 +10,7 @@
     "issues": "https://github.com/GanichGG/ArgentumLoader/issues",
     "sources": "https://github.com/GanichGG/ArgentumLoader"
   },
-  "license": "Apache-2.0",
+  "license": ["All-Rights-Reserved", "Apache-2.0"],
   "icon": "assets/fabricloader/icon.png",
   "authors": [
     "FabricMC",

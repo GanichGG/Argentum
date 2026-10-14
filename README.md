@@ -13,7 +13,7 @@ A broken mod can no longer take the whole game down with it.
 
 <a href="https://github.com/GanichGG/ArgentumLoader/releases/latest"><img src="docs/assets/btn-latest.png" alt="Latest release" height="40"></a>
 &nbsp;
-<a href="LICENSE.txt"><img src="docs/assets/btn-license.png" alt="License" height="40"></a>
+<a href="https://github.com/GanichGG/Argentum/blob/master/LICENSE"><img src="docs/assets/btn-license.png" alt="License" height="40"></a>
 
 *[Русская версия ниже](#русская-версия)*
 

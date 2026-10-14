@@ -1,10 +1,34 @@
-# ArgentumLoader
+<div align="center">
 
-A Fabric-compatible mod loader with a built-in mod manager. Pick mods in a catalog inside the game, press **Apply changes**,
-and the game switches to the new mod set by itself - no manual restarts, and a broken mod can no longer take the whole
-game down with it.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-white.png">
+  <img src="docs/assets/logo-black.png" alt="Argentum" width="140">
+</picture>
+
+# Argentum
+
+**Fabric-compatible mods with a built-in catalog.**<br>
+Pick mods in a catalog inside the game, press **Apply changes**, and the game switches to the new mod set by itself.<br>
+A broken mod can no longer take the whole game down with it.
+
+<a href="https://github.com/GanichGG/ArgentumLoader/releases/latest"><img src="docs/assets/btn-latest.png" alt="Latest release" height="40"></a>
+&nbsp;
+<a href="LICENSE-ARGENTUM.txt"><img src="docs/assets/btn-license.png" alt="License" height="40"></a>
 
 *[Русская версия ниже](#русская-версия)*
+
+</div>
+
+<p align="center"><img src="docs/assets/preview-catalog.png" alt="Mod catalog" width="98%"></p>
+
+<p align="center">
+  <img src="docs/assets/preview-failsafe.png" alt="Fail-safe startup" width="49%">
+  <img src="docs/assets/preview-preflight.png" alt="Preflight check" width="49%">
+</p>
+<p align="center">
+  <img src="docs/assets/preview-hot-reload.png" alt="Hot reload" width="49%">
+  <img src="docs/assets/preview-configs.png" alt="In-game configs" width="49%">
+</p>
 
 ## What makes it different from Fabric Loader
 
@@ -113,7 +137,16 @@ ArgentumLoader is a fork of [FabricMC/fabric-loader](https://github.com/FabricMC
 
 ---
 
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-white.png">
+  <img src="docs/assets/logo-black.png" alt="Argentum" width="90">
+</picture>
+
 # Русская версия
+
+</div>
 
 Fabric-совместимый загрузчик модов со встроенным менеджером модов. Выбираешь моды в каталоге прямо в игре, нажимаешь
 **«Применить изменения»**, и игра сама переключается на новый набор модов - без ручных перезапусков. А сломанный мод больше

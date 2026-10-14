@@ -2,12 +2,12 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-white.png">
-  <img src="docs/assets/logo-black.png" alt="ArgentumLoader" width="140">
+  <img src="docs/assets/logo-black.png" alt="Argentum" width="140">
 </picture>
 
-# ArgentumLoader
+# Argentum
 
-**A Fabric-compatible mod loader with a built-in mod manager.**<br>
+**Fabric-compatible mods with a built-in catalog.**<br>
 Pick mods in a catalog inside the game, press **Apply changes**, and the game switches to the new mod set by itself.<br>
 A broken mod can no longer take the whole game down with it.
 
@@ -151,7 +151,7 @@ ArgentumLoader is a fork of [FabricMC/fabric-loader](https://github.com/FabricMC
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-white.png">
-  <img src="docs/assets/logo-black.png" alt="ArgentumLoader" width="90">
+  <img src="docs/assets/logo-black.png" alt="Argentum" width="90">
 </picture>
 
 # Русская версия

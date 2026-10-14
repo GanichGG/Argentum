@@ -19,26 +19,16 @@ A broken mod can no longer take the whole game down with it.
 
 </div>
 
-![Mod catalog](docs/assets/preview-catalog.png)
+<p align="center"><img src="docs/assets/preview-catalog.png" alt="Mod catalog" width="98%"></p>
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/assets/preview-failsafe.png" alt="Fail-safe startup"></td>
-    <td width="50%"><img src="docs/assets/preview-preflight.png" alt="Preflight check"></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Fail-safe startup</b><br>a mod that crashes is disabled, the game keeps running</td>
-    <td align="center"><b>Preflight check</b><br>a change that cannot start is refused with a readable reason</td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/assets/preview-hot-reload.png" alt="Hot reload"></td>
-    <td width="50%"><img src="docs/assets/preview-configs.png" alt="In-game configs"></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Hot reload</b><br>changes are applied with one seamless restart</td>
-    <td align="center"><b>In-game configs</b><br>edit mod settings without leaving the game</td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/assets/preview-failsafe.png" alt="Fail-safe startup" width="49%">
+  <img src="docs/assets/preview-preflight.png" alt="Preflight check" width="49%">
+</p>
+<p align="center">
+  <img src="docs/assets/preview-hot-reload.png" alt="Hot reload" width="49%">
+  <img src="docs/assets/preview-configs.png" alt="In-game configs" width="49%">
+</p>
 
 ## What makes it different from Fabric Loader
 

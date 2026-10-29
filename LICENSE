@@ -30,6 +30,7 @@ All Rights Reserved covers every file in this repository that is not listed in
   src/test/java/net/fabricmc/loader/impl/i18n/
   src/test/java/net/fabricmc/loader/impl/modrinth/
   src/test/java/net/fabricmc/loader/impl/profile/
+  src/test/java/net/fabricmc/loader/impl/failsafe/
   .github/ISSUE_TEMPLATE/, .github/PULL_REQUEST_TEMPLATE.md, .github/dependabot.yml
   .github/workflows/ci.yml, .github/workflows/installer.yml
   docs/

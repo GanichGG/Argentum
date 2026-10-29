@@ -42,12 +42,28 @@ public final class Diagnostics {
 
 	/** @return созданный zip в {@code <папка игры>/.argentum/diagnostics} */
 	public static Path create(Path gameDir) throws IOException {
+		return create(gameDir, null);
+	}
+
+	/**
+	 * @param analysis разбор падения простыми словами (из окна ошибки) или null
+	 * @return созданный zip в {@code <папка игры>/.argentum/diagnostics}
+	 */
+	public static Path create(Path gameDir, String analysis) throws IOException {
 		Path dir = gameDir.resolve(".argentum").resolve("diagnostics");
 		Files.createDirectories(dir);
 		Path zip = dir.resolve("argentum-diagnostics-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".zip");
 
 		try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(zip))) {
+			add(out, "README.txt", readme());
+
+			if (analysis != null && !analysis.isEmpty()) {
+				add(out, "analysis.txt", analysis);
+			}
+
 			add(out, "info.txt", info(gameDir));
+			add(out, "mod-sets.txt", modSets(gameDir));
+			addFile(out, "launch-state.txt", gameDir.resolve(".argentum").resolve("launch-state.properties"), Integer.MAX_VALUE);
 			add(out, "mods.txt", mods(gameDir));
 			addFile(out, "startup-profile.txt", gameDir.resolve(".argentum").resolve("startup-profile.txt"), Integer.MAX_VALUE);
 			addFile(out, "preflight-report.txt", gameDir.resolve(".argentum").resolve("preflight-report.txt"), Integer.MAX_VALUE);
@@ -60,6 +76,34 @@ public final class Diagnostics {
 		}
 
 		return zip;
+	}
+
+	private static String readme() {
+		// одной строкой: перевод ищется по всему тексту целиком
+		return Lang.tr("Пакет диагностики Argentum.\n\nЧто внутри: версии игры и Java, список модов, разбор последнего падения, хвост журнала и отчёт о падении.\nЛичное убрано: имя пользователя и домашняя папка в путях заменены на <user> и <home>.\n\nКак отправить: приложи этот zip к сообщению на форуме, в Discord или автору Argentum (https://github.com/GanichGG/Argentum/issues). Сам пакет никуда не отправляется.\n");
+	}
+
+	/** Снимки рабочих наборов и чем текущий отличается от последнего удачного. */
+	private static String modSets(Path gameDir) {
+		StringBuilder sb = new StringBuilder();
+		Path mods = gameDir.resolve("mods");
+		List<net.fabricmc.loader.impl.failsafe.ModSnapshots.Snapshot> snaps = net.fabricmc.loader.impl.failsafe.ModSnapshots.list(gameDir);
+
+		if (snaps.isEmpty()) {
+			return "No working mod sets saved yet.\n";
+		}
+
+		for (net.fabricmc.loader.impl.failsafe.ModSnapshots.Snapshot s : snaps) {
+			sb.append("Working set ").append(s.date()).append(": ").append(s.entries.size()).append(" files\n");
+		}
+
+		net.fabricmc.loader.impl.failsafe.ModSnapshots.Diff d = net.fabricmc.loader.impl.failsafe.ModSnapshots.diff(snaps.get(0), mods);
+		sb.append("\nChanges since the last working set:\n");
+		sb.append("  added: ").append(d.added).append('\n');
+		sb.append("  changed: ").append(d.changed).append('\n');
+		sb.append("  removed: ").append(d.removed).append('\n');
+
+		return sb.toString();
 	}
 
 	private static String info(Path gameDir) {
@@ -166,7 +210,7 @@ public final class Diagnostics {
 	}
 
 	/** Убирает из текста личное: домашнюю папку и имя пользователя в путях. */
-	static String clean(String text) {
+	public static String clean(String text) {
 		String home = System.getProperty("user.home", "");
 		String user = System.getProperty("user.name", "");
 

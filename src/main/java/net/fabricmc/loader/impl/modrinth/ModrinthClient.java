@@ -60,7 +60,30 @@ public final class ModrinthClient {
 	 */
 	public static SearchPage searchPage(String query, String loader, String gameVersion, int offset, int limit, String sort,
 			List<String> categories) throws ModrinthApiException {
-		StringBuilder facetBuilder = new StringBuilder("[[\"project_type:mod\"],[\"categories:" + loader + "\"],[\"versions:" + gameVersion + "\"]");
+		return searchPage("mod", query, loader, gameVersion, offset, limit, sort, categories);
+	}
+
+	/**
+	 * Поиск проектов любого типа Modrinth: {@code mod}, {@code shader}, {@code resourcepack}.
+	 *
+	 * @param loaders загрузчики через запятую (подходит любой из них: {@code iris,optifine}); null — без отбора по загрузчику
+	 */
+	public static SearchPage searchPage(String projectType, String query, String loaders, String gameVersion, int offset, int limit, String sort,
+			List<String> categories) throws ModrinthApiException {
+		StringBuilder facetBuilder = new StringBuilder("[[\"project_type:" + projectType + "\"]");
+
+		if (loaders != null) {
+			facetBuilder.append(",[");
+			String[] list = loaders.split(",");
+
+			for (int i = 0; i < list.length; i++) {
+				facetBuilder.append(i > 0 ? "," : "").append("\"categories:").append(list[i].trim()).append('"');
+			}
+
+			facetBuilder.append(']');
+		}
+
+		facetBuilder.append(",[\"versions:").append(gameVersion).append("\"]");
 
 		for (String category : categories) {
 			facetBuilder.append(",[\"categories:").append(category).append("\"]");
@@ -175,9 +198,10 @@ public final class ModrinthClient {
 	}
 
 	public static List<ModrinthVersion> getProjectVersions(String projectIdOrSlug, String loader, String gameVersion) throws ModrinthApiException {
+		// loader: один или несколько через запятую (шейдеры — iris,optifine); null — любые
 		String url = API_BASE + "/project/" + urlEncode(projectIdOrSlug) + "/version"
-				+ "?loaders=" + urlEncode("[\"" + loader + "\"]")
-				+ "&game_versions=" + urlEncode("[\"" + gameVersion + "\"]");
+				+ "?game_versions=" + urlEncode("[\"" + gameVersion + "\"]")
+				+ (loader == null ? "" : "&loaders=" + urlEncode(jsonList(loader)));
 
 		try (JsonReader reader = openJsonReader(url)) {
 			List<ModrinthVersion> ret = new ArrayList<>();
@@ -218,8 +242,21 @@ public final class ModrinthClient {
 	public static java.util.Map<String, ModrinthVersion> latestForHashes(List<String> sha1, String loader, String gameVersion) throws ModrinthApiException {
 		if (sha1.isEmpty()) return new java.util.LinkedHashMap<>();
 
-		return readHashMap(openJson(API_BASE + "/version_files/update", "{\"hashes\":" + quoteList(sha1) + ",\"algorithm\":\"sha1\",\"loaders\":[\""
-				+ loader + "\"],\"game_versions\":[\"" + gameVersion + "\"]}"));
+		return readHashMap(openJson(API_BASE + "/version_files/update", "{\"hashes\":" + quoteList(sha1) + ",\"algorithm\":\"sha1\","
+				+ (loader == null ? "" : "\"loaders\":" + jsonList(loader) + ",") + "\"game_versions\":[\"" + gameVersion + "\"]}"));
+	}
+
+	/** {@code "iris,optifine"} -> {@code ["iris","optifine"]}. */
+	static String jsonList(String commaList) {
+		List<String> items = new ArrayList<>();
+
+		for (String s : commaList.split(",")) {
+			if (!s.trim().isEmpty()) {
+				items.add(s.trim());
+			}
+		}
+
+		return quoteList(items);
 	}
 
 	private static String quoteList(List<String> items) {

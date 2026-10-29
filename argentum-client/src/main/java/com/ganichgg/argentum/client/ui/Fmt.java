@@ -30,6 +30,16 @@ public final class Fmt {
 				{"optimization", "Оптимизация"}, {"social", "Социальное"}, {"storage", "Хранение"}, {"technology", "Технологии"},
 				{"transportation", "Транспорт"}, {"utility", "Утилиты"}, {"worldgen", "Генерация мира"}, {"quests", "Квесты"},
 				{"fabric", "Fabric"}, {"quilt", "Quilt"}, {"forge", "Forge"}, {"neoforge", "NeoForge"},
+				// шейдеры: нагрузка и стиль
+				{"potato", "Нагрузка: минимальная"}, {"low", "Нагрузка: низкая"}, {"medium", "Нагрузка: средняя"}, {"high", "Нагрузка: высокая"},
+				{"screenshot", "Для скриншотов"}, {"cartoon", "Мультяшный"}, {"realistic", "Реализм"}, {"semi-realistic", "Полуреализм"},
+				{"vanilla-like", "Как в обычной игре"}, {"fantasy", "Фэнтези"}, {"atmosphere", "Атмосфера"}, {"shadows", "Тени"},
+				{"reflections", "Отражения"}, {"path-tracing", "Трассировка лучей"}, {"pbr", "PBR"}, {"colored-lighting", "Цветной свет"},
+				{"iris", "Iris"}, {"optifine", "OptiFine"}, {"canvas", "Canvas"},
+				// ресурспаки
+				{"simplistic", "Простой"}, {"themed", "Тематический"}, {"tweaks", "Правки"}, {"combat", "Бой"}, {"gui", "Интерфейс"},
+				{"audio", "Звуки"}, {"fonts", "Шрифты"}, {"models", "Модели"}, {"modded", "Для модов"}, {"blocks", "Блоки"},
+				{"items", "Предметы"}, {"entities", "Существа"}, {"environment", "Окружение"}, {"minecraft", "Minecraft"},
 		};
 
 		for (String[] p : pairs) {
@@ -98,6 +108,14 @@ public final class Fmt {
 	/** Категории Modrinth, по которым можно фильтровать каталог (без загрузчиков). */
 	public static final String[] FILTER_CATEGORIES = {"adventure", "cursed", "decoration", "economy", "equipment", "food", "game-mechanics",
 			"library", "magic", "management", "minigame", "mobs", "optimization", "social", "storage", "technology", "transportation", "utility", "worldgen"};
+
+	/** Фильтры шейдеров: нагрузка на компьютер и стиль. */
+	public static final String[] SHADER_CATEGORIES = {"potato", "low", "medium", "high", "cartoon", "fantasy", "realistic", "semi-realistic",
+			"vanilla-like", "path-tracing", "pbr", "colored-lighting"};
+
+	/** Фильтры ресурспаков: разрешение и стиль. */
+	public static final String[] PACK_CATEGORIES = {"16x", "32x", "64x", "128x", "vanilla-like", "simplistic", "realistic", "cartoon",
+			"themed", "tweaks", "utility", "combat", "gui", "audio", "fonts", "models", "modded"};
 
 	/** Русская подпись категории; незнакомую показывает с заглавной буквы. */
 	public static String categoryLabel(String id) {

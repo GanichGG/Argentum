@@ -2,6 +2,22 @@
 
 Release notes are taken from the section whose heading matches the version (see `tools/release_notes.py`).
 
+## [1.1] - 2026-10-29
+
+- **Error screen 2.0.** When the game crashes, an Argentum window says in plain words what happened, which mod is the likely
+  cause and what to press: disable that mod, restore the last working set, show the diagnostics bundle, copy a summary for
+  a forum, report to the author.
+- **Root cause.** The crash report's chain of errors is unwrapped down to the real cause; when the final error is generic,
+  the first real error from the log is shown. Mod code at the place of the error weighs most when looking for the culprit.
+- **Crash-loop protection.** After two failed starts in a row the game asks before loading mods: restore the last working
+  set, disable the likely culprit, start once without mods, or start as is.
+- **Undo to last working.** Every successful start saves the mod set (old jars are kept by hard link), so "updated a mod
+  and everything broke" is one button away: in the crash window, in the crash-loop dialog and in the catalog.
+- **Diagnostics bundle** now has a README on how to send it, the crash analysis and the changes since the last working set.
+- **Shaders and resource packs** in the catalog: Mods / Shaders / Resource packs switcher, own filters, install, update,
+  disable and remove, no restart needed. An "Argentum catalog" button on the vanilla Resource Packs screen; shaders
+  without Iris offer to install it.
+
 ## [1.0] - 2026-10-12
 
 First stable release.

@@ -59,7 +59,14 @@ public class DirectoryModCandidateFinder implements ModCandidateFinder {
 			Files.walkFileTree(this.path, EnumSet.of(FileVisitOption.FOLLOW_LINKS), 1, new SimpleFileVisitor<Path>() {
 				@Override
 				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-					if (isValidFile(file) && !PendingRemovals.isPending(file.getFileName().toString())) {
+					String name = file.getFileName().toString();
+
+					// ArgentumLoader: безопасный запуск после цикла падений — только сам каталог Argentum
+					if (net.fabricmc.loader.impl.failsafe.LaunchGuard.safeMode() && !name.startsWith("argentum-client")) {
+						return FileVisitResult.CONTINUE;
+					}
+
+					if (isValidFile(file) && !PendingRemovals.isPending(name)) {
 						out.accept(file, requiresRemap);
 					}
 

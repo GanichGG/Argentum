@@ -83,6 +83,7 @@ public final class StartupProfile {
 	/** Игра дошла до главного меню: фиксируем момент и пишем отчёт (один раз за запуск). */
 	public static void titleReached(Path gameDir) {
 		if (!written) {
+			net.fabricmc.loader.impl.failsafe.LaunchGuard.titleReached(); // удачный запуск: снимок набора, сброс счёта падений
 			mark(Lang.tr("главное меню"));
 			writeOnce(gameDir);
 		}

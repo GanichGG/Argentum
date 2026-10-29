@@ -2,7 +2,7 @@
 
 Release notes are taken from the section whose heading matches the version (see `tools/release_notes.py`).
 
-## [Unreleased] (1.1)
+## [1.1] - 2026-10-29
 
 - **Error screen 2.0.** When the game crashes, an Argentum window says in plain words what happened, which mod is the likely
   cause and what to press: disable that mod, restore the last working set, show the diagnostics bundle, copy a summary for

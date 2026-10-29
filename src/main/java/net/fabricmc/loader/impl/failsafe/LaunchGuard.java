@@ -8,7 +8,6 @@
 
 package net.fabricmc.loader.impl.failsafe;
 
-import java.awt.GraphicsEnvironment;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -482,7 +481,9 @@ public final class LaunchGuard {
 		private WindowLauncher() { }
 
 		static String show(Properties p) {
-			if (GraphicsEnvironment.isHeadless() || System.getenv("CI") != null || SystemProperties.isSet(SystemProperties.NO_GUI)) {
+			// GraphicsEnvironment.isHeadless() тут не годится: Minecraft сам ставит java.awt.headless=true, хотя экран есть.
+			// Окно живёт в отдельном процессе, где этого признака нет.
+			if (System.getenv("CI") != null || SystemProperties.isSet(SystemProperties.NO_GUI)) {
 				return "";
 			}
 
@@ -495,7 +496,7 @@ public final class LaunchGuard {
 					p.store(w, null);
 				}
 
-				Process process = new ProcessBuilder(java(), "-Xmx128M", "-cp", UrlUtil.LOADER_CODE_SOURCE.toString(), ArgentumWindow.class.getName(), tmp.toString())
+				Process process = new ProcessBuilder(java(), "-Xmx128M", "-Djava.awt.headless=false", "-cp", UrlUtil.LOADER_CODE_SOURCE.toString(), ArgentumWindow.class.getName(), tmp.toString())
 						.redirectErrorStream(true)
 						.start();
 				String choice = "";

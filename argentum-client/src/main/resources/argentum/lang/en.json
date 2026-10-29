@@ -270,5 +270,6 @@
  "Блоки": "Blocks",
  "Предметы": "Items",
  "Существа": "Entities",
- "Окружение": "Environment"
+ "Окружение": "Environment",
+ "Готово. Файл, который сейчас использует игра, удалится при следующем запуске": "Done. A file the game is using right now will be removed on the next start"
 }

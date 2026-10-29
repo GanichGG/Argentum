@@ -629,6 +629,8 @@ public final class CatalogScreen extends class_437 {
 		}
 	}
 
+	/** При удалении шейдера или ресурспака файл оказался занят игрой (он включён) — удалится при запуске. */
+	private volatile boolean packFileBusy;
 	private long irisCheckedAt;
 	private boolean irisOnDisk;
 
@@ -1286,9 +1288,21 @@ public final class CatalogScreen extends class_437 {
 			this.applyMessage = failed == 0 ? Lang.tr("Изменения применены: ") + done : Lang.tr("Применено ") + done + Lang.tr(", с ошибкой ") + failed;
 
 			if (!restart) {
-				// только шейдеры и ресурспаки: перезапуск не нужен, файлы уже на месте
+				// только шейдеры и ресурспаки: перезапуск не нужен, файлы уже на месте — список обновляем сразу
+				if (this.tab == Tab.INSTALLED) {
+					this.installedRows = buildInstalledRows(new ArrayList<>(this.installedFiles.keySet()));
+					this.listEpoch++;
+				}
+
 				ChangeQueue.end();
-				setStatus(failed > 0 ? Lang.tr("С ошибкой: ") + failed + " — " + lastError : packsDoneMessage(ready), failed == 0 ? C_OK : C_WARN);
+				String msg = packsDoneMessage(ready);
+
+				if (this.packFileBusy) {
+					msg = Lang.tr("Готово. Файл, который сейчас использует игра, удалится при следующем запуске");
+					this.packFileBusy = false;
+				}
+
+				setStatus(failed > 0 ? Lang.tr("С ошибкой: ") + failed + " — " + lastError : msg, failed == 0 ? C_OK : C_WARN);
 
 				return;
 			}
@@ -1551,6 +1565,7 @@ public final class CatalogScreen extends class_437 {
 			} catch (IOException e) {
 				// Windows не даёт удалить файл, который игра сейчас держит открытым — он исчезнет при следующем запуске
 				PendingRemovals.schedule(dir, name);
+				this.packFileBusy |= !dir.equals(modsDir()); // включённый ресурспак или шейдер: скажем игроку
 			}
 		}
 
@@ -2816,7 +2831,7 @@ public final class CatalogScreen extends class_437 {
 
 		if (isDisabled(p)) {
 			used += badge(ctx, Lang.tr("Отключён"), C_GRAY, x + used, y, maxWidth - used);
-		} else {
+		} else if (this.content == ChangeQueue.Content.MODS) {
 			ConfigInfo c = this.configInfo.get(p.id);
 			boolean active = c != null && c.modId != null;
 			used += badge(ctx, active ? Lang.tr("Активен") : Lang.tr("После перезапуска"), active ? C_OK : C_WARN, x + used, y, maxWidth - used);

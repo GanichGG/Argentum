@@ -115,12 +115,15 @@ public final class LocalMods {
 			return result;
 		}
 
+		// в mods — jar, в shaderpacks и resourcepacks — zip
+		String ext = extension(modsDir);
+
 		try (Stream<Path> files = Files.list(modsDir)) {
 			for (Path p : (Iterable<Path>) files::iterator) {
 				String name = p.getFileName().toString();
-				boolean enabled = name.endsWith(".jar");
+				boolean enabled = name.endsWith(ext);
 
-				if ((!enabled && !name.endsWith(".jar" + DISABLED_SUFFIX)) || name.startsWith(".") || !Files.isRegularFile(p)) {
+				if ((!enabled && !name.endsWith(ext + DISABLED_SUFFIX)) || name.startsWith(".") || !Files.isRegularFile(p)) {
 					continue;
 				}
 
@@ -140,6 +143,13 @@ public final class LocalMods {
 		}
 
 		return result;
+	}
+
+	/** Расширение файлов содержимого папки: jar для модов, zip для шейдеров и ресурспаков. */
+	public static String extension(Path dir) {
+		Path name = dir.getFileName();
+
+		return name != null && (name.toString().equals("shaderpacks") || name.toString().equals("resourcepacks")) ? ".zip" : ".jar";
 	}
 
 	private static Mod read(Path p, String enabledName, boolean enabled) {

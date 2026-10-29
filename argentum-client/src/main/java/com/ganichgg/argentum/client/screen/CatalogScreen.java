@@ -225,6 +225,9 @@ public final class CatalogScreen extends class_437 {
 	private String initialStatus;
 	/** Дата набора, к которому можно вернуться («Вернуть как было»), или null — откатываться некуда. */
 	private volatile String rollbackDate;
+	/** Что показывает каталог: моды, шейдеры или ресурспаки. */
+	private ChangeQueue.Content content = ChangeQueue.Content.MODS;
+	private static final ChangeQueue.Content[] CONTENTS = ChangeQueue.Content.values();
 	private boolean devFake;
 	private boolean devLeaveDone;
 	private int devStep2;
@@ -523,6 +526,151 @@ public final class CatalogScreen extends class_437 {
 		return FabricLoader.getInstance().getGameDir().resolve("mods");
 	}
 
+	/** Папка того, что сейчас показывает каталог (mods, shaderpacks или resourcepacks). */
+	private Path contentDir() {
+		return dirOf(this.content);
+	}
+
+	private static Path dirOf(ChangeQueue.Content c) {
+		return FabricLoader.getInstance().getGameDir().resolve(c.folder);
+	}
+
+	/** Каталог сразу на нужном виде содержимого (кнопка на экране ресурспаков игры). */
+	public CatalogScreen forContent(ChangeQueue.Content c) {
+		this.content = c;
+
+		return this;
+	}
+
+	/** Имя файла записи реестра в папке изменения (а не текущего вида каталога). */
+	private String fileOf(ChangeQueue.Change c) {
+		if (c.content == this.content && this.installedFiles.containsKey(c.project.id)) {
+			return this.installedFiles.get(c.project.id);
+		}
+
+		InstalledModsIndex.Entry e = InstalledModsIndex.load(dirOf(c.content)).entries().get(c.project.id);
+
+		return e == null ? null : e.fileName;
+	}
+
+	private String contentLabel(ChangeQueue.Content c) {
+		switch (c) {
+		case SHADERS:
+			return Lang.tr("Шейдеры");
+		case RESOURCEPACKS:
+			return Lang.tr("Ресурспаки");
+		default:
+			return Lang.tr("Моды");
+		}
+	}
+
+	private String popularLabel() {
+		switch (this.content) {
+		case SHADERS:
+			return Lang.tr("Популярные шейдеры для ");
+		case RESOURCEPACKS:
+			return Lang.tr("Популярные ресурспаки для ");
+		default:
+			return Lang.tr("Популярные моды для ");
+		}
+	}
+
+	/** Ключ кэша витрины популярного (у каждого вида своя). */
+	private String popularKey() {
+		return this.content == ChangeQueue.Content.MODS ? "popular" : "popular-" + this.content.projectType;
+	}
+
+	private String[] filterCategories() {
+		switch (this.content) {
+		case SHADERS:
+			return Fmt.SHADER_CATEGORIES;
+		case RESOURCEPACKS:
+			return Fmt.PACK_CATEGORIES;
+		default:
+			return Fmt.FILTER_CATEGORIES;
+		}
+	}
+
+	private int contentX(int i) {
+		int x = tabX(Tab.INSTALLED) + tabWidth(Tab.INSTALLED) + 16;
+
+		for (int j = 0; j < i; j++) {
+			x += contentW(j) + 4;
+		}
+
+		return x;
+	}
+
+	private int contentW(int i) {
+		return textWidth(contentLabel(CONTENTS[i])) + 16;
+	}
+
+	/** Переключение «Моды / Шейдеры / Ресурспаки»: свой поиск, свои установленные, свои фильтры. */
+	private void switchContent(ChangeQueue.Content c) {
+		if (c == this.content) {
+			return;
+		}
+
+		this.content = c;
+		this.categoryFilter.clear();
+		this.updates = Collections.emptyMap();
+		refreshInstalledIndex(); // «Установлен» на карточках — по папке нового вида
+		this.catalogRows = Collections.emptyList();
+		this.catalogTotal = 0;
+		this.listEpoch++;
+		this.scroll = 0;
+		this.scrollTarget = 0;
+		closeDetail();
+
+		if (this.tab == Tab.INSTALLED) {
+			loadInstalled();
+		} else {
+			search(this.query.trim());
+		}
+	}
+
+	private long irisCheckedAt;
+	private boolean irisOnDisk;
+
+	/** Шейдерам нужен Iris: он не загружен, не лежит в mods и не стоит в очереди. Вызывается каждый кадр — диск не чаще раза в 2 с. */
+	private boolean irisMissing() {
+		if (this.content != ChangeQueue.Content.SHADERS || FabricLoader.getInstance().isModLoaded("iris")) {
+			return false;
+		}
+
+		for (ChangeQueue.Change c : ChangeQueue.snapshot()) {
+			if ("iris".equals(c.project.slug) || IRIS_ID.equals(c.project.id)) {
+				return false;
+			}
+		}
+
+		long now = System.currentTimeMillis();
+
+		if (now - this.irisCheckedAt > 2000) {
+			this.irisCheckedAt = now;
+			this.irisOnDisk = InstalledModsIndex.load(modsDir()).contains(IRIS_ID);
+		}
+
+		return !this.irisOnDisk;
+	}
+
+	/** Iris на Modrinth. */
+	private static final String IRIS_ID = "YL57xq9U";
+
+	/** «Поставить Iris»: он встаёт в очередь модов, применится вместе с остальным. */
+	private void queueIris() {
+		setStatus(Lang.tr("Ищу Iris на Modrinth"), C_GRAY);
+		QUICK.submit(() -> {
+			try {
+				ModrinthProject iris = ModrinthClient.getProject("iris");
+				ChangeQueue.put(new ChangeQueue.Change(ChangeQueue.Kind.INSTALL, iris, null, ChangeQueue.Content.MODS));
+				setStatus(Lang.tr("Iris в очереди — нажми «Применить изменения»"), C_ACCENT);
+			} catch (Exception e) {
+				setStatus(Lang.tr("Не удалось найти Iris: ") + shortError(e), C_RED);
+			}
+		});
+	}
+
 	// ---------------------------------------------------------------- жизненный цикл
 
 	@Override
@@ -642,7 +790,7 @@ public final class CatalogScreen extends class_437 {
 	}
 
 	private void refreshInstalledIndex() {
-		InstalledModsIndex index = InstalledModsIndex.load(modsDir());
+		InstalledModsIndex index = InstalledModsIndex.load(contentDir());
 		Map<String, String> files = new LinkedHashMap<>();
 		Map<String, String> versions = new HashMap<>();
 
@@ -669,7 +817,7 @@ public final class CatalogScreen extends class_437 {
 		Set<String> disabled = new HashSet<>();
 
 		for (Map.Entry<String, String> e : files.entrySet()) {
-			if (LocalMods.state(modsDir(), e.getValue()) == LocalMods.State.DISABLED) {
+			if (LocalMods.state(contentDir(), e.getValue()) == LocalMods.State.DISABLED) {
 				disabled.add(e.getKey());
 			}
 		}
@@ -681,7 +829,7 @@ public final class CatalogScreen extends class_437 {
 	private void refreshLocalMods() {
 		Map<String, LocalMods.Mod> m = new HashMap<>();
 
-		for (LocalMods.Mod mod : LocalMods.scan(modsDir())) {
+		for (LocalMods.Mod mod : LocalMods.scan(contentDir())) {
 			m.put(mod.fileName, mod);
 		}
 
@@ -702,29 +850,29 @@ public final class CatalogScreen extends class_437 {
 		this.loadingMore = false;
 		boolean defaults = this.sortKey == null && this.categoryFilter.isEmpty();
 		boolean popular = q.isEmpty() && defaults;
-		List<ModrinthProject> saved = popular ? this.cache.list("popular", -1) : null;
+		List<ModrinthProject> saved = popular ? this.cache.list(popularKey(), -1) : null;
 		boolean hadSaved = saved != null && !saved.isEmpty();
 
 		if (hadSaved) {
 			this.catalogRows = saved;
-			this.catalogTotal = this.cache.listTotal("popular");
+			this.catalogTotal = this.cache.listTotal(popularKey());
 			this.scrollTarget = 0;
 			this.scroll = 0;
 			this.listEpoch++;
 		}
 
-		if (hadSaved && this.cache.list("popular", POPULAR_FRESH_MS) != null) {
+		if (hadSaved && this.cache.list(popularKey(), POPULAR_FRESH_MS) != null) {
 			this.loading = false;
-			setStatus(Lang.tr("Популярные моды для ") + this.gameVersion, C_GRAY);
+			setStatus(popularLabel() + this.gameVersion, C_GRAY);
 			return;
 		}
 
 		this.loading = true;
-		setStatus(popular ? Lang.tr("Популярные моды для ") + this.gameVersion : q.isEmpty() ? Lang.tr("Применяю фильтры") : Lang.tr("Ищу «") + q + "»", C_GRAY);
+		setStatus(popular ? popularLabel() + this.gameVersion : q.isEmpty() ? Lang.tr("Применяю фильтры") : Lang.tr("Ищу «") + q + "»", C_GRAY);
 
 		WORKER.submit(() -> {
 			try {
-				ModrinthClient.SearchPage page = ModrinthClient.searchPage(q, LOADER, this.gameVersion, 0, PAGE_SIZE, this.sortKey, new ArrayList<>(this.categoryFilter));
+				ModrinthClient.SearchPage page = ModrinthClient.searchPage(this.content.projectType, q, this.content.searchLoaders, this.gameVersion, 0, PAGE_SIZE, this.sortKey, new ArrayList<>(this.categoryFilter));
 
 				if (token == this.requestToken) {
 					this.catalogRows = page.hits;
@@ -732,11 +880,11 @@ public final class CatalogScreen extends class_437 {
 					this.scrollTarget = 0;
 					this.scroll = 0;
 					this.listEpoch++;
-					setStatus(page.hits.isEmpty() ? Lang.tr("Ничего не найдено под ") + this.gameVersion : (popular ? Lang.tr("Популярные моды для ") + this.gameVersion : Lang.tr("Найдено: ") + page.totalHits), page.hits.isEmpty() ? C_RED : C_GRAY);
+					setStatus(page.hits.isEmpty() ? Lang.tr("Ничего не найдено под ") + this.gameVersion : (popular ? popularLabel() + this.gameVersion : Lang.tr("Найдено: ") + page.totalHits), page.hits.isEmpty() ? C_RED : C_GRAY);
 				}
 
 				if (popular) {
-					this.cache.putList("popular", page.hits, page.totalHits);
+					this.cache.putList(popularKey(), page.hits, page.totalHits);
 				} else {
 					this.cache.putProjects(page.hits);
 				}
@@ -770,7 +918,7 @@ public final class CatalogScreen extends class_437 {
 
 		WORKER.submit(() -> {
 			try {
-				ModrinthClient.SearchPage page = ModrinthClient.searchPage(q, LOADER, this.gameVersion, offset, PAGE_SIZE, this.sortKey, new ArrayList<>(this.categoryFilter));
+				ModrinthClient.SearchPage page = ModrinthClient.searchPage(this.content.projectType, q, this.content.searchLoaders, this.gameVersion, offset, PAGE_SIZE, this.sortKey, new ArrayList<>(this.categoryFilter));
 				this.cache.putProjects(page.hits);
 
 				if (token == this.requestToken && this.catalogRows.size() == offset) {
@@ -810,7 +958,7 @@ public final class CatalogScreen extends class_437 {
 
 				// моды, которые лежат в mods, но поставлены не через каталог, опознаются по SHA-1 и получают свои карточки
 				try {
-					LocalMods.identify(modsDir(), InstalledModsIndex.load(modsDir()));
+					LocalMods.identify(contentDir(), InstalledModsIndex.load(contentDir()));
 				} catch (Exception e) {
 					Log.warn(LogCategory.MODRINTH, "Не удалось опознать моды по хешам", e);
 				}
@@ -879,7 +1027,7 @@ public final class CatalogScreen extends class_437 {
 		this.checkingUpdates = true;
 
 		try {
-			Map<String, ModrinthVersion> up = ModUpdates.check(modsDir(), InstalledModsIndex.load(modsDir()), LOADER, this.gameVersion);
+			Map<String, ModrinthVersion> up = ModUpdates.check(contentDir(), InstalledModsIndex.load(contentDir()), this.content.loaders, this.gameVersion);
 			this.updates = up;
 
 			if (!up.isEmpty()) {
@@ -896,7 +1044,7 @@ public final class CatalogScreen extends class_437 {
 	private ModrinthProject fallbackProject(String id) {
 		String file = this.installedFiles.getOrDefault(id, id);
 		LocalMods.Mod local = this.localMods.get(file);
-		String title = local != null && local.name != null ? local.name : file.endsWith(".jar") ? file.substring(0, file.length() - 4) : file;
+		String title = local != null && local.name != null ? local.name : file.endsWith(".jar") || file.endsWith(".zip") ? file.substring(0, file.length() - 4) : file;
 		String description = local != null && local.description != null ? local.description : "";
 
 		return new ModrinthProject(id, null, title, description, null, 0, 0, null, null, Collections.emptyList(), null, null, 0);
@@ -918,7 +1066,7 @@ public final class CatalogScreen extends class_437 {
 		} else {
 			this.requestToken++; // отменяем незавершённую загрузку списка установленных
 			this.loading = false;
-			setStatus(this.catalogRows.isEmpty() ? "" : Lang.tr("Популярные моды для ") + this.gameVersion, C_GRAY);
+			setStatus(this.catalogRows.isEmpty() ? "" : popularLabel() + this.gameVersion, C_GRAY);
 
 			if (this.catalogRows.isEmpty()) {
 				search(this.query.trim());
@@ -950,7 +1098,7 @@ public final class CatalogScreen extends class_437 {
 	}
 
 	private void queue(ChangeQueue.Kind kind, ModrinthProject p, ModrinthVersion v, String message, int color) {
-		ChangeQueue.put(new ChangeQueue.Change(kind, p, v));
+		ChangeQueue.put(new ChangeQueue.Change(kind, p, v, this.content));
 		setStatus(message, color);
 	}
 
@@ -1027,7 +1175,18 @@ public final class CatalogScreen extends class_437 {
 
 	private void runApply(List<ChangeQueue.Change> todo) {
 		Path mods = modsDir();
-		byte[] indexBackup = InstalledModsIndex.snapshot(mods);
+		// реестры всех папок, которые трогает очередь: при откате возвращаются все
+		Map<Path, byte[]> indexBackup = new HashMap<>();
+
+		for (ChangeQueue.Content ct : CONTENTS) {
+			indexBackup.put(dirOf(ct), InstalledModsIndex.snapshot(dirOf(ct)));
+		}
+
+		boolean restart = ChangeQueue.dirty();
+
+		for (ChangeQueue.Change c : todo) {
+			restart |= c.content.needsRestart();
+		}
 		List<Path> added = new ArrayList<>(); // файлы, которых раньше не было: при откате удаляются
 		Map<String, ModUpdates.Staged> staged = new HashMap<>();
 		List<ChangeQueue.Change> ready = new ArrayList<>(); // изменения, которые удалось подготовить
@@ -1074,8 +1233,13 @@ public final class CatalogScreen extends class_437 {
 			}
 
 			// 2. Предпроверка: настоящий разрешитель зависимостей лоадера на том наборе, который получится после применения
-			setStatus(Lang.tr("Проверяю совместимость"), C_GRAY);
-			ModResolutionException problem = Preflight.check(plannedJars(ready, staged));
+			// (только моды: шейдеры и ресурспаки на запуск не влияют)
+			ModResolutionException problem = null;
+
+			if (restart) {
+				setStatus(Lang.tr("Проверяю совместимость"), C_GRAY);
+				problem = Preflight.check(plannedJars(ready, staged));
+			}
 
 			if (problem != null) {
 				Log.warn(LogCategory.MODRINTH, "Предпроверка набора модов не прошла: %s", problem.getMessage());
@@ -1120,6 +1284,15 @@ public final class CatalogScreen extends class_437 {
 			this.updates = up;
 
 			this.applyMessage = failed == 0 ? Lang.tr("Изменения применены: ") + done : Lang.tr("Применено ") + done + Lang.tr(", с ошибкой ") + failed;
+
+			if (!restart) {
+				// только шейдеры и ресурспаки: перезапуск не нужен, файлы уже на месте
+				ChangeQueue.end();
+				setStatus(failed > 0 ? Lang.tr("С ошибкой: ") + failed + " — " + lastError : packsDoneMessage(ready), failed == 0 ? C_OK : C_WARN);
+
+				return;
+			}
+
 			setStatus(failed == 0 ? Lang.tr("Готовлю клиент") : Lang.tr("С ошибкой: ") + failed + " — " + lastError, failed == 0 ? C_GRAY : C_WARN);
 			Handoff.requestPrepare(); // сначала запрос (состояние становится PREPARING), потом признак — иначе кадр увидит старое состояние
 			ChangeQueue.filesDone();
@@ -1131,9 +1304,56 @@ public final class CatalogScreen extends class_437 {
 		}
 	}
 
+	/** Что сказать игроку, когда применились только шейдеры и ресурспаки: где их включить. */
+	private String packsDoneMessage(List<ChangeQueue.Change> ready) {
+		boolean shaders = false;
+		boolean packs = false;
+
+		for (ChangeQueue.Change c : ready) {
+			if (c.kind == ChangeQueue.Kind.INSTALL || c.kind == ChangeQueue.Kind.VERSION) {
+				shaders |= c.content == ChangeQueue.Content.SHADERS;
+				packs |= c.content == ChangeQueue.Content.RESOURCEPACKS;
+			}
+		}
+
+		if (shaders && packs) {
+			return Lang.tr("Готово — включи их в настройках: «Ресурспаки» и «Шейдеры» (Iris)");
+		} else if (shaders) {
+			return Lang.tr("Готово — включи шейдер в настройках: Видео → Шейдеры (Iris)");
+		} else if (packs) {
+			return Lang.tr("Готово — включи пак в настройках: «Ресурспаки»");
+		}
+
+		return Lang.tr("Готово");
+	}
+
 	/** Скачивает файлы для установки или смены версии; старые файлы остаются на месте до фиксации. */
 	private void stageChange(ChangeQueue.Change c, Map<String, ModUpdates.Staged> staged, List<Path> added, ModInstaller.Progress progress) throws Exception {
 		ModrinthProject p = c.project;
+
+		if (!c.content.needsRestart()) {
+			// шейдер или ресурспак: один файл, без зависимостей и без предпроверки
+			Path dir = dirOf(c.content);
+
+			if (c.version != null) {
+				ModUpdates.Staged st = ModUpdates.stage(dir, c.version, c.content.loaders, this.gameVersion, progress);
+				staged.put(p.id, st);
+				added.addAll(st.result.installedFiles);
+			} else {
+				List<ModrinthVersion> versions = ModrinthClient.getProjectVersions(p.id, c.content.loaders, this.gameVersion);
+
+				if (versions.isEmpty()) {
+					throw new IOException(Lang.tr("нет версии под ") + this.gameVersion);
+				}
+
+				added.addAll(ModInstaller.install(dir, Collections.singletonList(versions.get(0)), progress).installedFiles);
+			}
+
+			this.cache.putProjects(Collections.singletonList(p));
+			this.cache.save();
+
+			return;
+		}
 
 		if (c.version != null) {
 			ModUpdates.Staged st = ModUpdates.stage(modsDir(), c.version, LOADER, this.gameVersion, progress);
@@ -1160,7 +1380,11 @@ public final class CatalogScreen extends class_437 {
 		List<Path> jars = new ArrayList<>();
 
 		for (ChangeQueue.Change c : ready) {
-			String file = this.installedFiles.get(c.project.id);
+			if (!c.content.needsRestart()) {
+				continue; // шейдеры и ресурспаки на набор модов не влияют
+			}
+
+			String file = fileOf(c);
 
 			switch (c.kind) {
 			case REMOVE:
@@ -1211,8 +1435,8 @@ public final class CatalogScreen extends class_437 {
 		return jars;
 	}
 
-	/** Откат до проверки: скачанное удаляется, реестр возвращается — установленное не пострадало. */
-	private void rollback(List<Path> added, Path mods, byte[] indexBackup) {
+	/** Откат до проверки: скачанное удаляется, реестры возвращаются — установленное не пострадало. */
+	private void rollback(List<Path> added, Path mods, Map<Path, byte[]> indexBackup) {
 		for (Path f : added) {
 			try {
 				Files.deleteIfExists(f);
@@ -1221,34 +1445,38 @@ public final class CatalogScreen extends class_437 {
 			}
 		}
 
-		InstalledModsIndex.restore(mods, indexBackup);
+		for (Map.Entry<Path, byte[]> e : indexBackup.entrySet()) {
+			InstalledModsIndex.restore(e.getKey(), e.getValue());
+		}
+
 		refreshInstalledIndex();
 	}
 
 	private void commitChange(ChangeQueue.Change c, ModUpdates.Staged st) throws Exception {
-		String file = this.installedFiles.get(c.project.id);
+		String file = fileOf(c);
+		Path dir = dirOf(c.content);
 
 		switch (c.kind) {
 		case REMOVE:
-			removeMod(c.project, file);
+			removeMod(dir, c.project, file);
 			break;
 		case DISABLE:
 			if (file == null) {
 				throw new IOException(Lang.tr("файл мода не найден"));
 			}
 
-			LocalMods.disable(modsDir(), file);
+			LocalMods.disable(dir, file);
 			break;
 		case ENABLE:
 			if (file == null) {
 				throw new IOException(Lang.tr("файл мода не найден"));
 			}
 
-			LocalMods.enable(modsDir(), file);
+			LocalMods.enable(dir, file);
 			break;
 		case VERSION:
 			if (st != null) {
-				ModUpdates.finish(modsDir(), st);
+				ModUpdates.finish(dir, st);
 			}
 
 			break;
@@ -1312,21 +1540,21 @@ public final class CatalogScreen extends class_437 {
 		return String.join("\n", out);
 	}
 
-	private void removeMod(ModrinthProject p, String fileName) throws IOException {
+	private void removeMod(Path dir, ModrinthProject p, String fileName) throws IOException {
 		if (fileName == null) {
 			throw new IOException(Lang.tr("файл мода не найден"));
 		}
 
 		for (String name : new String[] {fileName, fileName + LocalMods.DISABLED_SUFFIX}) {
 			try {
-				Files.deleteIfExists(modsDir().resolve(name));
+				Files.deleteIfExists(dir.resolve(name));
 			} catch (IOException e) {
-				// Windows не даёт удалить jar, который игра сейчас держит открытым — он исчезнет при запуске новой копии
-				PendingRemovals.schedule(modsDir(), name);
+				// Windows не даёт удалить файл, который игра сейчас держит открытым — он исчезнет при следующем запуске
+				PendingRemovals.schedule(dir, name);
 			}
 		}
 
-		InstalledModsIndex index = InstalledModsIndex.load(modsDir());
+		InstalledModsIndex index = InstalledModsIndex.load(dir);
 		index.remove(p.id);
 		index.save();
 	}
@@ -1676,6 +1904,17 @@ public final class CatalogScreen extends class_437 {
 				}
 
 				switchTab(t);
+				return true;
+			}
+		}
+
+		for (int i = 0; i < CONTENTS.length; i++) {
+			if (inside(mx, my, contentX(i), TABS_Y - 1, contentW(i), BTN_H)) {
+				if (CONTENTS[i] != this.content) {
+					playClick();
+				}
+
+				switchContent(CONTENTS[i]);
 				return true;
 			}
 		}
@@ -2208,6 +2447,18 @@ public final class CatalogScreen extends class_437 {
 			text(ctx, label, tabX(t) + (tabWidth(t) - textWidth(label)) / 2, TABS_Y + 4, color);
 		}
 
+		// вид содержимого: моды / шейдеры / ресурспаки
+		for (int i = 0; i < CONTENTS.length; i++) {
+			boolean selected = CONTENTS[i] == this.content;
+			int cx = contentX(i);
+			int cw = contentW(i);
+			int cy = TABS_Y - 1;
+			boolean hv = inside(mx, my, cx, cy, cw, BTN_H) && this.popup == null;
+			int textColor = selected ? C_ACCENT_TEXT : C_TEXT;
+			button(ctx, "c:" + i, cx, cy, cw, BTN_H, "", null, false, selected ? C_ACCENT : C_SECONDARY, selected ? C_ACCENT_HOVER : C_SECONDARY_HOVER, hv, textColor);
+			text(ctx, contentLabel(CONTENTS[i]), cx + 8, cy + 5, textColor);
+		}
+
 		int ux = (int) (tabX(Tab.CATALOG) + (tabX(Tab.INSTALLED) - tabX(Tab.CATALOG)) * this.tabPos);
 		int uw = (int) (tabWidth(Tab.CATALOG) + (tabWidth(Tab.INSTALLED) - tabWidth(Tab.CATALOG)) * this.tabPos);
 		ctx.method_25294(ux, TABS_Y + TABS_H - 2, ux + uw, TABS_Y + TABS_H, C_ACCENT);
@@ -2248,8 +2499,12 @@ public final class CatalogScreen extends class_437 {
 			buttons.add(new String[] {"diag", Lang.tr("Диагностика"), "0"});
 		}
 
+		if (irisMissing()) {
+			buttons.add(0, new String[] {"iris", Lang.tr("Нужен Iris — поставить"), "0"});
+		}
+
 		int right = w - PAD;
-		int limit = tabX(Tab.INSTALLED) + tabWidth(Tab.INSTALLED) + 12;
+		int limit = contentX(CONTENTS.length - 1) + contentW(CONTENTS.length - 1) + 12;
 
 		for (String[] b : buttons) {
 			boolean arrow = b[2].equals("1");
@@ -2262,7 +2517,7 @@ public final class CatalogScreen extends class_437 {
 			int bx = right - bw;
 			int by = TABS_Y - 1;
 			boolean hv = inside(mx, my, bx, by, bw, BTN_H) && this.popup == null;
-			boolean accent = b[0].equals("updall") && !this.updates.isEmpty();
+			boolean accent = b[0].equals("updall") && !this.updates.isEmpty() || b[0].equals("iris");
 			int textColor = accent ? C_ACCENT_TEXT : C_TEXT;
 			button(ctx, "h:" + b[0], bx, by, bw, BTN_H, "", null, false, accent ? C_ACCENT : C_SECONDARY, accent ? C_ACCENT_HOVER : C_SECONDARY_HOVER, hv, textColor);
 			text(ctx, b[1], bx + 8, by + 5, textColor);
@@ -2287,7 +2542,9 @@ public final class CatalogScreen extends class_437 {
 				drawSkeleton(ctx);
 				ctx.method_44380();
 			} else {
-				String message = this.tab == Tab.CATALOG ? Lang.tr("Ничего не найдено") : Lang.tr("Здесь появятся моды, установленные через каталог");
+				String message = this.tab == Tab.CATALOG ? Lang.tr("Ничего не найдено") : this.content == ChangeQueue.Content.MODS
+						? Lang.tr("Здесь появятся моды, установленные через каталог") : this.content == ChangeQueue.Content.SHADERS
+						? Lang.tr("Здесь появятся шейдеры из папки shaderpacks") : Lang.tr("Здесь появятся ресурспаки из папки resourcepacks");
 				text(ctx, message, (right - textWidth(message)) / 2, LIST_TOP + (bottom - LIST_TOP) / 2 - 4, C_GRAY);
 			}
 
@@ -3018,6 +3275,9 @@ public final class CatalogScreen extends class_437 {
 		case "rollback":
 			requestRollback();
 			break;
+		case "iris":
+			queueIris();
+			break;
 		case "diag":
 			createDiagnostics();
 			break;
@@ -3077,7 +3337,7 @@ public final class CatalogScreen extends class_437 {
 
 		for (Map.Entry<String, ModrinthVersion> e : this.updates.entrySet()) {
 			ModrinthProject p = this.cache.project(e.getKey());
-			ChangeQueue.put(new ChangeQueue.Change(ChangeQueue.Kind.VERSION, p != null ? p : fallbackProject(e.getKey()), e.getValue()));
+			ChangeQueue.put(new ChangeQueue.Change(ChangeQueue.Kind.VERSION, p != null ? p : fallbackProject(e.getKey()), e.getValue(), this.content));
 			n++;
 		}
 
@@ -3095,7 +3355,7 @@ public final class CatalogScreen extends class_437 {
 
 			QUICK.submit(() -> {
 				try {
-					List<ModrinthVersion> list = ModUpdates.versions(p.id, LOADER, this.gameVersion);
+					List<ModrinthVersion> list = ModUpdates.versions(p.id, this.content.loaders, this.gameVersion);
 
 					if (this.versionListFor.equals(p.id)) {
 						this.versionList = list;
@@ -3122,7 +3382,7 @@ public final class CatalogScreen extends class_437 {
 		case "filter":
 			items.add(new PopupItem("cat:*", Lang.tr("Сбросить категории"), false, C_GRAY));
 
-			for (String c : Fmt.FILTER_CATEGORIES) {
+			for (String c : filterCategories()) {
 				items.add(new PopupItem("cat:" + c, Fmt.categoryLabel(c), this.categoryFilter.contains(c), C_TEXT));
 			}
 

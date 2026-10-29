@@ -244,6 +244,8 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 		DependencyOverrides depOverrides = new DependencyOverrides(configDir);
 
 		PendingRemovals.apply(getModsDirectory0()); // ArgentumLoader: моды, отмеченные на удаление в прошлой сессии
+		PendingRemovals.apply(gameDir.resolve("shaderpacks")); // и шейдеры с ресурспаками, которые держала игра
+		PendingRemovals.apply(gameDir.resolve("resourcepacks"));
 		net.fabricmc.loader.impl.failsafe.LaunchGuard.beforeDiscovery(gameDir, getModsDirectory0()); // ArgentumLoader: откат, цикл падений, окно ошибки
 
 		// discover mods

@@ -6,6 +6,7 @@
   "client": [
     "SplashOverlayMixin",
     "TitleScreenMixin",
+    "PackScreenMixin",
     "WindowMixin",
     "SoundManagerMixin"
   ],

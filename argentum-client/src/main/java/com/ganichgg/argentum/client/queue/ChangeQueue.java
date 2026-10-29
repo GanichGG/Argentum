@@ -24,16 +24,50 @@ import net.fabricmc.loader.impl.modrinth.ModrinthVersion;
 public final class ChangeQueue {
 	public enum Kind { INSTALL, VERSION, REMOVE, DISABLE, ENABLE }
 
+	/** Вид содержимого: куда кладутся файлы и какие загрузчики годятся на Modrinth. */
+	public enum Content {
+		MODS("mod", "mods", "fabric", "fabric"),
+		SHADERS("shader", "shaderpacks", "iris,optifine", "iris,optifine"),
+		RESOURCEPACKS("resourcepack", "resourcepacks", "minecraft", null);
+
+		/** Тип проекта Modrinth. */
+		public final String projectType;
+		/** Папка в папке игры. */
+		public final String folder;
+		/** Загрузчики версий (через запятую). */
+		public final String loaders;
+		/** Отбор поиска по загрузчику или null (у ресурспаков его нет). */
+		public final String searchLoaders;
+
+		Content(String projectType, String folder, String loaders, String searchLoaders) {
+			this.projectType = projectType;
+			this.folder = folder;
+			this.loaders = loaders;
+			this.searchLoaders = searchLoaders;
+		}
+
+		/** Изменения этого вида требуют перезапуска игры (моды); шейдеры и ресурспаки — нет. */
+		public boolean needsRestart() {
+			return this == MODS;
+		}
+	}
+
 	public static final class Change {
 		public final Kind kind;
 		public final ModrinthProject project;
 		/** Конкретная версия (обновление, откат, выбор в списке) или null — подобрать последнюю подходящую. */
 		public final ModrinthVersion version;
+		public final Content content;
 
 		public Change(Kind kind, ModrinthProject project, ModrinthVersion version) {
+			this(kind, project, version, Content.MODS);
+		}
+
+		public Change(Kind kind, ModrinthProject project, ModrinthVersion version, Content content) {
 			this.kind = kind;
 			this.project = project;
 			this.version = version;
+			this.content = content;
 		}
 	}
 

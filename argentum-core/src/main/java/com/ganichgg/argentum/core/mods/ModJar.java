@@ -144,6 +144,11 @@ public final class ModJar {
 
 		for (String line : text.split("\r?\n")) {
 			String t = line.trim();
+			int hash = t.indexOf('#');
+
+			if (t.startsWith("[") && hash > 0) {
+				t = t.substring(0, hash).trim(); // «[[mods]] #mandatory» — как в шаблоне NeoForge
+			}
 
 			if (t.startsWith("[")) {
 				if (inMods && id != null) {

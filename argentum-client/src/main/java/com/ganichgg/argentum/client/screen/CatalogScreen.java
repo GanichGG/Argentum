@@ -39,6 +39,7 @@ import com.ganichgg.argentum.client.ui.PixelIcons;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.impl.discovery.ModResolutionException;
 import net.fabricmc.loader.impl.failsafe.FailSafe;
+import net.fabricmc.loader.impl.failsafe.ModSnapshots;
 import net.fabricmc.loader.impl.discovery.Preflight;
 import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.i18n.Lang;
@@ -222,6 +223,8 @@ public final class CatalogScreen extends class_437 {
 	// только для разработки: сценарий, который сам листает экран по таймеру (для скриншотов без ввода)
 	private boolean devTimeline;
 	private String initialStatus;
+	/** Дата набора, к которому можно вернуться («Вернуть как было»), или null — откатываться некуда. */
+	private volatile String rollbackDate;
 	private boolean devFake;
 	private boolean devLeaveDone;
 	private int devStep2;
@@ -556,6 +559,14 @@ public final class CatalogScreen extends class_437 {
 				}
 			});
 
+			String rolled = ModSnapshots.takeResult(FabricLoader.getInstance().getGameDir());
+
+			if (rolled != null) {
+				this.tab = Tab.INSTALLED;
+				this.tabPos = 1F;
+				this.initialStatus = String.format(Lang.tr("Вернулся набор модов от %s"), rolled.split("\\|")[0]);
+			}
+
 			if (this.tab == Tab.INSTALLED) {
 				loadInstalled();
 
@@ -792,6 +803,9 @@ public final class CatalogScreen extends class_437 {
 
 		WORKER.submit(() -> {
 			try {
+				ModSnapshots.Snapshot rb = ModSnapshots.rollbackTarget(FabricLoader.getInstance().getGameDir(), modsDir());
+				this.rollbackDate = rb == null ? null : rb.date();
+
 				refreshLocalMods();
 
 				// моды, которые лежат в mods, но поставлены не через каталог, опознаются по SHA-1 и получают свои карточки
@@ -2224,6 +2238,11 @@ public final class CatalogScreen extends class_437 {
 			buttons.add(new String[] {"diag", Lang.tr("Диагностика"), "0"});
 		} else {
 			buttons.add(new String[] {"import", Lang.tr("Импорт сборки"), "0"});
+
+			if (this.rollbackDate != null) {
+				buttons.add(new String[] {"rollback", ModSnapshots.rollbackRequested(FabricLoader.getInstance().getGameDir()) ? Lang.tr("Откат: примени изменения") : Lang.tr("Вернуть как было"), "0"});
+			}
+
 			buttons.add(new String[] {"updall", this.updates.isEmpty() ? (this.checkingUpdates ? Lang.tr("Проверяю...") : Lang.tr("Проверить обновления")) : Lang.tr("Обновить всё (") + this.updates.size() + ")", "0"});
 			buttons.add(new String[] {"instfilter", Lang.tr(INSTALLED_FILTERS[this.installedFilter]), "1"});
 			buttons.add(new String[] {"diag", Lang.tr("Диагностика"), "0"});
@@ -2996,11 +3015,31 @@ public final class CatalogScreen extends class_437 {
 		case "import":
 			pickAndImport();
 			break;
+		case "rollback":
+			requestRollback();
+			break;
 		case "diag":
 			createDiagnostics();
 			break;
 		default:
 			break;
+		}
+	}
+
+	/** «Вернуть как было»: набор модов с прошлого удачного запуска вернётся при применении изменений (перезапуске). */
+	private void requestRollback() {
+		String date = this.rollbackDate;
+
+		if (date == null) {
+			return;
+		}
+
+		try {
+			ModSnapshots.requestRollback(FabricLoader.getInstance().getGameDir());
+			ChangeQueue.markDirty(); // файлы поменяет сам запуск — остаётся только перезапуск
+			setStatus(String.format(Lang.tr("Вернётся набор модов от %s — нажми «Применить изменения»"), date), C_ACCENT);
+		} catch (java.io.IOException e) {
+			setStatus(Lang.tr("Не удалось запланировать откат: ") + e.getMessage(), C_RED);
 		}
 	}
 

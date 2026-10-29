@@ -552,6 +552,7 @@ public final class Handoff {
 		GLFW.glfwShowWindow(handle);
 		GLFW.glfwFocusWindow(handle);
 		adopted = true; // с этого момента это основная игра: звук включается, полный экран разрешён
+		System.setProperty("argentum.handoff.adopted", "true"); // для загрузчика: теперь падения этой копии показываются игроку
 
 		if (fullscreen) {
 			if (!window.method_4498()) {

@@ -221,5 +221,10 @@
  "Диагностика": "Diagnostics",
  "Собираю диагностику": "Collecting diagnostics",
  "Диагностика сохранена: ": "Diagnostics saved: ",
- "Не удалось собрать диагностику": "Could not collect diagnostics"
+ "Не удалось собрать диагностику": "Could not collect diagnostics",
+ "Вернулся набор модов от %s": "The mod set from %s is back",
+ "Откат: примени изменения": "Rollback: apply changes",
+ "Вернуть как было": "Undo to last working",
+ "Вернётся набор модов от %s — нажми «Применить изменения»": "The mod set from %s will be restored — press \"Apply changes\"",
+ "Не удалось запланировать откат: ": "Could not schedule the rollback: "
 }

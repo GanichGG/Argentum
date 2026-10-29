@@ -62,7 +62,7 @@ public class ModJarTest {
 
 	@Test
 	public void forgeIsModsTomlWithoutNeoForge() throws Exception {
-		ModJar m = ModJar.read(jar("jei-forge.jar", "META-INF/mods.toml", "[[mods]]\nmodId=\"jei\"\nversion=\"19.0\"\n"));
+		ModJar m = ModJar.read(jar("jei-forge.jar", "META-INF/mods.toml", "[[mods]] #mandatory\nmodId=\"jei\" #mandatory\nversion=\"19.0\"\n"));
 		Assertions.assertEquals(ModJar.Kind.FORGE, m.kind);
 		Assertions.assertEquals("jei", m.mods.get(0).id);
 	}

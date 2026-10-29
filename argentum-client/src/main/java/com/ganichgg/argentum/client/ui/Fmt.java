@@ -15,8 +15,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import net.fabricmc.loader.impl.i18n.Lang;
-import net.fabricmc.loader.impl.modrinth.ModrinthProject;
+import com.ganichgg.argentum.core.i18n.Lang;
+import com.ganichgg.argentum.core.modrinth.ModrinthProject;
 
 /** Форматирование чисел, времени и тегов для карточек. */
 public final class Fmt {

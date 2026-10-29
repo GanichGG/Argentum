@@ -32,12 +32,12 @@ import java.util.stream.Collectors;
 
 import org.sat4j.specs.ContradictionException;
 import org.sat4j.specs.TimeoutException;
+import com.ganichgg.argentum.core.i18n.Lang;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.metadata.ModDependency;
 import net.fabricmc.loader.api.metadata.ModDependency.Kind;
 import net.fabricmc.loader.impl.discovery.ModSolver.InactiveReason;
-import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.metadata.ModDependencyImpl;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;

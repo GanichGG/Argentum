@@ -19,9 +19,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.ganichgg.argentum.client.queue.ChangeQueue;
 import com.ganichgg.argentum.client.screen.CatalogScreen;
+import com.ganichgg.argentum.core.i18n.Lang;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.impl.i18n.Lang;
 
 import net.minecraft.class_2561;
 import net.minecraft.class_4185;

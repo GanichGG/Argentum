@@ -1,0 +1,81 @@
+// Argentum 3.0 — гибридное ядро для NeoForge 1.21.1 (этап 1 из docs/hybrid-core/DESIGN.md).
+// Это «плагин загрузки» NeoForge: jar лежит в папке mods и объявляет сервисы поиска модов, NeoForge подхватывает его
+// раньше обычных модов. Argentum Core вкладывается внутрь.
+
+apply plugin: 'java'
+apply plugin: 'checkstyle'
+
+repositories {
+	maven {
+		name = 'NeoForged'
+		url = 'https://maven.neoforged.net/releases'
+	}
+	mavenCentral()
+}
+
+configurations {
+	bundle
+	implementation.extendsFrom bundle
+}
+
+dependencies {
+	bundle project(':argentum-core')
+
+	// FancyModLoader (NeoForge 21.1.x) и то, что видно в его интерфейсах поиска модов. Если эти библиотеки уже скачаны
+	// Prism Launcher (на машине разработчика), берём их оттуда — так сборка не зависит от доступности репозитория NeoForge.
+	def prismLibs = new File(System.getenv('APPDATA') ?: '', 'PrismLauncher/libraries')
+	def local = { String path -> new File(prismLibs, path) }
+	def fml = local('net/neoforged/fancymodloader/loader/4.0.44/loader-4.0.44.jar')
+	def sjh = local('cpw/mods/securejarhandler/3.0.8/securejarhandler-3.0.8.jar')
+	def ml = local('cpw/mods/modlauncher/11.0.5/modlauncher-11.0.5.jar')
+
+	if (fml.isFile() && sjh.isFile() && ml.isFile()) {
+		compileOnly files(fml, sjh, ml)
+	} else {
+		compileOnly('net.neoforged.fancymodloader:loader:4.0.44') { transitive = false }
+		compileOnly('cpw.mods:securejarhandler:3.0.8') { transitive = false }
+		compileOnly('cpw.mods:modlauncher:11.0.5') { transitive = false }
+	}
+
+	compileOnly 'org.slf4j:slf4j-api:1.8.0-beta4'
+
+	testImplementation('org.junit.jupiter:junit-jupiter:5.9.2')
+	testRuntimeOnly('org.junit.platform:junit-platform-launcher')
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.encoding = 'UTF-8'
+	it.options.release = 21
+}
+
+def coreDisplay = rootProject.ext.has('argentumDisplay') ? rootProject.ext.argentumDisplay : 'dev'
+
+jar {
+	archiveBaseName = 'argentum-neoforge'
+	archiveVersion = coreDisplay
+
+	// Argentum Core внутри (зависимость явно: иначе в jar попадёт устаревшая сборка ядра)
+	dependsOn configurations.bundle
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	from {
+		configurations.bundle.collect { it.isDirectory() ? it : zipTree(it) }
+	}
+
+	manifest {
+		attributes(
+				'Implementation-Title': 'Argentum 3.0 (NeoForge)',
+				'Implementation-Version': coreDisplay,
+				'Automatic-Module-Name': 'com.ganichgg.argentum.neoforge'
+		)
+	}
+}
+
+test {
+	useJUnitPlatform()
+}

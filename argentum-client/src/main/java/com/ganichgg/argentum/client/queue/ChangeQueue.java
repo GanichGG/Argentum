@@ -13,8 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.fabricmc.loader.impl.modrinth.ModrinthProject;
-import net.fabricmc.loader.impl.modrinth.ModrinthVersion;
+import com.ganichgg.argentum.core.modrinth.ModrinthProject;
+import com.ganichgg.argentum.core.modrinth.ModrinthVersion;
 
 /**
  * Очередь изменений модов, которую игрок набирает в каталоге: ничего не скачивается и не удаляется, пока он не нажмёт

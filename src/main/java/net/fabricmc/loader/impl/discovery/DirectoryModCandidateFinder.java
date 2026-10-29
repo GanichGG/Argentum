@@ -25,8 +25,9 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.EnumSet;
 
-import net.fabricmc.loader.impl.hotload.PendingRemovals;
-import net.fabricmc.loader.impl.i18n.Lang;
+import com.ganichgg.argentum.core.files.PendingRemovals;
+import com.ganichgg.argentum.core.i18n.Lang;
+
 import net.fabricmc.loader.impl.util.LoaderUtil;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;

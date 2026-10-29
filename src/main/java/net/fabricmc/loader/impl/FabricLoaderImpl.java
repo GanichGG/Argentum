@@ -40,6 +40,8 @@ import java.util.stream.Collectors;
 
 import org.jetbrains.annotations.VisibleForTesting;
 import org.objectweb.asm.Opcodes;
+import com.ganichgg.argentum.core.i18n.Lang;
+import com.ganichgg.argentum.core.files.PendingRemovals;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.classtweaker.api.ClassTweaker;
@@ -60,9 +62,7 @@ import net.fabricmc.loader.impl.discovery.RuntimeModRemapper;
 import net.fabricmc.loader.impl.entrypoint.EntrypointStorage;
 import net.fabricmc.loader.impl.game.GameProvider;
 import net.fabricmc.loader.impl.failsafe.FailSafe;
-import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.profile.StartupProfile;
-import net.fabricmc.loader.impl.hotload.PendingRemovals;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.loader.impl.launch.MappingConfiguration;
 import net.fabricmc.loader.impl.launch.knot.Knot;
@@ -110,7 +110,9 @@ public final class FabricLoaderImpl extends net.fabricmc.loader.FabricLoader {
 	private Path gameDir;
 	private Path configDir;
 
-	private FabricLoaderImpl() { }
+	private FabricLoaderImpl() {
+		net.fabricmc.loader.impl.argentum.CoreBridge.install(); // ArgentumLoader: на случай запуска не через Knot
+	}
 
 	/**
 	 * Freeze the FabricLoader, preventing additional mods from being loaded.

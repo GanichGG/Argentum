@@ -16,19 +16,19 @@ All Rights Reserved covers every file in this repository that is not listed in
 
   argentum-client/                 (except the bundled font, see "Not covered")
   installer/
-  src/main/java/net/fabricmc/loader/impl/modrinth/
+  argentum-core/                   (except argentum-core/src/main/java/com/ganichgg/argentum/core/json/,
+                                    a copy of the Gson JSON reader under the Apache License 2.0)
+  argentum-neoforge/
+  src/main/java/net/fabricmc/loader/impl/argentum/
   src/main/java/net/fabricmc/loader/impl/hotload/
   src/main/java/net/fabricmc/loader/impl/failsafe/
   src/main/java/net/fabricmc/loader/impl/profile/
-  src/main/java/net/fabricmc/loader/impl/i18n/Lang.java
   src/main/java/net/fabricmc/loader/impl/ArgentumVersion.java
   src/main/java/net/fabricmc/loader/impl/discovery/HotModDiscovery.java
   src/main/java/net/fabricmc/loader/impl/discovery/Preflight.java
   src/main/resources/argentum/
   src/test/java/net/fabricmc/test/modrinth/
   src/test/java/net/fabricmc/loader/impl/ArgentumVersionTest.java
-  src/test/java/net/fabricmc/loader/impl/i18n/
-  src/test/java/net/fabricmc/loader/impl/modrinth/
   src/test/java/net/fabricmc/loader/impl/profile/
   src/test/java/net/fabricmc/loader/impl/failsafe/
   .github/ISSUE_TEMPLATE/, .github/PULL_REQUEST_TEMPLATE.md, .github/dependabot.yml

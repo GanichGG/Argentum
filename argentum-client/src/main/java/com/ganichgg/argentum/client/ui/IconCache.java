@@ -30,11 +30,11 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
 import com.ganichgg.argentum.client.ui.webp.WebP;
+import com.ganichgg.argentum.core.i18n.Lang;
+import com.ganichgg.argentum.core.modrinth.ModrinthCache;
+import com.ganichgg.argentum.core.modrinth.ModrinthNet;
+import com.ganichgg.argentum.core.modrinth.ModrinthProject;
 
-import net.fabricmc.loader.impl.i18n.Lang;
-import net.fabricmc.loader.impl.modrinth.ModrinthCache;
-import net.fabricmc.loader.impl.modrinth.ModrinthNet;
-import net.fabricmc.loader.impl.modrinth.ModrinthProject;
 import net.minecraft.class_1011;
 import net.minecraft.class_1043;
 import net.minecraft.class_2960;

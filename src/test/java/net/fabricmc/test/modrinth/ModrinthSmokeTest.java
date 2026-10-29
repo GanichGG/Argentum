@@ -12,13 +12,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-import net.fabricmc.loader.impl.modrinth.DependencyResolver;
-import net.fabricmc.loader.impl.modrinth.InstalledModsIndex;
-import net.fabricmc.loader.impl.modrinth.ModInstaller;
-import net.fabricmc.loader.impl.modrinth.ModrinthApiException;
-import net.fabricmc.loader.impl.modrinth.ModrinthProject;
-import net.fabricmc.loader.impl.modrinth.ModrinthVersion;
-import net.fabricmc.loader.impl.modrinth.ModrinthClient;
+import com.ganichgg.argentum.core.modrinth.DependencyResolver;
+import com.ganichgg.argentum.core.modrinth.InstalledModsIndex;
+import com.ganichgg.argentum.core.modrinth.ModInstaller;
+import com.ganichgg.argentum.core.modrinth.ModrinthApiException;
+import com.ganichgg.argentum.core.modrinth.ModrinthProject;
+import com.ganichgg.argentum.core.modrinth.ModrinthVersion;
+import com.ganichgg.argentum.core.modrinth.ModrinthClient;
 
 /**
  * Ручной прогон движка автоустановки модов с Modrinth — пока нет экрана в игре.

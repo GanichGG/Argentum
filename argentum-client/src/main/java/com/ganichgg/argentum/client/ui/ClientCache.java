@@ -8,8 +8,9 @@
 
 package com.ganichgg.argentum.client.ui;
 
+import com.ganichgg.argentum.core.modrinth.ModrinthCache;
+
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.impl.modrinth.ModrinthCache;
 
 /** Один общий дисковый кэш Modrinth на игру: {@code <папка игры>/.argentum/cache}. */
 public final class ClientCache {

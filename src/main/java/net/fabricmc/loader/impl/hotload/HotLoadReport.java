@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import net.fabricmc.loader.impl.i18n.Lang;
+import com.ganichgg.argentum.core.i18n.Lang;
 
 /** Итог попытки загрузить моды на лету: по каждому моду — что получилось и почему, по-русски. */
 public final class HotLoadReport {

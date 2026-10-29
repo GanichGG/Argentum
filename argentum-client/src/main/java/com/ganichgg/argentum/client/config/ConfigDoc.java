@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import net.fabricmc.loader.impl.i18n.Lang;
+import com.ganichgg.argentum.core.i18n.Lang;
 
 /**
  * Файл настроек мода как плоский список записей «ключ — значение» для встроенного редактора.

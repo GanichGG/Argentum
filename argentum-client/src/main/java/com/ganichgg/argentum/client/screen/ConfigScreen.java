@@ -18,10 +18,11 @@ import java.util.Map;
 
 import com.ganichgg.argentum.client.config.ConfigDoc;
 import com.ganichgg.argentum.client.ui.ModConfigs;
+import com.ganichgg.argentum.core.i18n.Lang;
 
-import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
+
 import net.minecraft.class_1109;
 import net.minecraft.class_2561;
 import net.minecraft.class_332;

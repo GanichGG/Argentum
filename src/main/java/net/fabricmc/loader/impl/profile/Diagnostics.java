@@ -22,13 +22,14 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import com.ganichgg.argentum.core.i18n.Lang;
+import com.ganichgg.argentum.core.files.PendingRemovals;
+
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.metadata.ModMetadata;
 import net.fabricmc.loader.impl.ArgentumVersion;
 import net.fabricmc.loader.impl.failsafe.FailSafe;
-import net.fabricmc.loader.impl.i18n.Lang;
-import net.fabricmc.loader.impl.hotload.PendingRemovals;
 
 /**
  * Пакет диагностики для сообщений об ошибках: версии, список модов, профиль запуска, хвост журнала и последний отчёт о падении.
@@ -87,17 +88,17 @@ public final class Diagnostics {
 	private static String modSets(Path gameDir) {
 		StringBuilder sb = new StringBuilder();
 		Path mods = gameDir.resolve("mods");
-		List<net.fabricmc.loader.impl.failsafe.ModSnapshots.Snapshot> snaps = net.fabricmc.loader.impl.failsafe.ModSnapshots.list(gameDir);
+		List<com.ganichgg.argentum.core.snapshot.ModSnapshots.Snapshot> snaps = com.ganichgg.argentum.core.snapshot.ModSnapshots.list(gameDir);
 
 		if (snaps.isEmpty()) {
 			return "No working mod sets saved yet.\n";
 		}
 
-		for (net.fabricmc.loader.impl.failsafe.ModSnapshots.Snapshot s : snaps) {
+		for (com.ganichgg.argentum.core.snapshot.ModSnapshots.Snapshot s : snaps) {
 			sb.append("Working set ").append(s.date()).append(": ").append(s.entries.size()).append(" files\n");
 		}
 
-		net.fabricmc.loader.impl.failsafe.ModSnapshots.Diff d = net.fabricmc.loader.impl.failsafe.ModSnapshots.diff(snaps.get(0), mods);
+		com.ganichgg.argentum.core.snapshot.ModSnapshots.Diff d = com.ganichgg.argentum.core.snapshot.ModSnapshots.diff(snaps.get(0), mods);
 		sb.append("\nChanges since the last working set:\n");
 		sb.append("  added: ").append(d.added).append('\n');
 		sb.append("  changed: ").append(d.changed).append('\n');

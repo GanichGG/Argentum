@@ -18,6 +18,8 @@ if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
 	throw new UnsupportedOperationException("ArgentumLoader requires Java 21+ to build.")
 }
 
+include "argentum-core"
+include "argentum-neoforge"
 include "minecraft"
 include "junit"
 include "minecraft:minecraft-test"

@@ -142,6 +142,11 @@ public final class CrashDiagnoser {
 		return text.substring(i + "Description:".length(), end < 0 ? text.length() : end).trim();
 	}
 
+	/** Вероятные виновники по тексту отчёта (самый вероятный первым, не больше трёх). */
+	public static List<Suspect> analyzeReport(String text, Path modsDir) {
+		return analyze(text, modsDir);
+	}
+
 	/** Разбор текста отчёта против установленных (включённых) модов. */
 	static List<Suspect> analyze(String text, Path modsDir) {
 		List<LocalMods.Mod> mods = new ArrayList<>();
@@ -180,6 +185,29 @@ public final class CrashDiagnoser {
 
 		for (LocalMods.Mod m : mods) {
 			prefixes.put(m.id, packagePrefixes(modsDir, m));
+		}
+
+		// 3а) первопричина: код мода там, где ошибка на самом деле возникла, весит больше всего остального стека
+		net.fabricmc.loader.impl.failsafe.CrashAnalysis analysis = net.fabricmc.loader.impl.failsafe.CrashAnalysis.analyze(text, null);
+		List<String> rootFrames = analysis.rootFrames();
+
+		for (int i = 0; i < Math.min(10, rootFrames.size()); i++) {
+			String frame = rootFrames.get(i);
+			Matcher handler = net.fabricmc.loader.impl.failsafe.CrashAnalysis.MIXIN_HANDLER.matcher(frame);
+
+			if (handler.find()) {
+				add(score, why, handler.group(1), i < 3 ? 12 : 6, Lang.tr("его вставка в код игры там, где возникла ошибка"));
+				continue;
+			}
+
+			String path = frame.replace('.', '/');
+
+			for (Map.Entry<String, Set<String>> e : prefixes.entrySet()) {
+				if (e.getValue().stream().anyMatch(path::startsWith)) {
+					add(score, why, e.getKey(), i < 3 ? 12 : 6, Lang.tr("ошибка возникла в его коде"));
+					break;
+				}
+			}
 		}
 
 		Matcher fr = FRAME.matcher(text);

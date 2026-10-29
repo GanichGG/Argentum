@@ -14,6 +14,7 @@ CYR = re.compile('[Ѐ-ӿ]')
 TR = re.compile(r'Lang\.tr\(\s*"((?:[^"\\]|\\.)*)"')
 
 SOURCES = [
+    ('argentum-core/src/main/java', 'argentum-core/src/main/resources/argentum/lang-core'),
     ('src/main/java', 'src/main/resources/argentum/lang'),
     ('minecraft/src/main/java', 'src/main/resources/argentum/lang'),
     ('argentum-client/src/main/java', 'argentum-client/src/main/resources/argentum/lang'),

@@ -28,10 +28,10 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import com.ganichgg.argentum.core.i18n.Lang;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.impl.discovery.ModCandidateImpl;
-import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 import net.fabricmc.loader.impl.lib.gson.JsonToken;

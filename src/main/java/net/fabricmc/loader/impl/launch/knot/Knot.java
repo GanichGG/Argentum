@@ -36,13 +36,14 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import com.ganichgg.argentum.core.i18n.Lang;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import net.fabricmc.loader.impl.ArgentumVersion;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.FormattedException;
 import net.fabricmc.loader.impl.game.GameProvider;
-import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.loader.impl.profile.StartupProfile;
 import net.fabricmc.loader.impl.launch.FabricMixinBootstrap;
@@ -62,6 +63,7 @@ public final class Knot extends FabricLauncherBase {
 	private boolean unlocked;
 
 	public static void launch(String[] args, EnvType type) {
+		net.fabricmc.loader.impl.argentum.CoreBridge.install(); // ArgentumLoader: общая часть Argentum Core
 		setupUncaughtExceptionHandler();
 
 		try {

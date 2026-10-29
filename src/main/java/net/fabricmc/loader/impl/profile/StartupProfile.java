@@ -21,7 +21,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import net.fabricmc.loader.impl.i18n.Lang;
+import com.ganichgg.argentum.core.i18n.Lang;
+
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
 

@@ -29,6 +29,7 @@ import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.Mixins;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfig;
 import org.spongepowered.asm.mixin.transformer.Config;
+import com.ganichgg.argentum.core.i18n.Lang;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.Version;
@@ -37,7 +38,6 @@ import net.fabricmc.loader.api.metadata.ModDependency.Kind;
 import net.fabricmc.loader.api.metadata.version.VersionInterval;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.ModContainerImpl;
-import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.launch.knot.MixinServiceKnot;
 import net.fabricmc.loader.impl.launch.knot.MixinServiceKnotBootstrap;
 import net.fabricmc.loader.impl.util.log.Log;

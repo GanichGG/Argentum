@@ -1,0 +1,33 @@
+// Argentum Core — общая часть Argentum Legacy и Argentum 3.0, без привязки к загрузчику.
+// Код Java 8: он вкладывается в jar загрузчика Legacy, который работает и на старых версиях Java.
+
+apply plugin: 'java'
+apply plugin: 'checkstyle'
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	testImplementation('org.junit.jupiter:junit-jupiter:5.9.2')
+	testRuntimeOnly('org.junit.platform:junit-platform-launcher')
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_1_8
+	targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.encoding = 'UTF-8'
+	it.options.release = 8
+}
+
+test {
+	useJUnitPlatform()
+}
+
+// потоковый JSON-читатель — копия из Gson (Apache-2.0), чужой стиль кода не правим
+checkstyleMain {
+	exclude '**/core/json/**'
+}

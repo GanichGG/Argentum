@@ -18,11 +18,12 @@ package net.fabricmc.loader.impl.game.minecraft;
 
 import java.io.File;
 
+import com.ganichgg.argentum.core.i18n.Lang;
+
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
-import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.profile.StartupProfile;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;

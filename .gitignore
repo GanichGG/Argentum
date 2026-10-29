@@ -8,6 +8,7 @@
 !/docs
 !/installer
 !/argentum-client
+!/argentum-core
 !/tools
 
 # Files
@@ -34,3 +35,7 @@
 
 # MacOS junk files
 .DS_Store
+
+# Argentum Core: результаты сборки
+/argentum-core/build/
+/argentum-core/.gradle/

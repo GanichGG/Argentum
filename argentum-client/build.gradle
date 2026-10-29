@@ -135,6 +135,7 @@ dependencies {
 		builtBy 'prepareMinecraft'
 	}
 	compileOnly files(loaderClasses)
+	compileOnly files(findProperty('core_classes') ?: "${rootDir}/../argentum-core/build/classes/java/main") // Argentum Core
 }
 
 processResources {

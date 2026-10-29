@@ -26,10 +26,12 @@ import java.util.stream.Stream;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.MemoryStack;
 
+import com.ganichgg.argentum.core.i18n.Lang;
+
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
+
 import net.minecraft.class_1041;
 import net.minecraft.class_310;
 

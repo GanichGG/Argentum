@@ -20,9 +20,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.ganichgg.argentum.core.i18n.Lang;
+
 import net.fabricmc.loader.api.Version;
 import net.fabricmc.loader.api.VersionParsingException;
-import net.fabricmc.loader.impl.i18n.Lang;
 import net.fabricmc.loader.impl.util.SystemProperties;
 import net.fabricmc.loader.impl.util.version.VersionParser;
 

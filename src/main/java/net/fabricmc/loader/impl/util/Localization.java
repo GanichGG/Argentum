@@ -25,7 +25,7 @@ import java.util.Locale;
 import java.util.PropertyResourceBundle;
 import java.util.ResourceBundle;
 
-import net.fabricmc.loader.impl.i18n.Lang;
+import com.ganichgg.argentum.core.i18n.Lang;
 
 public final class Localization {
 	// ArgentumLoader: the bundle follows the language of the game (see Lang): Messages_ru is the Russian original, the

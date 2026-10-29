@@ -14,7 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.fabricmc.loader.impl.i18n.Lang;
+import com.ganichgg.argentum.core.i18n.Lang;
 
 /**
  * Крошечный разборщик JSON/JSON5 для редактора настроек: комментарии, одинарные кавычки, ключи без кавычек и запятые

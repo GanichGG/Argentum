@@ -19,7 +19,8 @@ package net.fabricmc.loader.impl.metadata;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.fabricmc.loader.impl.i18n.Lang;
+import com.ganichgg.argentum.core.i18n.Lang;
+
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 
 @SuppressWarnings("serial")

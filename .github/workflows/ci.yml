@@ -30,7 +30,7 @@ jobs:
         run: python tools/check_translations.py
 
       - name: Loader - checkstyle, tests, jar
-        run: ./gradlew :checkstyleMain :checkstyleTest :minecraft:checkstyleMain :test :finalJar --stacktrace
+        run: ./gradlew :argentum-core:checkstyleMain :argentum-core:test :checkstyleMain :checkstyleTest :minecraft:checkstyleMain :test :finalJar --stacktrace
 
       - name: Client mod
         working-directory: argentum-client

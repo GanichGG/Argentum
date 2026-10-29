@@ -123,6 +123,9 @@ dependencies {
 	installer "net.fabricmc:sponge-mixin:${project.mixin_version}"
 	installerLaunchWrapper "net.minecraft:launchwrapper:1.12"
 
+	// ArgentumLoader: общая часть Argentum Core (вкладывается в итоговый jar)
+	implementation project(":argentum-core")
+
 	// impl dependencies
 	include 'org.ow2.sat4j:org.ow2.sat4j.core:2.3.6'
 	include 'org.ow2.sat4j:org.ow2.sat4j.pb:2.3.6'
@@ -197,6 +200,7 @@ tasks.register('fatJar', ShadowJar) {
 	dependsOn getSat4jAbout
 	from sourceSets.main.output
 	from project(":minecraft").sourceSets.main.output
+	from project(":argentum-core").sourceSets.main.output
 	from getSat4jAbout.destinationDir
 
 	inputs.property "archivesName", project.base.archivesName.get()
@@ -361,7 +365,7 @@ allprojects {
 	spotless {
 		java {
 			licenseHeaderFile(rootProject.file("HEADER"))
-			targetExclude '**/lib/gson/*.java', 'src/main/java/net/fabricmc/loader/impl/modrinth/**', 'src/main/java/net/fabricmc/loader/impl/hotload/**', 'src/main/java/net/fabricmc/loader/impl/failsafe/**', 'src/main/java/net/fabricmc/loader/impl/profile/**', 'src/main/java/net/fabricmc/loader/impl/ArgentumVersion.java', 'src/main/java/net/fabricmc/loader/impl/discovery/HotModDiscovery.java', 'src/main/java/net/fabricmc/loader/impl/discovery/Preflight.java', 'src/main/java/net/fabricmc/loader/impl/i18n/Lang.java', 'src/test/java/net/fabricmc/test/modrinth/**', 'src/test/java/net/fabricmc/loader/impl/ArgentumVersionTest.java', 'src/test/java/net/fabricmc/loader/impl/i18n/**', 'src/test/java/net/fabricmc/loader/impl/modrinth/**', 'src/test/java/net/fabricmc/loader/impl/profile/**', 'src/test/java/net/fabricmc/loader/impl/failsafe/**'
+			targetExclude '**/lib/gson/*.java', 'src/main/java/net/fabricmc/loader/impl/modrinth/**', 'src/main/java/net/fabricmc/loader/impl/hotload/**', 'src/main/java/net/fabricmc/loader/impl/failsafe/**', 'src/main/java/net/fabricmc/loader/impl/profile/**', 'src/main/java/net/fabricmc/loader/impl/ArgentumVersion.java', 'src/main/java/net/fabricmc/loader/impl/discovery/HotModDiscovery.java', 'src/main/java/net/fabricmc/loader/impl/discovery/Preflight.java', 'src/main/java/net/fabricmc/loader/impl/i18n/Lang.java', 'src/test/java/net/fabricmc/test/modrinth/**', 'src/test/java/net/fabricmc/loader/impl/ArgentumVersionTest.java', 'src/test/java/net/fabricmc/loader/impl/i18n/**', 'src/test/java/net/fabricmc/loader/impl/modrinth/**', 'src/test/java/net/fabricmc/loader/impl/profile/**', 'src/test/java/net/fabricmc/loader/impl/failsafe/**', 'src/main/java/net/fabricmc/loader/impl/argentum/**', '**/com/ganichgg/**'
 		}
 	}
 }

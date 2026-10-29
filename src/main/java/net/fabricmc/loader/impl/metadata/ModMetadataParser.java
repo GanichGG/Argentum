@@ -24,7 +24,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import net.fabricmc.loader.impl.i18n.Lang;
+import com.ganichgg.argentum.core.i18n.Lang;
+
 import net.fabricmc.loader.impl.lib.gson.JsonReader;
 import net.fabricmc.loader.impl.lib.gson.JsonToken;
 import net.fabricmc.loader.impl.util.log.Log;

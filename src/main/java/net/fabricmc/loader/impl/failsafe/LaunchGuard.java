@@ -24,13 +24,18 @@ import java.util.List;
 import java.util.Properties;
 import java.util.stream.Stream;
 
+import com.ganichgg.argentum.core.snapshot.ModSnapshots;
+import com.ganichgg.argentum.core.crash.ArgentumWindow;
+import com.ganichgg.argentum.core.crash.CrashExplainer;
+import com.ganichgg.argentum.core.crash.CrashAnalysis;
+import com.ganichgg.argentum.core.files.PendingRemovals;
+import com.ganichgg.argentum.core.i18n.Lang;
+import com.ganichgg.argentum.core.modrinth.CrashDiagnoser;
+
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.impl.ArgentumVersion;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
-import net.fabricmc.loader.impl.hotload.PendingRemovals;
-import net.fabricmc.loader.impl.i18n.Lang;
-import net.fabricmc.loader.impl.modrinth.CrashDiagnoser;
 import net.fabricmc.loader.impl.profile.Diagnostics;
 import net.fabricmc.loader.impl.util.SystemProperties;
 import net.fabricmc.loader.impl.util.UrlUtil;

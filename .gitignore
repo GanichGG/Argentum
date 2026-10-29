@@ -9,6 +9,7 @@
 !/installer
 !/argentum-client
 !/argentum-core
+!/argentum-neoforge
 !/tools
 
 # Files
@@ -39,3 +40,4 @@
 # Argentum Core: результаты сборки
 /argentum-core/build/
 /argentum-core/.gradle/
+/argentum-neoforge/build/

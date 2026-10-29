@@ -19,6 +19,7 @@ if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
 }
 
 include "argentum-core"
+include "argentum-neoforge"
 include "minecraft"
 include "junit"
 include "minecraft:minecraft-test"

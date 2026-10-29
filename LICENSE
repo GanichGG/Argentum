@@ -18,6 +18,7 @@ All Rights Reserved covers every file in this repository that is not listed in
   installer/
   argentum-core/                   (except argentum-core/src/main/java/com/ganichgg/argentum/core/json/,
                                     a copy of the Gson JSON reader under the Apache License 2.0)
+  argentum-neoforge/
   src/main/java/net/fabricmc/loader/impl/argentum/
   src/main/java/net/fabricmc/loader/impl/hotload/
   src/main/java/net/fabricmc/loader/impl/failsafe/

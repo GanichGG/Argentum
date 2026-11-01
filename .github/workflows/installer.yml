@@ -18,16 +18,16 @@ jobs:
   installer:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: graalvm/setup-graalvm@v1
         with:
           java-version: '21'
           distribution: graalvm-community
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.gradle/argentum-minecraft
           key: argentum-minecraft-${{ hashFiles('argentum-client/gradle.properties') }}
@@ -37,7 +37,7 @@ jobs:
       - name: Installer
         shell: bash
         run: ./gradlew :installer:nativeCompile --stacktrace
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ArgentumAnchor
           path: installer/build/native/nativeCompile/ArgentumAnchor.exe
